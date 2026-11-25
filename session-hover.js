@@ -8,7 +8,20 @@ function drawChartHover(name) {
   const ctx=canvas.getContext('2d');ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(layer.image,0,0);ctx.setTransform(dpr,0,0,dpr,0,0);
   if(hoverFraction===null||hoverFraction<viewStart||hoverFraction>viewEnd)return;
   const x=bounds.left+(hoverFraction-viewStart)/(viewEnd-viewStart)*(rect.width-bounds.left-bounds.right);
-  ctx.strokeStyle=theme.crosshair;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,bounds.top);ctx.lineTo(x,rect.height-bounds.bottom);ctx.stroke();
+  // A crisp, clearly visible line (snapped to the pixel grid), with the lap distance in a chip where it meets the axis.
+  // In the stacked input card the rows above the axis row carry the line edge to edge, so it reads as one line through the card.
+  const stacked=canvas.dataset.axis==='hidden',inStack=canvas.dataset.axis!==undefined;
+  const lineX=Math.round(x)+.5,axisY=rect.height-bounds.bottom;
+  ctx.strokeStyle=theme.crosshair;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(lineX,inStack?0:bounds.top);ctx.lineTo(lineX,stacked?rect.height:axisY);ctx.stroke();
+  const metres=typeof referenceDistance==='function'?hoverFraction*referenceDistance():NaN;
+  if(!stacked&&Number.isFinite(metres)&&metres>0){
+    const label=metres>=1000?`${(metres/1000).toFixed(2)} km`:`${Math.round(metres)} m`;
+    ctx.font=canvasFont(10,500);const w=ctx.measureText(label).width+10,h=16;
+    const left=Math.max(bounds.left,Math.min(rect.width-bounds.right-w,lineX-w/2)),top=axisY+3;
+    ctx.fillStyle=theme.textStrong;ctx.beginPath();
+    if(typeof ctx.roundRect==='function')ctx.roundRect(left,top,w,h,4);else ctx.rect(left,top,w,h);ctx.fill();
+    ctx.fillStyle=lightThemeActive()?'#ffffff':'#121213';ctx.textAlign='center';ctx.fillText(label,left+w/2,top+11.5);ctx.textAlign='left';
+  }
   for(const {lap,index}of visibleEntries){
     const entry=traceEntries.find(item=>item.index===index),stepped=['Brake application','Gear','DRS'].includes(name);
     const value=entry?renderedTraceValue(entry.domainPoints,hoverFraction,stepped):null;
@@ -56,7 +69,7 @@ function bindAllChartHover() {
       const unit = currentDef ? currentDef[1] : '';
       
       const refSamples = telemetryCache.get(telemetryKey(loaded[0]));
-      const maxDistance = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
+      const maxDistance = refSamples?.length ? referenceDistance() : 5891;
       const distanceKM = (fraction * maxDistance) / 1000;
       
       let hasReconstructedValue = false;
@@ -72,11 +85,13 @@ function bindAllChartHover() {
         if(['Speed trace','Throttle application','Timing delta'].includes(hoveredChartName))noteSourceGap(lap,series);
         let val = null;
         const targetDist = fraction * maxDistance;
-        if (hoveredChartName === 'Timing delta' && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
+        if (hoveredChartName === 'Timing delta' && !window.ApexTelemetryFrame?.partial() && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
           val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
             ? displayDeltaAt(series, refSamples, fraction)
             : deltaAt(series, refSamples, targetDist));
-        } else if ((hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
+        } else if (hoveredChartName === 'Timing delta') {
+          val = null;
+        } else if ((series?.alignmentMethod === 'live-distance' || hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
             && typeof smoothedTelemetryValue === 'function') {
           val = typeof traceTelemetryValue === 'function'
             ? traceTelemetryValue(series, fraction, field)
@@ -98,9 +113,10 @@ function bindAllChartHover() {
               && isReconstructedTelemetry(series, fraction, field);
             if (reconstructed) hasReconstructedValue = true;
             if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
+            // Speed and throttle are interpolated between whole-number samples: one decimal, not three.
             const precision = (hoveredChartName === 'Speed trace'
               || hoveredChartName === 'Throttle application')
-              ? val.toFixed(3)
+              ? val.toFixed(1)
               : Math.round(val);
             display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
           }
@@ -109,10 +125,10 @@ function bindAllChartHover() {
       });
       
       const reconstructionNote = hasReconstructedValue
-        ? `<br><small>~ ${hasLowConfidenceValue ? 'LOW-CONFIDENCE GAP ESTIMATE' : 'ESTIMATED REPAIR'}</small>`
+        ? `<br><small>~ ${hasLowConfidenceValue ? 'Low-confidence gap estimate' : 'Estimated repair'}</small>`
         : '';
-      const sourceGapNote=sourceGapNotes.size?`<br><small>SOURCE GAP · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
-      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
+      const sourceGapNote=sourceGapNotes.size?`<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
+      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} km</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
       tooltip.style.display = 'block';
       
       if (document.body.classList.contains('trace-focus')) {
@@ -203,14 +219,14 @@ function bindTrackMapHover() {
         const comparable = segmentRows.length >= 2 && segmentRows.every(row => Number.isFinite(row.sectionTime) && row.sectionTime > 0);
         const bestTime = comparable ? Math.min(...segmentRows.map(row => row.sectionTime)) : null;
         const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
-          const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} KM/H` : '—';
+          const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} km/h` : '—';
           const timeDisplay = Number.isFinite(sectionTime) && sectionTime > 0
-            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · NOT COMPARED' : Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
-            : 'NO SECTION TIME';
+            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · not compared' : Math.abs(sectionTime - bestTime) < .0005 ? ' · fastest' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
+            : 'no section time';
           return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
         });
 
-        tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM · ${((segmentEnd-segmentStart)*totalDistance).toFixed(1)} M SECTION</b><br>${lines.join('<br>')}`;
+        tooltip.innerHTML = `<b>Track map · ${distanceKM.toFixed(3)} km · ${((segmentEnd-segmentStart)*totalDistance).toFixed(1)} m section</b><br>${lines.join('<br>')}`;
         tooltip.style.display = 'block';
 
         const parentRect = telemetryCard.getBoundingClientRect();
@@ -239,6 +255,10 @@ function bindTrackMapHover() {
 }
 
 async function drawAll() {
+  if (window.ApexTelemetryFrame) {
+    paintReadyTelemetry();
+    return;
+  }
   const generation = ++drawGeneration;
   const requestedLaps = [...loaded];
   const failures = [];
@@ -274,7 +294,7 @@ async function drawAll() {
 function paintReadyTelemetry() {
   // Always describe the current reference, not whichever request finished first.
   sessionSectorGuide = loaded[0]?.sectorGuide || null;
-  if (typeof prepareTelemetryAlignment === 'function') {
+  if (typeof prepareTelemetryAlignment === 'function' && !window.ApexTelemetryFrame?.partial()) {
     prepareTelemetryAlignment();
   }
   const season = Number($('#year').value);

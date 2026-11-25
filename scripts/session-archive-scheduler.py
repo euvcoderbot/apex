@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import server
+from start_archive import START_SESSIONS, capture_start
 
 spec = importlib.util.spec_from_file_location('apex_mirror', ROOT / 'scripts' / 'mirror-openf1.py')
 mirror = importlib.util.module_from_spec(spec)
@@ -31,6 +32,25 @@ COMPUTE_STATE = 'local-compute-state.json'
 # session starts until 30 minutes after it ends, so this leaves ten minutes of margin. Sessions that were missed (the PC was
 # off) or not ready yet are picked up by the next session's check, which looks back three days; nothing repeats on a timer.
 CHECK_DELAY = timedelta(minutes=40)
+# Catch-up: a finished session of this season older than the three-day window that has no published capture (the PC was off
+# for longer, or the session type was added later) is prepared too, oldest first, a few per run so one run stays short.
+CATCH_UP_PER_RUN = 3
+
+
+def captured_sessions(root=None):
+    """(year, gp, session) of every published session capture (local captures and prerendered)."""
+    from urllib.parse import parse_qs, urlsplit
+    found = set()
+    for folder in ('local-captures', 'prerendered'):
+        try:
+            index = json.loads((Path(root or ROOT) / 'assets' / 'data' / folder / 'index.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        for key in index.get('entries', {}):
+            if key.startswith('/api/session?'):
+                query = parse_qs(urlsplit(key).query)
+                found.add((query.get('year', [''])[0], query.get('gp', [''])[0], query.get('session', [''])[0]))
+    return found
 
 
 def parse_date(value):
@@ -135,8 +155,12 @@ def revisions():
 
 
 def sync_prepared():
-    """Stage prepared snapshots in the current Site checkout; never publish."""
-    target = Path(os.environ.get('APEX_SITE_CHECKOUT') or ROOT.parent / 'site-claude-latest-release').resolve()
+    """Stage prepared snapshots in a separate Site checkout, when one is configured; never publish.
+    Data now reaches the Site through publish_prepared (R2); this only serves a Site still built from a checkout."""
+    configured = os.environ.get('APEX_SITE_CHECKOUT')
+    target = Path(configured or ROOT.parent / 'site-claude-latest-release').resolve()
+    if not configured and not target.exists():
+        return
     if target == ROOT.resolve():
         raise ValueError('Prepared-data source and Site checkout must differ')
     try:
@@ -154,6 +178,24 @@ def sync_prepared():
                    cwd=target, check=True, stdout=sys.stdout, stderr=sys.stderr,
                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     print(f'Staged prepared sessions in {target}. Publication is still separate.', flush=True)
+
+
+def publish_prepared(node=None, env=None, flags=None):
+    """Publish prepared data to the live Site's R2 (scripts/publish-data.mjs), when this PC holds the signing key.
+    Uploads only what the Site lacks; a failure is logged and the next run publishes again."""
+    key = Path(os.environ.get('APEX_PUBLISH_KEY') or Path.home() / 'apex-data' / 'publish-key.json')
+    if not key.is_file():
+        print('No publishing key on this PC; prepared data stays local.', flush=True)
+        return False
+    node = node or shutil.which('node.exe') or shutil.which('node')
+    try:
+        subprocess.run([node, str(ROOT / 'scripts' / 'publish-data.mjs')], cwd=ROOT, env=env or os.environ.copy(), check=True,
+                       stdout=sys.stdout, stderr=sys.stderr, creationflags=flags if flags is not None else getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        print('Published prepared data to the live Site.', flush=True)
+        return True
+    except (subprocess.CalledProcessError, OSError) as error:
+        print(f'Publishing failed ({error}); the next run publishes again.', flush=True)
+        return False
 
 
 def prepare_session(session, final):
@@ -174,6 +216,14 @@ def prepare_session(session, final):
     subprocess.run([sys.executable, str(ROOT / 'scripts' / 'export-local-session.py'),
                     '--year', str(year), '--gp', event['name'], '--round', str(event['round']), '--session', name],
                    cwd=ROOT, env=env, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=flags)
+    profile_error = None
+    if name == 'Qualifying':
+        try:
+            subprocess.run([node, str(ROOT / 'scripts' / 'build-track-profiles.mjs'), str(year), '--gp', event['name']],
+                           cwd=ROOT, env=env, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=flags)
+        except subprocess.CalledProcessError as error:
+            profile_error = error
+            print(f'Track profile build failed ({error.returncode}); the next session retries it.', flush=True)
     try:
         if name in {'Qualifying', 'Race'}:
             command = [node, str(ROOT / 'scripts' / 'precompute-local.mjs'), '--year', str(year),
@@ -181,9 +231,21 @@ def prepare_session(session, final):
             command += ['--race'] if name == 'Race' else ['--qualifying-only']
             subprocess.run(command, cwd=ROOT, env=env, check=True, stdout=sys.stdout, stderr=sys.stderr, creationflags=flags)
     finally:
+        # Season hub snapshot (standings, results, stats) for this year, so the published Season pages follow each
+        # weekend instead of waiting for a manual `npm run snapshot:season`. Compute's Python API runs on :8000.
+        if name in {'Qualifying', 'Sprint', 'Race'}:
+            try:
+                subprocess.run([node, str(ROOT / 'scripts' / 'snapshot-season.mjs'), str(year)], cwd=ROOT,
+                               env={**env, 'APEX_LOCAL_API_PORT': '8000'}, check=True, stdout=sys.stdout, stderr=sys.stderr,
+                               creationflags=flags)
+            except subprocess.CalledProcessError as error:
+                print(f'Season snapshot failed ({error.returncode}); the next session retries it.', flush=True)
         # Export has succeeded: even if derived results are partial, stage the
         # validated captures and let the failed preparation remain retryable.
         sync_prepared()
+        publish_prepared(node, env, flags)
+    if profile_error:
+        raise profile_error
     print(f'Prepared {event["name"]} {name} ({"settled" if final else "provisional"}); local only.', flush=True)
     from urllib.parse import urlencode
     key='/api/session?'+urlencode(sorted({'year':year,'gp':event['name'],'round':event['round'],'session':name}.items()))
@@ -198,14 +260,29 @@ def run_due(sessions, now):
         print('Another archive job is running; leaving it alone.', flush=True)
         return None
     failures = []
-    for session in sessions:
+    captured, calendars, caught_up = None, {}, 0
+    for session in sorted(sessions, key=lambda item: str(item.get('date_end') or '')):
         end = parse_date(session.get('date_end'))
         key = session.get('session_key')
         if key is None or end is None or session.get('is_cancelled') or session.get('session_name') not in WANTED:
             continue
         age = now - end
-        if age < CHECK_DELAY or age > timedelta(days=3):
+        if age < CHECK_DELAY:
             continue
+        if age > timedelta(days=3):
+            if caught_up >= CATCH_UP_PER_RUN:
+                continue
+            year = int(session.get('year') or now.year)
+            try:
+                captured = captured_sessions() if captured is None else captured
+                calendar = calendars.setdefault(year, server.event_calendar(year))
+                event, name = event_for_session(session, calendar)
+            except Exception:
+                continue
+            if (str(year), event['name'], name) in captured:
+                continue
+            caught_up += 1
+            print(f"Session {key}: {event['name']} {name} has no published capture; catching up.", flush=True)
         state = mirror.load_state()
         try:
             if not finished(session):
@@ -235,6 +312,30 @@ def run_due(sessions, now):
         except Exception as error:
             failures.append({'session_key': key, 'session': session.get('session_name'), 'error': str(error)})
             print(f"Session {key}: failed, will retry: {error}", flush=True)
+    failures.extend(capture_due_starts(sessions, now, calendars))
+    return failures
+
+
+def capture_due_starts(sessions, now, calendars):
+    """Retry launches independently, even when the native session was already published."""
+    failures = []
+    data = ROOT / 'assets/data'
+    for session in sessions:
+        end = parse_date(session.get('date_end'))
+        name = session.get('session_name')
+        if (name not in START_SESSIONS or session.get('session_key') is None or session.get('is_cancelled')
+                or end is None or now - end < CHECK_DELAY):
+            continue
+        try:
+            year = int(session['year'])
+            if year not in calendars:
+                calendars[year] = server.event_calendar(year)
+            event, _ = event_for_session(session, calendars[year])
+            if capture_start(session, event, data, server.openf1):
+                print(f'Recorded {event["name"]} {name} launches.', flush=True)
+        except Exception as error:
+            failures.append({'session_key': session['session_key'], 'session': name, 'error': f'Starts: {error}'})
+            print(f'Session {session["session_key"]}: starts unavailable, will retry: {error}', flush=True)
     return failures
 
 
@@ -258,8 +359,9 @@ def main():
         if failures is None:
             return  # Busy is not a successful health check; retain the owner's report.
         # Reconcile work prepared before this scheduler update, or after an
-        # interrupted sync. A failure must be visible to Task Scheduler.
+        # interrupted sync or publish. A failure must be visible to Task Scheduler.
         sync_prepared()
+        publish_prepared()
         health = {'checked_at': now.isoformat(), 'failures': failures}
         from capture_storage import atomic_bytes
         atomic_bytes(server.RAW_ROOT / 'pipeline-health.json', json.dumps(health).encode())

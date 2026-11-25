@@ -11,7 +11,7 @@
     }
     destination.append(node);
   };
-  function commands() {
+  function commands(query = '') {
     return [
       {label: 'Session analysis', detail: 'Compare laps and telemetry', action: () => document.querySelector('[data-analysis-view="session"]')?.click()},
       {label: 'Car performance', detail: 'Explore team and driver measurements', action: () => document.querySelector('[data-analysis-view="performance"]')?.click()},
@@ -19,12 +19,14 @@
       {label: 'Change appearance', detail: 'Switch light / dark', action: () => document.getElementById('themeToggle')?.click()},
       {label: 'Toggle explanations', detail: 'Show or hide measurement guidance', action: () => document.getElementById('explanationsToggle')?.click()},
       ...[...document.querySelectorAll('#performanceCategoryList button:not(:disabled)')].map(button => ({label: button.getAttribute('aria-label') || button.textContent.trim(), detail: 'Car performance category', action: () => { document.querySelector('[data-analysis-view="performance"]')?.click(); button.click(); }})),
+      // Season pages, and once typing starts its drivers, teams and circuits (season.js).
+      ...(window.ApexSeasonCommands?.(query) || []),
     ];
   }
   function renderCommands() {
     const query = search.value.toLowerCase().trim();
     results.replaceChildren();
-    for (const command of commands().filter(item => (item.label + ' ' + item.detail).toLowerCase().includes(query))) {
+    for (const command of commands(query).filter(item => (item.label + ' ' + item.detail).toLowerCase().includes(query))) {
       const button = document.createElement('button'); button.type = 'button';
       const label = document.createElement('span'); label.textContent = command.label;
       const detail = document.createElement('small'); detail.textContent = command.detail;
@@ -55,7 +57,8 @@
     // Linear's sidebar: a workspace row with a round search button, 28 px rows, and quiet section headings that fold their section.
     rail.innerHTML = '<div class="linear-workspace-top"><div class="linear-workspace-brand"><img src="assets/f1apex-icon-32.png" alt="" width="18" height="18"><strong>Apex Data</strong></div>'
       + '<button type="button" class="linear-search" aria-haspopup="dialog" aria-label="Search commands" title="Search commands · Ctrl K"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3" stroke-linecap="round"/></svg></button></div>'
-      + section('analysis', 'Analysis', '<div class="linear-navigation"></div>')
+      // The sections (Home, Session analysis, Car performance, Season, Tracks): a plain list, no heading over it.
+      + '<div class="linear-rail-section is-plain" data-section="analysis"><div id="linearSection-analysis" class="linear-section-body"><div class="linear-navigation"></div></div></div>'
       + section('categories', 'Measurements', '<div class="linear-categories"></div>', 'linear-category-heading')
       + section('drivers', 'Drivers', '<div class="linear-drivers"></div>', 'linear-drivers-heading')
       ;

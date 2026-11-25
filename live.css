@@ -14,7 +14,7 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 
 .live-page { display: grid; gap: 14px; width: min(1680px, 100%); margin: 0 auto; padding: 18px clamp(12px, 2.4vw, 28px) 40px; box-sizing: border-box; outline: none; }
 .live-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
-.live-title h1 { margin: 2px 0 2px; font-size: var(--text-title-lg, 26px); font-weight: 650; letter-spacing: -.03em; color: var(--ui-label); }
+.live-title h1 { margin: 2px 0 2px; font-size: var(--text-title-lg, 26px); font-weight: 600; letter-spacing: -.03em; color: var(--ui-label); }
 .live-title p { margin: 0; color: var(--ui-secondary); font-size: var(--text-md, 14px); }
 .live-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .live-chip, .live-badge { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 11px; border-radius: var(--radius-pill); border: 1px solid var(--ui-border); background: var(--ui-well); color: var(--ui-label); font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; }
@@ -22,24 +22,25 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-badge[data-kind="live"] { color: #fff; background: #d70015; border-color: transparent; }
 .live-badge[data-kind="replay"] { color: var(--ui-label); background: color-mix(in srgb, var(--ui-accent, #0a84ff) 22%, transparent); }
 
-.live-flag { padding: 9px 14px; border-radius: var(--radius-lg); font-weight: 650; letter-spacing: .02em; color: #1c1c1e; background: #ffd60a; text-align: center; }
+.live-flag { padding: 9px 14px; border-radius: var(--radius-lg); font-weight: 600; letter-spacing: .02em; color: #1c1c1e; background: #ffd60a; text-align: center; }
 .live-flag[data-flag="red"] { background: #ff3b30; color: #fff; }
 .live-flag[data-flag="sc"], .live-flag[data-flag="vsc"] { background: #ff9f0a; }
 
 .live-source { padding: 12px 14px; }
 .live-source-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
 .live-source-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.live-group-label { margin-right: 4px; color: var(--ui-tertiary); font-size: var(--text-xs, 12px); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 .live-auth { margin-inline: 4px; }
 .live-from { white-space: nowrap; }
+.live-replay[hidden] { display: none; }
+.live-replay { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--ui-border); }
 .live-source label { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-secondary); font-size: var(--text-sm, 13px); }
 .live-source select, .live-source input { min-height: 30px; padding: 3px 10px; border: 1px solid var(--ui-border-strong, var(--ui-border)); border-radius: var(--radius-pill); background: var(--ui-control); color: var(--ui-label); font: inherit; font-size: var(--text-sm, 13px); max-width: 100%; }
 .live-source select[data-live="replay"] { max-width: min(340px, 70vw); }
 .live-source input { width: 64px; }
 .live-button { min-height: 30px; padding: 4px 14px; border: 1px solid var(--ui-border); border-radius: var(--radius-pill); background: var(--ui-control); color: var(--ui-label); font-weight: 500; cursor: pointer; }
 .live-button:hover { background: var(--ui-control-hover, var(--ui-control)); }
-.live-primary { background: #d70015; border-color: transparent; color: #fff; }
-.live-primary:hover { background: #ff3b30; }
+.live-primary { background: var(--ui-action); border-color: transparent; color: #fff; }
+.live-primary:hover { background: color-mix(in srgb, var(--ui-action) 90%, black); }
 .live-auth { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); white-space: nowrap; }
 .live-help { margin: 10px 0 0; color: var(--ui-secondary); font-size: var(--text-sm, 13px); }
 .live-help code { padding: 1px 6px; border-radius: var(--radius-sm); background: var(--ui-well); color: var(--ui-label); user-select: all; }
@@ -57,6 +58,13 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-card-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
 .live-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .live-compare .live-card-head { align-items: center; flex-wrap: wrap; }
+.live-lap-history { min-width: 0; margin-block: 8px 14px; border-block-start: 1px solid var(--ui-border); }
+.live-lap-history > summary { padding-block: 8px; cursor: pointer; color: var(--ui-label); }
+.live-lap-history > .live-chart-actions { margin-bottom: 8px; }
+.live-comparison-tray { margin-block: 8px; padding-block: 6px; }
+.live-make-reference { background: transparent; color: var(--ui-secondary); border: 0; cursor: pointer; font: inherit; }
+.live-chart-driver[aria-disabled="true"] { opacity: .6; }
+.live-telemetry-card .live-chart-drivers { margin-bottom: 10px; }
 .live-side .live-card-head + .live-weather { margin-bottom: 14px; }
 
 .live-table-wrap { overflow-x: auto; }
@@ -76,12 +84,19 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-driver i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .live-driver small { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
 .live-gap { color: var(--ui-secondary); }
+.live-table .live-best-time {
+  min-height: 28px; padding: 0 6px; border: 0; border-radius: var(--radius-xs);
+  background: var(--ui-control); color: var(--ui-label); font: inherit; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.live-table .live-best-time:hover:not([aria-disabled="true"]) { background: var(--ui-control-hover); }
+.live-table .live-best-time[aria-disabled="true"] { cursor: default; }
+.live-table .live-best-time:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 1px; }
 .live-time.is-personal { color: #30d158; }
 .live-time.is-overall { color: #bf5af2; font-weight: 600; }
 :root[data-theme="light"] .live-time.is-personal { color: #248a3d; }
 :root[data-theme="light"] .live-time.is-overall { color: #8944ab; }
 .live-tyre-group { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
-.live-tyre b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--tyre); font-size: 10px; font-weight: 700; color: var(--ui-label); box-sizing: border-box; }
+.live-tyre b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--tyre); font-size: 10px; font-weight: 600; color: var(--ui-label); box-sizing: border-box; }
 .live-tyre span { color: var(--ui-secondary); }
 .live-pit { color: var(--ui-secondary); font-size: var(--text-xs, 12px); }
 .live-pit.is-active { color: #ff9f0a; font-weight: 600; }
@@ -135,11 +150,8 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-table td { vertical-align: middle; }
 /* Telemetry panels, as the main site's chart cards: a caption row, then the canvas. */
 .live-charts { display: grid; gap: 6px; }
-.live-chart { margin: 0; padding: 8px 4px 2px; border-radius: var(--radius-md); background: var(--ui-well); }
-.live-chart figcaption { display: flex; align-items: baseline; gap: 8px; padding: 0 8px 2px; }
-.live-chart figcaption strong { color: var(--ui-label); font-size: var(--text-sm, 13px); font-weight: 600; }
-.live-chart figcaption small { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
-.live-chart canvas { display: block; width: 100%; cursor: crosshair; touch-action: pan-y; }
+.live-telemetry-frame:not([hidden]) { display: block; width: 100%; min-width: 0; border: 0; }
+.live-telemetry-frame[data-expanded] { position: fixed; inset: 0; width: 100%; height: 100dvh !important; z-index: 1000; }
 /* Compare laps: the chosen laps as chips (team colour, driver, lap, time, gap to the reference), then "+ Add lap". */
 .live-lap-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
 .live-lap-chips .live-empty { padding: 6px 0; margin: 0; text-align: left; }
@@ -178,7 +190,7 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-picker-lap:disabled { opacity: .45; cursor: default; }
 .live-picker-rule { height: 1px; margin: 4px 2px; background: var(--ui-border); }
 @media (max-width: 640px) {
-  .live-source-group { width: 100%; }
+  .live-connect { width: 100%; }
   .live-card-actions { width: 100%; }
 }
 /* The app's dropdowns are full-width by default; in the source bar they size to their content. */

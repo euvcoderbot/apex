@@ -1,0 +1,173 @@
+{
+ "year": 2021,
+ "fetched": "2026-11-16",
+ "circuits": [
+  {
+   "event": "Abu Dhabi Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Abu%20Dhabi%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Austrian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Austrian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Azerbaijan Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Azerbaijan%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Bahrain Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Bahrain%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Belgian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Belgian%20Grand%20Prix%20-%20Circuit%20Map__0.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Brazilian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Brazilian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "British Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20British%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Dutch Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Dutch%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Emilia Romagna Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Emilia%20Romagna%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "French Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20French%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zone_kind": "drs",
+   "zones": [
+    {
+     "turn": "7",
+     "offset_m": 170
+    },
+    {
+     "turn": "15",
+     "offset_m": 115
+    }
+   ],
+   "centreline_m": 5842,
+   "drs": {
+    "detection": [
+     {
+      "number": 1,
+      "text": "75m Before Turn 7",
+      "turn": "7",
+      "offset_m": -75
+     },
+     {
+      "number": 2,
+      "text": "On Turn 14",
+      "turn": "14",
+      "offset_m": 0
+     }
+    ],
+    "activation": [
+     {
+      "number": 1,
+      "text": "170m After Turn 7",
+      "turn": "7",
+      "offset_m": 170
+     },
+     {
+      "number": 2,
+      "text": "115m After Turn 15",
+      "turn": "15",
+      "offset_m": 115
+     }
+    ]
+   },
+   "venue": "Le Castellet"
+  },
+  {
+   "event": "Hungarian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Hungarian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Italian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Italian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Mexican Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Mexican%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Monaco Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Monaco%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Portuguese Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Portuguese%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Qatar Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Qatar%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Russian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Russian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Saudi Arabia Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Saudi%20Arabian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Spanish Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Spanish%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Styrian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20Styrian%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "United States Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2021%20United%20States%20Grand%20Prix%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  }
+ ]
+}

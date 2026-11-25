@@ -1,12 +1,12 @@
 /* Session analysis: telemetry chart stack (speed trace, delta, inputs). */
 // Chart Constants and Configuration
 const defs = [
-  ['Speed trace', 'KM/H', false],
-  ['Timing delta', 'SECONDS VS REFERENCE', false],
+  ['Speed trace', 'km/h', false],
+  ['Timing delta', 'seconds vs reference', false],
   ['Throttle application', '%', true],
-  ['Brake application', 'ON / OFF', true],
+  ['Brake application', 'on / off', true],
   ['Gear', '0–8', false],
-  ['DRS', 'OPEN / CLOSED', true]
+  ['DRS', 'open / closed', true]
 ];
 
 const chartField = {
@@ -37,11 +37,11 @@ function updateZoomReadout() {
   const panLeft = $('[data-pan="left"]');
   const panRight = $('[data-pan="right"]');
   const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
-  const distance = reference?.length ? reference[reference.length - 1].Distance : 0;
+  const distance = reference?.length ? referenceDistance() : 0;
   const fullLap = traceZoom.start <= 1e-6 && traceZoom.end >= 1 - 1e-6;
   if (readout) {
     readout.textContent = distance
-      ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} KM`
+      ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} km`
       : 'Full lap';
   }
   if (reset) reset.disabled = fullLap;
@@ -215,16 +215,19 @@ function renderTraceVisibilityControls() {
     const disableLast = visible && visibleCount === 1;
     const displayTime=Number.isFinite(lap.real?.display_time)?lap.real.display_time:lap.time;
     const lapLabel=`${lap.real?.display_time_estimated?'~':''}${time(displayTime)}s`;
-    return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
+    // One chart-key pill (as the lap chart's legend): the colour dot opens a colour picker, the rest shows or hides the trace.
+    return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-swatch"${window.apexDriverFaces?.img(realDrivers.get(lap.code)?.name) ? ' data-face' : ''} title="Change ${lap.code} lap ${lap.lap} colour">${(() => { const f = window.apexDriverFaces?.img(realDrivers.get(lap.code)?.name); return f ? f : ''; })()}<input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"></label><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
       <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>
       <b>${lap.code}</b><small>${lapLabel}</small>
-    </label><label class="trace-swatch" title="Change ${lap.code} lap ${lap.lap} colour"><input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"></label></div>`;
+    </label></div>`;
   }).join('');
 
   root.querySelectorAll('input[data-lap-color]').forEach(input => {
     input.addEventListener('change', event => {
       lapColorOverrides.set(event.target.dataset.lapColor, event.target.value);
-      renderLoaded(); renderSectors(); renderTraceVisibilityControls(); drawAll();
+      if ($('#loadedLaps')) renderLoaded();
+      if ($('#sectorRows')) renderSectors();
+      renderTraceVisibilityControls(); drawAll();
     });
   });
   root.querySelectorAll('input[data-trace-key]').forEach(input => {
@@ -264,6 +267,11 @@ function bindSpeedChartControls() {
     window.ApexAnalysis?.savePreference('speed-annotations',showSpeedAnnotations);
     if (loaded.length) drawRealChart('Speed trace');
   });
+  $('#traceTintToggle')?.addEventListener('change', event => {
+    traceTintEnabled = event.target.checked;
+    window.ApexAnalysis?.savePreference('trace-tint', traceTintEnabled);
+    if (loaded.length) paintReadyTelemetry();
+  });
   $('#distanceNumbersToggle')?.addEventListener('change', event => {
     showDistanceNumbers = event.target.checked;
     window.ApexAnalysis?.savePreference('distance-numbers', showDistanceNumbers);
@@ -287,10 +295,24 @@ function renderCharts() {
   const activeDefs = season >= 2026
     ? defs.filter(([name]) => name !== 'DRS')
     : defs;
-  root.innerHTML = activeDefs.map(([name, unit, compact]) => {
+  // Throttle, brake, gear (and DRS) share one card: stacked rows on one distance axis, labelled once under the last row.
+  const INPUT_LABELS = {'Throttle application': 'Throttle', 'Brake application': 'Brake', Gear: 'Gear', DRS: 'DRS'};
+  const inputDefs = activeDefs.filter(([name]) => INPUT_LABELS[name]);
+  const inputRow = ([name, unit], index) => `
+      <div class="chart-row${index === inputDefs.length - 1 ? ' is-axis-row' : ''}" data-row="${name}">
+        <h3 class="chart-row-label">${INPUT_LABELS[name]} <small>${unit}</small></h3>
+        <canvas data-chart="${name}" data-axis="${index === inputDefs.length - 1 ? 'shown' : 'hidden'}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
+      </div>`;
+  const inputStack = inputDefs.length ? `
+    <section class="chart chart-stack" aria-label="Driver inputs">
+      <div class="chart-heading"><h2>Driver inputs <small>${inputDefs.map(([name]) => INPUT_LABELS[name].toLowerCase()).join(', ')}</small></h2></div>
+      <div class="chart-rows">${inputDefs.map(inputRow).join('')}</div>
+    </section>` : '';
+  root.innerHTML = activeDefs.filter(([name]) => !INPUT_LABELS[name]).map(([name, unit, compact]) => {
     return `
     <section class="chart ${compact ? 'compact' : ''} ${name === 'Speed trace' ? 'speed-chart' : ''}">
       <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
+        <div class="trace-chart-actions">
         <div class="trace-zoom-cluster" aria-label="Trace zoom controls">
           <span class="trace-zoom-readout">View <b id="traceZoomReadout">Full lap</b></span>
           <div class="trace-tools">
@@ -301,7 +323,11 @@ function renderCharts() {
             <button data-pan="right" title="Move zoom window right" aria-label="Move zoom window right">›</button>
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
-        </div><details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details><button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button><details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>` : name === 'Timing delta' ? `
+        </div>
+        <details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="A soft fill in each lap's colour under the speed, throttle, brake and engine-speed traces"><input type="checkbox" id="traceTintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint under traces</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details>
+        <button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button>
+        <details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>
+        </div>` : name === 'Timing delta' ? `
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
           <div class="trace-tools">
@@ -324,7 +350,7 @@ function renderCharts() {
       <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
     </section>
   `;
-  }).join('') + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
+  }).join('') + inputStack + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
     <p id="telemetryDataHelp">Read every visible trace at a chosen lap distance. Use the distance slider or its arrow keys; Home and End go to the start and finish. Values use the same display calculations as the charts. Dashed segments bridge unusually long source-packet gaps; values inside are interpolated. The optional alignment estimate assumes equal distance between shared sector lines and linearly changing speed between packets; it is not measured position or guaranteed more accurate. ~ indicates an estimated repair; — means unavailable.</p>
     <div class="chart-sample-controls"><label for="telemetrySample">Lap distance</label><input id="telemetrySample" type="range" min="0" max="1000" step="1" value="0" aria-describedby="telemetryDataHelp"><output for="telemetrySample" id="telemetrySampleDistance">0.000 km</output></div>
     <output class="chart-sample-status" id="telemetrySampleStatus" aria-live="polite"></output>
@@ -347,7 +373,7 @@ function renderTelemetryReadout() {
   const inspector=$('#telemetryDataAccess'),slider=$('#telemetrySample');
   if(!inspector?.open||!slider)return;
   const fraction=Number(slider.value)/1000,reference=loaded[0]&&telemetryCache.get(telemetryKey(loaded[0]));
-  const maxDistance=reference?.at(-1)?.Distance||0,distance=(fraction*maxDistance/1000).toFixed(3)+' km';
+  const maxDistance=reference?.length?referenceDistance():0,distance=(fraction*maxDistance/1000).toFixed(3)+' km';
   $('#telemetrySampleDistance').textContent=distance;slider.setAttribute('aria-valuetext',distance);
   slider.disabled=!reference?.length;
   const fields=[['Speed','Speed trace'],['Throttle','Throttle application'],['Brake','Brake application'],['nGear','Gear'],['DRS','DRS']];
@@ -355,12 +381,12 @@ function renderTelemetryReadout() {
     const samples=telemetryCache.get(telemetryKey(lap));
     const values={};
     for(const [field,name] of fields){
-      const value=['Speed','Throttle'].includes(field)&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
+      const value=(samples?.alignmentMethod==='live-distance'||['Speed','Throttle'].includes(field))&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
       const estimated=typeof isReconstructedTelemetry==='function'&&isReconstructedTelemetry(samples,fraction,field);
       const low=typeof telemetryEstimateInfo==='function'&&telemetryEstimateInfo(samples,fraction,field)?.confidence==='low';
       values[field]=!Number.isFinite(value)?'—':field==='Brake'?(value>=50?'On':'Off'):field==='DRS'?(value>=.5?'Open':'Closed'):(estimated?'~':'')+(['Speed','Throttle'].includes(field)?value.toFixed(3):Math.round(value))+(low?' (low confidence)':'');
     }
-    const delta=lap.real?.out_lap||loaded[0]?.real?.out_lap?null:index===0?0:typeof displayDeltaAt==='function'?displayDeltaAt(samples,reference,fraction):deltaAt(samples,reference,fraction*maxDistance);
+    const delta=window.ApexTelemetryFrame?.partial()||lap.real?.out_lap||loaded[0]?.real?.out_lap?null:index===0?0:typeof displayDeltaAt==='function'?displayDeltaAt(samples,reference,fraction):deltaAt(samples,reference,fraction*maxDistance);
     const deltaText=Number.isFinite(delta)?(delta>=0?'+':'')+delta.toFixed(3):'—';
     const sourceGap=telemetrySourceGapAt(samples,fraction);
     return {label:`${lap.code} L${lap.lap}${index===0?' (reference)':''}${sourceGap?' · '+sourceGap.interval.toFixed(3)+' s source gap':''}`,values,deltaText};
@@ -427,7 +453,7 @@ function getNiceBounds(name, rawMin, rawMax) {
     max = tempMax;
   } else if (name === 'Timing delta') {
     const span = Math.max(rawMax - rawMin, 0.02);
-    const targetTicks = span >= 2 ? 8 : 7;   // finer steps: more labelled gridlines on the delta axis
+    const targetTicks = span >= 2 ? 6 : 5;   // labelled gridlines on the delta axis; drawGridAxes thins them on short charts
     const magnitude = 10 ** Math.floor(Math.log10(span / targetTicks));
     const normalized = (span / targetTicks) / magnitude;
     const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
@@ -697,8 +723,9 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 // Draw chart grid axes
 function drawGridAxes(ctx, width, height, bounds, unit) {
   const { left, right, top, bottom, min, max, tickStep } = bounds;
+  const seconds = /seconds/i.test(unit);
   const theme = canvasTheme();
-  ctx.font = canvasFont(12);
+  ctx.font = canvasFont(10);   // value axis: 11 px 450, every chart's axis size
   const ticks = [];
   if (Number.isFinite(tickStep) && tickStep > 0) {
     for (let value = Math.floor((max + tickStep * .001) / tickStep) * tickStep; value >= min - tickStep * 0.001; value -= tickStep) {
@@ -710,12 +737,20 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     }
   }
 
-  ticks.forEach(({ value, tick }) => {
+  // Keep labelled gridlines at least 18 px apart: on a short chart take every second (or fourth) one, always keeping zero
+  // and the ends of a 0-100 scale.
+  const plotHeight = Math.max(1, height - top - bottom);
+  const spacing = ticks.length > 1 ? plotHeight / (ticks.length - 1) : plotHeight;
+  const every = spacing >= 18 ? 1 : spacing * 2 >= 18 ? 2 : 4;
+  const zeroIndex = ticks.findIndex(t => Math.abs(t.value) < 1e-9);
+  const anchor = zeroIndex >= 0 ? zeroIndex : 0;
+  const shown = ticks.filter((t, i) => (i - anchor) % every === 0 || (unit === 'open / closed' || unit === 'on / off') && (t.tick === 0 || t.tick === 4));
+  shown.forEach(({ value, tick }) => {
     const y = top + (height - top - bottom) * ((max - value) / (max - min || 1));
     ctx.beginPath();
     ctx.moveTo(left, y);
     ctx.lineTo(width - right, y);
-    if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
+    if (seconds && Math.abs(value) < 1e-5) {
       ctx.strokeStyle = theme.gridStrong;
       ctx.lineWidth = 1.2;
     } else {
@@ -724,43 +759,34 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     }
     ctx.stroke();
     let displayVal = Math.round(value);
-    if (unit.includes('SECONDS')) {
+    if (seconds) {
       const decimals = Number.isFinite(tickStep) && tickStep > 0
-        ? Math.max(1, Math.min(3, Math.ceil(-Math.log10(tickStep)) + 1))
+        ? Math.max(1, Math.min(3, (String(+tickStep.toPrecision(6)).split('.')[1] || '').length))
         : (Math.abs(max - min) <= 0.4 ? 2 : 1);
       displayVal = Math.abs(value) < 1e-8
         ? '0'
         : `${value > 0 ? '+' : ''}${value.toFixed(decimals)}`;
     }
-    if (unit === 'OPEN / CLOSED' || unit === 'ON / OFF') {
-      if (tick === 0) displayVal = 'OPEN';
-      else if (tick === 4) displayVal = 'CLOSED';
+    if (unit === 'open / closed' || unit === 'on / off') {
+      if (tick === 0) displayVal = 'Open';
+      else if (tick === 4) displayVal = 'Closed';
       else return;
-      if (unit === 'ON / OFF') displayVal = tick === 0 ? 'ON' : 'OFF';
+      if (unit === 'on / off') displayVal = tick === 0 ? 'On' : 'Off';
     }
-    ctx.fillStyle = unit.includes('SECONDS') && Math.abs(value) < 1e-5
+    ctx.fillStyle = seconds && Math.abs(value) < 1e-5
       ? theme.textStrong
       : theme.text;
     ctx.textAlign = 'right';
     ctx.fillText(displayVal, left - 8, y + 3);
   });
-  if (unit === 'KM/H') {
-    // Axis title, rotated beside the tick labels: "Speed [km/h]".
-    ctx.save();
-    ctx.translate(11, top + (height - top - bottom) / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = 'center';
-    ctx.font = canvasFont(10, 500);
-    ctx.fillStyle = theme.text;
-    ctx.fillText('Speed [km/h]', 0, 0);
-    ctx.restore();
-  }
   ctx.textAlign = 'left';
 }
 
 
 
-function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1) {
+// maxLanes caps the rows of tags: a tag that fits in none of them is left out (its tick on the axis stays), so a short
+// channel chart is not mostly turn labels.
+function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewStart = 0, viewEnd = 1, maxLanes = Infinity) {
   const gap = 3, maxNudge = 12;
   const plotWidth = width - left - right;
   const lanes = [];
@@ -773,7 +799,7 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewSta
       const anchorX = left + ((corner.fraction - viewStart) / (viewEnd - viewStart || 1)) * plotWidth;
       const tagWidth = Math.max(22, String(cornerLabel(corner)).length * 7 + 8);
       // Nudge sideways a few pixels before opening another row; the tick keeps the exact position visible.
-      for (let lane = 0; ; lane++) {
+      for (let lane = 0; lane < maxLanes; lane++) {
         lanes[lane] ||= [];
         for (const shift of [0, 4, -4, 8, -8, maxNudge, -maxNudge]) {
           const x = Math.max(left + tagWidth / 2, Math.min(width - right - tagWidth / 2, anchorX + shift));
@@ -783,8 +809,9 @@ function layoutSpeedCornerCallouts(markers, width, left = 43, right = 7, viewSta
           }
         }
       }
+      return { corner, x: anchorX, anchorX, lane: -1, width: tagWidth };
     });
-  return { items, lanes: lanes.length };
+  return { items, lanes: lanes.filter(lane => lane.length).length };
 }
 
 function sharedCornerSpeed(entry, fraction, totalDistance) {
@@ -943,11 +970,26 @@ function buildSpeedAnnotations(entries, markers, totalDistance, {matchMetres=70,
   });
 }
 
+function selectedCornerSpeedAnnotations(entries, markers, totalDistance) {
+  if (!selectedCornerIndices.size || typeof sessionPerformanceZones !== 'function') return [];
+  const zones = sessionPerformanceZones(adaptiveCornerZones(markers), totalDistance);
+  return [...selectedCornerIndices].flatMap(index => {
+    const zone=zones[index];
+    if (zone?.kind !== 'corner') return [];
+    const values=entries.flatMap(({lap,samples})=>{
+      const minimum=cornerSpeedMinimum(samples,zone);
+      return minimum?[{lap,speed:minimum.speed,fraction:minimum.fraction}]:[];
+    });
+    return values.length?[{title:cornerLabel(zone),kind:'min',fraction:values[0].fraction,speed:values[0].speed,values,missing:[],absoluteValues:true}]:[];
+  });
+}
+
 // Broadcast-style labels: the leader's whole km/h, then every other lap's
 // whole-km/h difference, stacked in lap colours.
 function speedAnnotationLines(annotation) {
   const allLaps = [...annotation.values.map(v => v.lap), ...(annotation.missing || [])];
   const identity = lap => lap.code + (allLaps.filter(l => l.code === lap.code).length > 1 ? ` L${lap.lap}` : '');
+  if (annotation.absoluteValues) return annotation.values.map(v=>({text:`${annotation.title} ${identity(v.lap)} ${Math.round(v.speed)}`,color:getLapColor(v.lap)}));
   const leader = Math.round(annotation.values[0].speed);
   return [
     ...annotation.values.map((v, i) => {
@@ -963,7 +1005,7 @@ function drawSpeedAnnotations(ctx, annotations, rect, bounds, xForFraction, view
   const bottom = rect.height - bounds.bottom, lineHeight = 11, plotRight = rect.width - bounds.right;
   const yFor = speed => bounds.top + (bounds.max - speed) / (bounds.max - bounds.min || 1) * (bottom - bounds.top);
   ctx.save();
-  ctx.font = canvasFont(9, 600);
+  ctx.font = canvasFont(10, 500);   // in-chart labels: 500 11 px
   ctx.textAlign = 'center';
   ctx.lineJoin = 'round';
   const collides = box => occupied.some(b => box.x < b.x + b.width + 2 && box.x + box.width + 2 > b.x && box.y < b.y + b.height + 1 && box.y + box.height + 1 > b.y);
@@ -1154,7 +1196,7 @@ function renderedTraceValue(points, fraction, stepped = false) {
   return before.y + (after.y - before.y) * ratio;
 }
 
-const TRACE_PLOT_LEFT = 58;
+const TRACE_PLOT_LEFT = 46;
 const TRACE_PLOT_RIGHT = 7;
 // Draw a single canvas chart
 function drawRealChart(name) {
@@ -1191,6 +1233,12 @@ function drawRealChart(name) {
     ctx.fillStyle = theme.text;
     ctx.font = canvasFont(12);
     ctx.fillText('Select a driver to begin comparison.', 43, 25);
+    return;
+  }
+  if (name === 'Timing delta' && window.ApexTelemetryFrame?.partial()) {
+    ctx.fillStyle = theme.text;
+    ctx.font = canvasFont(12);
+    ctx.fillText('Timing delta is available for completed laps.', 43, 25);
     return;
   }
 
@@ -1276,18 +1324,25 @@ function drawRealChart(name) {
   const max = niceBounds.max;
   const refLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
   const refSamples = telemetryCache.get(telemetryKey(refLap));
-  const totalDist = refSamples && refSamples.length ? refSamples[refSamples.length - 1].Distance : 5891;
+  const totalDist = refSamples?.length ? referenceDistance() : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
   const speedCornerMarkers = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
-  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd);
-  const cornerAxisInset = showCornerNumbers && speedCornerMarkers.length
-    ? 8 + cornerCalloutLayout.lanes * 20
+  // The speed trace gets up to two rows of turn tags (one when narrow); the shorter channels one row.
+  // Turn numbers as one quiet row under each chart (two under the speed trace when wide); labels that do not fit are left
+  // out and keep their tick.
+  // Stacked input rows above the last one keep the guide lines but leave turn numbers and distances to the axis row.
+  const axisHidden = canvas.dataset.axis === 'hidden';
+  const showCornerTags = showCornerNumbers && !axisHidden;
+  const maxTagLanes = name === 'Speed trace' && rect.width >= 560 ? 2 : 1;
+  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, TRACE_PLOT_RIGHT, viewStart, viewEnd, maxTagLanes);
+  const cornerAxisInset = showCornerTags && speedCornerMarkers.length
+    ? 4 + cornerCalloutLayout.lanes * 16
     : 0;
   const bounds = {
     left: axisLeft,
     right: TRACE_PLOT_RIGHT,
     top: name === 'Speed trace' ? 30 : 8,
-    bottom: 21 + cornerAxisInset,
+    bottom: axisHidden ? 4 : 21 + cornerAxisInset,
     min,
     max,
     tickStep: niceBounds.tickStep
@@ -1304,10 +1359,14 @@ function drawRealChart(name) {
   drawGridAxes(ctx, rect.width, rect.height, bounds, unit);
 
   // Shared distance axis. Every telemetry chart uses the same visible range.
-  const distanceTickCount = Math.max(2, Math.min(6, Math.floor(plotWidth / 100)));
-  for (let tick = 0; tick <= distanceTickCount; tick++) {
-    const fraction = viewStart + viewSpan * tick / distanceTickCount;
-    const x = xForFraction(fraction);
+  // Round distances (every 250 m, 500 m, 1 km or 2 km), at most one label per ~90 px.
+  const visibleMetres = viewSpan * totalDist, maxTicks = Math.max(2, Math.floor(plotWidth / 90));
+  const distanceStep = [100, 250, 500, 1000, 2000].find(step => visibleMetres / step <= maxTicks) || 5000;
+  const distanceLabel = metres => metres === 0 ? '0' : metres % 1000 === 0 ? `${metres / 1000} km` : metres > 1000 ? `${(metres / 1000).toFixed(metres % 500 === 0 ? 1 : 2)} km` : `${metres} m`;
+  ctx.font = canvasFont(10);   // distance axis: 11 px 450
+  ctx.textAlign = 'center';
+  for (let metres = Math.ceil(viewStart * totalDist / distanceStep) * distanceStep; metres <= viewEnd * totalDist + .5; metres += distanceStep) {
+    const x = xForFraction(metres / totalDist);
     ctx.beginPath();
     ctx.moveTo(x, bounds.top);
     ctx.lineTo(x, rect.height - bounds.bottom);
@@ -1315,9 +1374,7 @@ function drawRealChart(name) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = theme.text;
-    ctx.font = canvasFont(12);
-    ctx.textAlign = tick === 0 ? 'left' : tick === distanceTickCount ? 'right' : 'center';
-    if (showDistanceNumbers) ctx.fillText(`${Math.round(fraction * totalDist)} M`, x, rect.height - bounds.bottom + 18);
+    if (showDistanceNumbers && !axisHidden && x > bounds.left + 8 && x < rect.width - bounds.right - 14) ctx.fillText(distanceLabel(metres), x, rect.height - bounds.bottom + 16);
   }
   ctx.textAlign = 'left';
   
@@ -1353,7 +1410,7 @@ function drawRealChart(name) {
   });
 
   if (name === 'Speed trace' && sectorBoundaries.length === 2) {
-    const ranges = [[0, sectorBoundaries[0], 'SECTOR 1'], [sectorBoundaries[0], sectorBoundaries[1], 'SECTOR 2'], [sectorBoundaries[1], 1, 'SECTOR 3']];
+    const ranges = [[0, sectorBoundaries[0], 'Sector 1'], [sectorBoundaries[0], sectorBoundaries[1], 'Sector 2'], [sectorBoundaries[1], 1, 'Sector 3']];
     ctx.fillStyle = theme.text;
     ctx.font = canvasFont(12);
     ctx.textAlign = 'center';
@@ -1378,9 +1435,9 @@ function drawRealChart(name) {
       if (Number.isFinite(fraction) && fractionInView(fraction)) {
         const x = xForFraction(fraction);
         
-        ctx.strokeStyle = theme.gridStrong;
-        ctx.lineWidth = 0.8;
-        ctx.setLineDash([2, 3]);
+        ctx.strokeStyle = theme.grid;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 4]);
         
         ctx.beginPath();
         ctx.moveTo(x, bounds.top);
@@ -1473,6 +1530,21 @@ function drawRealChart(name) {
     });
   }
 
+  // Timing delta: a flat wash between each lap's line and zero, so time lost and gained reads as area at a glance.
+  if (name === 'Timing delta' && traceEntries.length && bounds.max > bounds.min) {
+    const plotBottom = rect.height - bounds.bottom;
+    const zeroY = Math.min(plotBottom, Math.max(bounds.top, bounds.top + (bounds.max / (bounds.max - bounds.min)) * (plotBottom - bounds.top)));
+    traceEntries.forEach(({ points, teamColor }) => {
+      if (points.length < 2 || points.some(point => point.y === null)) return;
+      tracePath(points);
+      ctx.lineTo(points[points.length - 1].x, zeroY);
+      ctx.lineTo(points[0].x, zeroY);
+      ctx.closePath();
+      ctx.fillStyle = hexToRgba(teamColor, .1);
+      ctx.fill();
+    });
+  }
+
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   traceEntries.forEach(({ points, teamColor, index, sourceGaps }) => {
@@ -1503,35 +1575,36 @@ function drawRealChart(name) {
     }
     drawSpeedAnnotations(ctx,speedAnnotationCache.annotations,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
   }
+  if (name==='Speed trace' && selectedCornerIndices.size) {
+    const entries=visibleEntries.map(({lap})=>({lap,samples:telemetryCache.get(telemetryKey(lap))})).filter(e=>e.samples?.length);
+    const selectedMinima=selectedCornerSpeedAnnotations(entries,speedCornerMarkers,totalDist);
+    drawSpeedAnnotations(ctx,selectedMinima,rect,bounds,xForFraction,viewStart,viewEnd,traceEntries);
+  }
   
   // Draw collision-free corner labels in a reserved band below the axis. Corner
   // speeds live in the dedicated analysis panel below the track map.
-  if (showCornerNumbers) {
-    const rowHeight = 20;
+  if (showCornerTags) {
+    const rowHeight = 16;
     const calloutHeight = 16;
     cornerCalloutLayout.items.forEach(({ corner, x, anchorX, lane, width }) => {
       if (!Number.isFinite(corner.fraction)) return;
-      const labelY = rect.height - cornerAxisInset + 4 + lane * rowHeight;
+      if (lane < 0) {   // no room for its tag: just the tick on the axis
+        ctx.beginPath(); ctx.moveTo(anchorX, rect.height - bounds.bottom); ctx.lineTo(anchorX, rect.height - bounds.bottom + 4);
+        ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke();
+        return;
+      }
+      const labelY = rect.height - cornerAxisInset + 3 + lane * rowHeight;
       const left = x - width / 2;
-      // Tick from the exact corner position on the axis to its tag.
-      ctx.beginPath(); ctx.moveTo(anchorX, rect.height - bounds.bottom); ctx.lineTo(anchorX, rect.height - bounds.bottom + 3); ctx.lineTo(x, labelY + 1.5);
+      // A short tick on the axis marks the exact corner; the label below may sit a few pixels aside (no slanted leader through
+      // the distance numbers).
+      ctx.beginPath(); ctx.moveTo(anchorX, rect.height - bounds.bottom); ctx.lineTo(anchorX, rect.height - bounds.bottom + 4);
       ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke();
 
-      // Small grey boxed turn tags, like broadcast speed-trace graphics.
-      const label = cornerLabel(corner);
-      ctx.font = canvasFont(10, 600);
-      const tagWidth = width;
-      const tagLeft = left;
-      ctx.fillStyle = lightThemeActive() ? 'rgba(20,25,32,.08)' : 'rgba(255,255,255,.1)';
-      ctx.strokeStyle = theme.outline;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      if (typeof ctx.roundRect === 'function') ctx.roundRect(tagLeft + .5, labelY + 1.5, tagWidth - 1, calloutHeight - 1, 3);
-      else ctx.rect(tagLeft + .5, labelY + 1.5, tagWidth - 1, calloutHeight - 1);
-      ctx.fill(); ctx.stroke();
+      // Turn numbers as quiet axis labels (500 11 px secondary), no boxes: they are reference marks, not controls.
+      ctx.font = canvasFont(10, 500);
       ctx.fillStyle = theme.textStrong;
       ctx.textAlign = 'center';
-      ctx.fillText(label, tagLeft + tagWidth / 2, labelY + 12.5);
+      ctx.fillText(cornerLabel(corner), left + width / 2, labelY + 12.5);
       ctx.textAlign = 'left';
     });
   }
@@ -1596,3 +1669,9 @@ function drawRealChart(name) {
     ctx.strokeRect(x + .5, bounds.top + .5, Math.max(0, width - 1), rect.height - bounds.top - bounds.bottom - 1);
   }
 }
+
+// Driver photos arrive after the first draw: redraw the trace key (and the driver list) with them.
+window.addEventListener?.('apex-driver-photos', () => {
+  if (typeof renderTraceVisibilityControls === 'function' && loaded.length) renderTraceVisibilityControls();
+  if (typeof renderDrivers === 'function' && realDrivers.size) renderDrivers();
+});

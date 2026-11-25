@@ -5,8 +5,8 @@ export function ValueNote({value, note, badge}: {value: ReactNode; note?: ReactN
   return (
     <>
       {value}
-      {badge ? <> <span className="perf-tercile-badge is-mid">{badge}</span></> : null}
-      {note ? <small>{note}</small> : null}
+      {badge ? <> <span className="perf-tercile-badge is-mid explanation-only">{badge}</span></> : null}
+      {note ? <small className="explanation-only">{note}</small> : null}
     </>
   );
 }

@@ -5,8 +5,11 @@ import {DataTable} from '../components/DataTable';
 import {TeamLabel, type TeamLike} from '../components/TeamLabel';
 
 type Team = TeamLike & {team: string};
-export type SpeedChart = {title: string; rows: (Team & Record<string, unknown>)[]; options: BarChartOptions} | {title: string; empty: string};
-type EventTable = {subject: string; labels: string[]; rows: {event: string; team: Team; values: string[]}[]};
+export type SpeedChart = {title: string; rows: (Team & Record<string, unknown>)[]; options: BarChartOptions; matchedRivals?: boolean} | {title: string; empty: string};
+type EventTable = {
+  subject: string; labels: string[]; showLapEvidence?: boolean; summary?: string;
+  rows: {event: string; team: Team; values: string[]; lapEvidence?: {laps: number; drivers: string[]}}[];
+};
 type Phases = {several: boolean; subject: string; sections: {label: string; rows: {team: Team; braking: string; mid: string; exit: string; total: string; gps: number}[]}[]};
 type Corners = {single: string | null; subject: string; events: {name: string; rows: {corner: {name: string; detail: string} | null; team: Team;
   delta: string; braking: string; mid: string; exit: string; speeds: string; raw: string; sensitivity: string; gap: string}[]}[]};
@@ -25,14 +28,27 @@ export type SpeedViewProps = {
 function Chart({chart}: {chart: SpeedChart}) {
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if ('empty' in chart) return (
-    <div className="performance-chart-card"><h4 className="perf-chart-heading">{chart.title}</h4><p className="performance-quality-status">{chart.empty}</p></div>
+    <div className="performance-chart-card is-empty"><h4 className="perf-chart-heading">{chart.title}</h4><p className="performance-quality-status">{chart.empty}</p></div>
   );
   return <BarChart rows={chart.rows} options={chart.options} />;
+}
+
+/** One row of bands (low, medium, high speed). A row with nothing measured is one quiet line, not three empty cards. */
+function Bands({charts, subject}: {charts: SpeedChart[]; subject: string}) {
+  const notes = charts.flatMap(c => ('empty' in c ? [c.empty] : []));
+  if (notes.length === charts.length) {
+    return <p className="subject-band-empty" role="status"><strong>{subject}</strong> · {[...new Set(notes)].join(' ')}</p>;
+  }
+  return <div className="subject-bands">{charts.map((c, i) => <Chart key={i} chart={c} />)}</div>;
 }
 
 /** The same measurement for teams and for drivers, side by side. */
 function ChartPair({chart, driverChart}: {chart: SpeedChart; driverChart?: SpeedChart}) {
   if (!driverChart) return <Chart chart={chart} />;
+  // Nothing measured for teams or drivers: one quiet line instead of two empty cards.
+  if ('empty' in chart && 'empty' in driverChart) {
+    return <p className="subject-band-empty" role="status"><strong>Teams and drivers</strong> · {[...new Set([chart.empty, driverChart.empty])].join(' ')}</p>;
+  }
   return <div className="subject-pair"><Chart chart={chart} /><Chart chart={driverChart} /></div>;
 }
 
@@ -45,10 +61,14 @@ function EvidenceSubject({subject}: {subject: string}) {
 function EventValues({table}: {table: EventTable}) {
   return (
     <details className="performance-evidence">
-      <summary>Values by GP · relative to each GP's median {table.subject}</summary>
+      <summary>{table.summary || `Values by GP · relative to each GP's median ${table.subject}`}</summary>
       <EvidenceSubject subject={table.subject} />
-      <DataTable headers={['Grand Prix', table.subject === 'driver' ? 'Driver' : 'Team', ...table.labels]}
-        rows={table.rows.map(r => [r.event, <TeamLabel team={r.team} />, ...r.values])} />
+      <DataTable headers={['Grand Prix', table.subject === 'driver' ? 'Driver' : 'Team', ...table.labels,
+        ...(table.showLapEvidence ? ['Lap evidence'] : [])]}
+        rows={table.rows.map(r => [r.event, <TeamLabel team={r.team} />, ...r.values,
+          ...(table.showLapEvidence ? [r.lapEvidence ? <><span>{r.lapEvidence.laps} {r.lapEvidence.laps === 1 ? 'lap' : 'laps'}</span>
+            {r.lapEvidence.drivers.length > 0 && <small className="performance-lap-drivers">{r.lapEvidence.drivers.join(', ')}</small>}</>
+            : 'Single-lap snapshot'] : [])])} />
     </details>
   );
 }
@@ -60,7 +80,7 @@ function PhaseSplit({phases: p}: {phases: Phases}) {
     <details className="performance-evidence">
       <summary>Where the time goes · braking, mid-corner, exit{p.several ? ' · seconds per GP, averaged' : ''}</summary>
       <EvidenceSubject subject={p.subject} />
-      <p className="performance-quality-status">Common-distance estimates against the median {p.subject}. Braking runs to the field's brake-release line, mid-corner to the last apex, exit to the end line. Only speed inside these lines counts; there are no entry corrections or credits on the next straight. These phases include driver, setup, power and entry context, not isolated grip.</p>
+      <p className="performance-quality-status">Phase summaries use each entrant’s available GPs. Common-distance estimates against the median {p.subject}. Braking runs to the field's brake-release line, mid-corner to the last apex, exit to the end line. Only speed inside these lines counts; there are no entry corrections or credits on the next straight. These phases include driver, setup, power and entry context, not isolated grip.</p>
       {p.sections.map(s => (
         <Fragment key={s.label}>
           <h4 className="perf-chart-heading">{s.label} corners</h4>
@@ -120,12 +140,15 @@ function StraightByStraight({straights: s}: {straights: Straights}) {
 
 /** Car performance · Cornering, Straight line and Braking (speed-domain measurements). */
 export function SpeedView(p: SpeedViewProps) {
+  const charts = p.metric==='corners'
+    ? [...p.charts,...(p.driverCharts || []),p.traction.chart,p.traction.driverChart] : [p.chart,p.driverChart];
+  const matched = charts.some(chart=>chart && 'matchedRivals' in chart && chart.matchedRivals);
   const head = (
     <>
-      <p className={`performance-quality-status${p.status.running ? ' is-loading' : ''}`} role="status">
+      <p className={`performance-quality-status${p.status.running ? ' is-loading' : ' explanation-only'}`} role="status">
         {p.status.running
-          ? `Loading qualifying telemetry · ${p.status.loaded} of ${p.status.total} GPs measured. Lap times are loaded; fetching and processing the fastest laps. The first load can take a few minutes.`
-          : `${p.status.loaded} of ${p.status.total} GPs measured. Season values weight each GP equally; entrants measured in fewer than half of them stay unranked.`}
+          ? <>Loading qualifying telemetry… <span className="explanation-only">{p.status.loaded} of {p.status.total} GPs measured.</span></>
+          : `${p.status.loaded} of ${p.status.total} GPs measured. ${matched?'Matched rivals use weekends both entrants ran.':'Ranked entrants share the same weekends.'} A ranking needs overlap in at least half the supported GPs.`}
       </p>
       {p.failures.map(f => <div key={f.name} className="performance-error">{f.name} · {f.error}</div>)}
       {p.retry ? <div className="performance-actions"><button type="button" data-speed-retry="">Retry {p.retry} missing GP{p.retry === 1 ? '' : 's'}</button></div> : null}
@@ -137,14 +160,14 @@ export function SpeedView(p: SpeedViewProps) {
       <Card title="Cornering" note={p.note}>
         <GapBasis basis={p.basis} section="corners" />
         {p.driverCharts
-          ? <><div className="subject-bands">{p.charts.map((c, i) => <Chart key={i} chart={c} />)}</div>
-              <div className="subject-bands">{p.driverCharts.map((c, i) => <Chart key={i} chart={c} />)}</div></>
+          ? <><Bands charts={p.charts} subject="Teams" />
+              <Bands charts={p.driverCharts} subject="Drivers" /></>
           : p.charts.map((c, i) => <Chart key={i} chart={c} />)}
         {p.phases ? <PhaseSplit phases={p.phases} /> : null}
         {p.corners ? <CornerByCorner corners={p.corners} /> : null}
         <EventValues table={p.events} />
       </Card>
-      <Card title="Corner exit traction" note="Acceleration out of slow corners at any throttle position, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.">
+      <Card title="Corner exit acceleration" note="Acceleration out of slow corners with at least 20% throttle, excluding lifts, once a car has gained 30 km/h over its own apex, simulated from 70 to 170 km/h. Seconds per corner exit. Evidence only: in validation it carried little car-specific signal in 2025.">
         {p.traction.lowConfidence ? <p className="performance-quality-status">{LOW_CONFIDENCE}</p> : null}
         <ChartPair chart={p.traction.chart} driverChart={p.traction.driverChart} />
         <EventValues table={p.traction.events} />

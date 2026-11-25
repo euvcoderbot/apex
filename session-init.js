@@ -44,6 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
   yearSelect.addEventListener('change', () => loadCalendar().catch(() => {}));
   $('#gp').addEventListener('change', populateSessions);
   $('#loadSession').onclick = loadRealSession;
+  // The Load button names the session the menus point at when it differs from the one on screen (session-loader.js).
+  for (const id of ['#year', '#gp', '#session']) $(id)?.addEventListener?.('change', () => setTimeout(markPendingSelection));
   
   const themeToggle = $('#themeToggle');
   if (themeToggle) {
@@ -133,7 +135,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
   
   calendarReady = loadCalendar();
-  loadPublishedSessions();
+  // Which sessions are published labels Session analysis's menus. Opening on that view, check now; on Home, Season or Car
+  // performance it waits until the browser is idle, so its indexes do not compete with the page's own data.
+  if (window.ApexUrl?.read()?.view === 'session') loadPublishedSessions();
+  else (window.requestIdleCallback || (fn => setTimeout(fn, 3000)))(() => loadPublishedSessions(), {timeout: 8000});
   document.addEventListener('visibilitychange', () => {
     if(document.visibilityState==='visible' && window.APEX_SNAPSHOT_MODE && Date.now()-snapshotCheckedAt>=60000){
       invalidateSnapshotData();
@@ -148,4 +153,43 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   const initial = window.ApexUrl?.read();
   if (initial?.view === 'session' && initial.params.round) void applySessionUrl(initial.params);
+  // On the published site the latest race is saved already: Session analysis opens on it rather than on an empty page asking
+  // for Load session. Only when that view is actually opened (never in the background on Home or Season) and nothing is loaded.
+  const published = () => Boolean(window.APEX_SNAPSHOT_MODE) && !window.APEX_LOCAL_MODE && !window.APEX_COMPUTE_ORIGIN;
+  let autoLoaded = false, autoInFlight = false, autoReplaced = false;
+  const autoLoad = () => {
+    if (autoLoaded || !published() || sessionEventName) return;
+    autoLoaded = true;
+    // Only a session the published list has: an unpublished one would end in an error the person never asked for.
+    void Promise.all([calendarReady, loadPublishedSessions()]).then(() => {
+      if (sessionEventName || document.body.classList.contains('season-view') || document.body.classList.contains('performance-view')) return;
+      const option = $('#session')?.selectedOptions?.[0];
+      if (!publishedSessions || !option || option.disabled || /not published/i.test(option.textContent)) return;
+      autoInFlight = true;
+      return Promise.resolve(loadRealSession()).finally(() => { autoInFlight = false; }).then(() => {
+        // A comparison on screen at once: the two leading finishers' fastest laps (the person changes or clears them).
+        if (autoReplaced || !sessionEventName || loaded.length || document.body.classList.contains('season-view') || document.body.classList.contains('performance-view')) return;
+        const leaders = [...realDrivers.values()].filter(d => Number.isFinite(d.position)).sort((x, y) => x.position - y.position).slice(0, 2);
+        for (const d of leaders) {
+          const best = (d.laps || []).filter(l => Number.isFinite(l.time) && !l.in_lap && !l.out_lap).sort((x, y) => x.time - y.time)[0];
+          if (!best) continue;
+          if (!selected.includes(d.code)) selected.push(d.code);
+          toggleLoadedLap(d.code, best.lap);
+        }
+        if (loaded.length) { renderDrivers(); window.ApexUrl?.write('session', sessionUrlState(), {replace: true}); }   // replace: Back still leaves the page
+      });
+    }).catch(() => { autoLoaded = false; });
+  };
+  // Load pressed while the automatic load runs: it replaces that load (the session the menus now name), not stops it.
+  document.addEventListener('click', event => {
+    const button = event.target.closest?.('#loadSession');
+    if (!button || !autoInFlight) return;
+    event.stopImmediatePropagation(); event.preventDefault();
+    autoInFlight = false; autoReplaced = true; sessionRequest?.abort();
+    const started = Date.now();
+    const again = () => (button.classList.contains('is-loading') && Date.now() - started < 8000 ? setTimeout(again, 50) : loadRealSession());
+    again();
+  }, true);
+  if (initial?.view === 'session' && !initial.params.round) autoLoad();
+  document.addEventListener('click', event => { if (event.target.closest?.('[data-analysis-view="session"]')) setTimeout(autoLoad, 0); }, true);
 });

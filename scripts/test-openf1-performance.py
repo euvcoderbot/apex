@@ -10,7 +10,9 @@ from urllib.error import HTTPError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi import Response
 import server
-from openf1_performance import stamp, lap_neutralised, neutralised_periods, adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag
+from openf1_performance import stamp, lap_neutralised, neutralised_periods, adapt_performance, retained_bundle, session_payload, pit_entry_laps, stewards_lap, deleted_laps, red_flag_periods, lap_in_red_flag, qualifying_phase_bounds
+# 21 Sep 2026: before the retained Azerbaijan sources in openf1-performance.json.gz expire (17 Nov 2026).
+BEFORE_RETAINED_EXPIRY = 1_790_000_000
 
 
 def bundle():
@@ -260,6 +262,48 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(row(value)['track'], '1')
 
 
+class QualifyingPhaseFallbackTests(unittest.TestCase):
+    """Without race-control phase markers, Q1/Q2/Q3 come from the classification and the timing gaps."""
+    @staticmethod
+    def lap(driver, minute, duration=90.0, out=False):
+        from datetime import datetime, timedelta, timezone
+        start = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(minutes=minute)
+        return {'driver_number': driver, 'date_start': start.isoformat(), 'lap_duration': None if out else duration, 'is_pit_out_lap': out}
+
+    def session(self, stopped_car=False):
+        laps = []
+        for driver in range(1, 21):            # Q1, all cars
+            laps += [self.lap(driver, 2, out=True), self.lap(driver, 4), self.lap(driver, 10), self.lap(driver, 15)]
+        for driver in range(1, 16):            # Q2 after a 7-minute intermission
+            laps += [self.lap(driver, 24, out=True), self.lap(driver, 26), self.lap(driver, 33)]
+        for driver in range(1, 11):            # Q3 with a mid-session lull
+            laps += [self.lap(driver, 44, out=True), self.lap(driver, 46), self.lap(driver, 51), self.lap(driver, 57)]
+        if stopped_car:                        # a car stopped on track during Q2: its "lap" spans the intermission
+            laps.append(self.lap(15, 34, duration=900.0))
+        return laps
+
+    def test_boundaries_fall_in_the_intermissions(self):
+        knocked = ({str(d) for d in range(16, 21)}, {str(d) for d in range(11, 16)})
+        laps = [dict(l, driver_number=str(l['driver_number'])) for l in self.session()]
+        bounds = qualifying_phase_bounds(laps, knocked, [])
+        origin = stamp(laps[0]['date_start']) - 2 * 60
+        q2, q3 = [(b - origin) / 60 for b in bounds]
+        self.assertTrue(16.5 < q2 < 24, q2)
+        self.assertTrue(34.5 < q3 < 44, q3)
+
+    def test_a_stopped_car_does_not_hide_the_intermission(self):
+        knocked = ({str(d) for d in range(16, 21)}, {str(d) for d in range(11, 16)})
+        laps = [dict(l, driver_number=str(l['driver_number'])) for l in self.session(stopped_car=True)]
+        bounds = qualifying_phase_bounds(laps, knocked, [])
+        self.assertIsNotNone(bounds)
+        origin = stamp(laps[0]['date_start']) - 2 * 60
+        self.assertTrue(34.5 < (bounds[1] - origin) / 60 < 44)
+
+    def test_no_classification_means_no_guess(self):
+        laps = [dict(l, driver_number=str(l['driver_number'])) for l in self.session()]
+        self.assertIsNone(qualifying_phase_bounds(laps, (set(), set()), []))
+
+
 class LoadingTests(unittest.TestCase):
     def test_loaded_session_with_unavailable_laps_enters_the_alternate_source(self):
         class MissingTiming:
@@ -316,11 +360,12 @@ class LoadingTests(unittest.TestCase):
         self.assertIsNone(result['circuit_key'])
 
     def test_retained_sources_have_original_expiry_and_exact_identity(self):
-        value = retained_bundle(2026, 'Azerbaijan Grand Prix', 'Q')
+        # The retained file expires (17 Nov 2026); read it as of a moment before that, not today's clock.
+        value = retained_bundle(2026, 'Azerbaijan Grand Prix', 'Q', now=BEFORE_RETAINED_EXPIRY)
         self.assertEqual(value['session']['session_key'], 11373)
         self.assertEqual(len(value['feeds']['laps']), 373)
         self.assertIsNone(retained_bundle(2026, 'Azerbaijan Grand Prix', 'Q', now=9999999999))
-        self.assertIsNone(retained_bundle(2025, 'Azerbaijan Grand Prix', 'Q'))
+        self.assertIsNone(retained_bundle(2025, 'Azerbaijan Grand Prix', 'Q', now=BEFORE_RETAINED_EXPIRY))
 
     def test_rate_limit_retries_but_permanent_errors_do_not(self):
         limited = HTTPError('https://api.openf1.org', 429, 'limited', {'Retry-After': '3'}, None)
@@ -370,7 +415,7 @@ class LoadingTests(unittest.TestCase):
         write.assert_not_called()
 
     def test_explicit_refresh_keeps_valid_sources_during_an_outage(self):
-        with patch.object(server, 'openf1_session', return_value=None):
+        with patch.object(server, 'openf1_session', return_value=None),              patch('openf1_performance.time', SimpleNamespace(time=lambda: BEFORE_RETAINED_EXPIRY)):
             data = server.load_openf1_performance(2026, 'Azerbaijan Grand Prix', 'R', fresh=True)
         self.assertEqual(len(data.apex_recorded_rows), 983)
         self.assertTrue(data.apex_source_notice['refresh_failed'])

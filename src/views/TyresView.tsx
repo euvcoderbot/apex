@@ -12,7 +12,7 @@ type Team = TeamLike & {team: string};
 type Compound = {choices: string[]; value: string; overallLabel: string};
 type Picker = {teams: string[]; team: string; drivers: string[]; driver: string; events: string[]; event: string;
   runs: {key: string; label: string}[]; run: string; total: number; teamCount: number};
-export type TyresViewProps = {metric: 'age' | 'relative'; subject: 'team' | 'driver'} & (
+export type TyresViewProps = {metric: 'age' | 'relative'; subject: 'team' | 'driver'; inspect?: boolean} & (
   | {metric: 'relative'; compound: Compound; chart: {rows: Team[]; options: BarChartOptions};
      sort: Record<'team' | 'norm' | 'stints', SortHeaderModel>;
      rows: {team: Team; norm: {value: number | null; provisional: string | null}; ageRange: string; sample: string; observed: number | null;
@@ -25,6 +25,7 @@ export type TyresViewProps = {metric: 'age' | 'relative'; subject: 'team' | 'dri
      sort: Record<'name' | 'value' | 'events' | 'stints' | 'laps', SortHeaderModel>;
      rows: {team: Team; value: number | null; shortfall: string | null; events: number; stints: number; laps: number; outliers: number; coverage: string}[];
      picker: Picker | null; plot: StintPlotModel | null;
+     fuelSensitivity: {observed: number; scenarios: {rate: number; slope: number}[]; steady: boolean; changesSign: boolean} | null;
      evidence: {team: Team; driver: string; event: string; grade: string; run: string; ages: string; laps: number; trend: string; earlyLate: string;
        error: string; sensitivity: string; status: string; inspect: string | null}[];
      auditOpen: boolean});
@@ -55,7 +56,7 @@ function RunPicker({picker: p}: {picker: Picker}) {
         {select('Grand Prix', 'event', plain(p.events), p.event)}
         {select('Stint / run', 'run', p.runs.map(r => ({value: r.key, label: r.label})), p.run)}
       </div>
-      <p className="performance-note">Inspecting one individual run · {p.total} runs from {p.teamCount} teams available. The ranking above summarizes the selected compound across all supported runs.</p>
+      <p className="performance-quality-status">{p.total} recorded runs from {p.teamCount} teams in this compound selection.</p>
     </>
   );
 }
@@ -64,8 +65,8 @@ function RunPicker({picker: p}: {picker: Picker}) {
 export function TyresView(p: TyresViewProps) {
   const toolbar = (
     <div className="performance-toolbar performance-tyre-toolbar">
-      <SegmentedControl name="tyre-metric" label="Tyre trend measurement" value={p.metric} options={[['age', 'Tyre-age trend'], ['relative', 'Matched rivals']]} />
-      {p.metric === 'age' ? <SegmentedControl name="tyre-subject" label="Tyre trend subject" value={p.subject} options={[['team', 'Teams'], ['driver', 'Drivers']]} /> : null}
+      <SegmentedControl name="tyre-metric" label="Tyre trend measurement" value={p.inspect ? 'stint' : p.metric} options={[['age', 'Tyre-age trend'], ['relative', 'Matched rivals'], ['stint', 'Inspect a stint']]} />
+      {p.metric === 'age' && !p.inspect ? <SegmentedControl name="tyre-subject" label="Tyre trend subject" value={p.subject} options={[['team', 'Teams'], ['driver', 'Drivers']]} /> : null}
     </div>
   );
   if (p.metric === 'relative') return (
@@ -74,7 +75,8 @@ export function TyresView(p: TyresViewProps) {
         note="Extra lap-time change per tyre-age lap against overlapping rivals on the same compound. Each compound uses the selected GP statistic; Overall then averages supported compounds equally. P75 is a worse-end GP trend, not the 75th percentile of individual laps. One-compound or short-season results are provisional. Missing values mean no matched three-team cohort, not zero tyre wear. Traffic and management remain limitations.">
         <div className="performance-card-controls">{toolbar}<CompoundControl compound={p.compound} /></div>
         <BarChart rows={p.chart.rows} options={p.chart.options} />
-        <DataTable headers={[p.sort.team, p.sort.norm, 'Observed age range', p.sort.stints, 'Field support', 'Compound mix']}
+        <DataTable evidenceFrom={2} headers={[p.sort.team, p.sort.norm, 'Observed age range', p.sort.stints, 'Field support', 'Compound mix']}
+          heat={[{col: 1, values: p.rows.map(r => r.norm.value), better: 'low'}]}
           rows={p.rows.map(r => [
             <TeamLabel team={r.team} />,
             finite(r.norm.value) ? <ValueNote value={`${r.norm.value! > 0 ? '+' : ''}${fmt(r.norm.value, 3, ' s/lap')}`} note={r.norm.provisional ?? undefined} />
@@ -97,7 +99,7 @@ export function TyresView(p: TyresViewProps) {
   );
   return (
     <>
-      <Card title="Tyre-age performance change" note={p.note}>
+      <Card title={p.inspect ? "Individual stint laps" : "Tyre-age performance change"} note={p.note}>
         <div className="performance-card-controls">
         {toolbar}
         <div className="performance-tyre-settings">
@@ -115,19 +117,32 @@ export function TyresView(p: TyresViewProps) {
           <a href={p.coverage.source} target="_blank" rel="noopener noreferrer">Pirelli allocation sources</a>
         </p>
         {p.legacy ? <p className="performance-note">Some loaded results lack the new curve. Refresh data to obtain the updated fits; missing nonlinear results use the previous linear diagnostic.</p> : null}
+        {p.inspect ? <>
+          {p.picker ? <RunPicker picker={p.picker} /> : null}
+          {p.plot ? <TyreStintPlot model={p.plot} /> : <p className="section-empty">No individual lap readings for this compound selection.</p>}
+          {p.picker ? <section aria-label="Fuel sensitivity">
+            <h4 className="perf-chart-heading">Fuel sensitivity</h4>
+            {p.fuelSensitivity ? <>
+              <p className="performance-note">The selected run’s {p.fuelSensitivity.steady ? 'steady-segment' : 'observed'} slope plus each assumed fuel gain. Positive means lap times rise as the tyres age.</p>
+              <DataTable headers={['Fuel assumption', 'Slope (s/lap)']}
+                rows={[[ 'Observed', signed(p.fuelSensitivity.observed, 3, '')],
+                  ...p.fuelSensitivity.scenarios.map(({rate, slope}) => [`+${rate.toFixed(2)} s/lap fuel gain`, signed(slope, 3, '')])]} />
+              {p.fuelSensitivity.changesSign ? <p className="performance-quality-status" data-inline-evidence="">Sign depends on fuel assumption.</p> : null}
+            </> : <p className="section-empty">No observed slope for this run and lap selection.</p>}
+          </section> : null}
+        </> : <>
         {p.chart ? <div className={p.driverChart ? 'subject-pair' : undefined}>
           <DivergingBarChart title={p.driverChart ? `${p.chart.title} · Teams` : p.chart.title} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.chart.rows} unit=" s/lap" extent={p.chart.extent} />
           {p.driverChart ? <DivergingBarChart title={`${p.driverChart.title} · Drivers`} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.driverChart.rows} unit=" s/lap" extent={p.driverChart.extent} /> : null}
         </div>
           : <p className="section-empty">{p.emptyMessage}</p>}
-        <DataTable headers={[p.sort.name, p.sort.value, p.sort.events, p.sort.stints, p.sort.laps, 'Outlier laps removed', 'Coverage']}
+        <DataTable evidenceFrom={2} headers={[p.sort.name, p.sort.value, p.sort.events, p.sort.stints, p.sort.laps, 'Outlier laps removed', 'Coverage']}
           rows={p.rows.map(r => [<TeamLabel team={r.team} />,
-            finite(r.value) ? signed(r.value, 3, ' s/lap') : r.shortfall ? <>—<small>P75 needs {r.shortfall}</small></> : '—',
+            finite(r.value) ? signed(r.value, 3, ' s/lap') : r.shortfall ? <>—<small className="explanation-only">P75 needs {r.shortfall}</small></> : '—',
             r.events, r.stints, r.laps, r.outliers, r.coverage])} />
-        {p.picker ? <RunPicker picker={p.picker} /> : null}
-        {p.plot ? <TyreStintPlot model={p.plot} /> : null}
+        </>}
         <details className="dashboard-card performance-methods" open={p.auditOpen || undefined}>
-          <summary>View stint evidence and early/late trends</summary>
+          <summary>Stint evidence and early/late trends</summary>
           <p className="performance-note">A run needs six usable laps across at least five tyre-age steps to enter the ranking. Early/late rates need at least six laps in each half. Block sensitivity refits the trend after removing successive groups of adjacent laps; a wide range means sections of the stint strongly influence the result. It needs at least twelve laps. Neither this range nor typical fit error is a confidence interval. Short runs and unmapped compounds are listed but do not enter the ranking. View laps draws the selected run above this table.</p>
           <DataTable headers={['Team', 'Driver', 'Grand Prix', 'Compound', 'Stint / run', 'Observed tyre ages', 'Fit laps', 'Trend', 'Early → late', 'Typical fit error', 'Block sensitivity', 'Evidence', 'Lap plot']}
             rows={p.evidence.map(e => [<TeamLabel team={e.team} />, e.driver, <EventLabel event={e.event} />, e.grade, e.run, e.ages, e.laps, e.trend, e.earlyLate, e.error, e.sensitivity, e.status,

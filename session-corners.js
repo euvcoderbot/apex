@@ -61,8 +61,10 @@ function renderAll() {
     }
   }
   updateTelemetryVisibility();
+  window.ApexSessionOverview?.render();
   renderLoaded();
   renderSectors();
+  window.ApexSessionOverview?.renderTimeSummary();
   renderTraceVisibilityControls();
   drawAll();
   syncSessionUrl();
@@ -154,6 +156,7 @@ function combinedCornerPerformance(samples,zones,totalDistance,indices=zones.map
   return {sectionTime,minimumSpeed:metres/sectionTime*3.6,combined:true};
 }
 
+let cornerEveryOpen=true;   // the every-corner table's fold, kept across re-renders
 function renderCornerAnalysis() {
   const section = $('#cornerAnalysis');
   const root = $('#cornerMetricGrid');
@@ -245,7 +248,7 @@ function renderCornerAnalysis() {
       && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
       <tr class="corner-measurement-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}">
-        <th scope="row" class="corner-driver-cell"><span class="corner-driver">${teamLogoMarkup(realDrivers.get(item.lap.code)?.team || drivers.find(driver=>driver[0]===item.lap.code)?.[4])}<span class="corner-driver-copy"><b>${item.lap.code}</b><small>L${item.lap.lap}</small></span></span></th>
+        <th scope="row" class="corner-driver-cell"><span class="corner-driver">${teamLogoMarkup(realDrivers.get(item.lap.code)?.team || drivers.find(driver=>driver[0]===item.lap.code)?.[4], drivers.find(driver=>driver[0]===item.lap.code)?.[1])}<span class="corner-driver-copy"><b>${item.lap.code}</b><small>L${item.lap.lap}</small></span></span></th>
         <td class="corner-time"><strong>${Number.isFinite(sectionTime) ? sectionTime.toFixed(3)+'s' : '—'}</strong></td>
         <td class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></td>
         <td class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></td>
@@ -267,6 +270,35 @@ function renderCornerAnalysis() {
       </table></div>
       ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence" ${diagnosticOpen?'open':''}><summary>Modelled entry / exit diagnostic</summary><p>Modelled, not measured: the same entry-speed correction and exit-speed credit the season cornering metric uses, applied to these laps. Separate from the measured section times above.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
     </article>`;
+  // Every corner at once: each loaded lap's minimum speed in every corner, the quickest lap's cell filled (the heat-grid
+  // look), and with two laps the difference. A corner's name selects it above.
+  const everyCorner=cornerOrder.filter(([,i])=>allMetrics[i]?.length);
+  if(everyCorner.length&&loaded.length){
+    const lapHead=loaded.map(lap=>`<th scope="col" class="num"><span class="corner-every-lap" style="--team:${escapeUI(getLapColor(lap))}">${escapeUI(lap.code)} <small>L${lap.lap}</small></span></th>`).join('');
+    const body=everyCorner.map(([z,i])=>{
+      const speeds=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);
+      const finite=speeds.filter(Number.isFinite), top=finite.length>1?Math.max(...finite):null;
+      const cells=speeds.map((v,k)=>{const metric=allMetrics[i].find(m=>m.lap===loaded[k])?.metric;const tip=metric?`${loaded[k].code}: ${v.toFixed(1)} km/h at ${Math.round(metric.apexFraction*totalDistance)} m${metric.minimumAtBoundary?' · turn boundary; not a local speed dip':''}. Select this corner to mark it on the speed trace.`:'Insufficient speed samples inside the turn';return `<td class="num${Number.isFinite(v)&&top!=null&&Math.abs(v-top)<.05?' is-best':''}" title="${escapeUI(tip)}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}</td>`;}).join('');
+      const diff=loaded.length===2&&speeds.every(Number.isFinite)?speeds[1]-speeds[0]:null;
+      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</td>`:'';
+      return `<tr><th scope="row"><button type="button" class="corner-every-pick" data-corner-every="${i}" aria-pressed="${selectedCornerIndices.has(i)}">${escapeUI(z.label||cornerLabel(z))}</button></th>${cells}${diffCell}</tr>`;
+    }).join('');
+    root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum corner speeds</summary>
+      <div class="corner-every-wrap" tabindex="0" role="region" aria-label="Minimum corner speeds"><table class="corner-every-table">
+        <thead><tr><th scope="col">Corner</th>${lapHead}${loaded.length===2?`<th scope="col" class="num" title="Speed difference in km/h; positive means the second lap carried a higher minimum">${escapeUI(loaded[1].code)} − ${escapeUI(loaded[0].code)}</th>`:''}</tr></thead>
+        <tbody>${body}</tbody></table></div>
+      <p class="corner-every-note">km/h, the lowest plotted speed inside each geometry-defined turn. The filled cell has the higher minimum, not necessarily the quicker corner time. The map compares elapsed time. Select a corner to mark each lap’s minimum on the speed trace; hover a value for its distance.</p></details>`);
+    const every=root.querySelector('.corner-every');
+    every.addEventListener('toggle',()=>{if(every.isConnected)cornerEveryOpen=every.open;});
+    every.addEventListener('click',event=>{
+      const pick=event.target.closest('[data-corner-every]');if(!pick)return;
+      const index=Number(pick.dataset.cornerEvery);
+      if(selectedCornerIndices.has(index))selectedCornerIndices.delete(index);else selectedCornerIndices.add(index);
+      const linked=selectLinkingStraights(zones,selectedCornerIndices,automaticStraightIndices);
+      selectedCornerIndices=linked.selection;automaticStraightIndices=linked.automatic;
+      renderCornerAnalysis();renderMiniSectorMap();drawAll();
+    });
+  }
   root.querySelectorAll('[data-corner-sort]').forEach(button => {
     button.onclick = () => { cornerSortReverse = cornerSort === button.dataset.cornerSort ? !cornerSortReverse : false; cornerSort = button.dataset.cornerSort; renderCornerAnalysis(); root.querySelector(`[data-corner-sort="${cornerSort}"]`)?.focus({ preventScroll: true }); };
   });
@@ -282,7 +314,9 @@ function renderCornerAnalysis() {
     }else automaticStraightIndices.delete(index);
     renderCornerAnalysis();
     renderMiniSectorMap();
+    drawAll();
   };
+  window.ApexSessionOverview?.renderTimeSummary();
 }
 
 
@@ -571,7 +605,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
     }
     for(const {x,y,radius,label} of beads){
       ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);
-      ctx.fillStyle=light?'#ffffff':'#1c1c1e';ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.1;ctx.stroke();
+      ctx.fillStyle=theme.panel||(light?'#ffffff':'#191a1b');ctx.fill();ctx.strokeStyle=light?'#1d1d1f':'#e5e5ea';ctx.lineWidth=1.1;ctx.stroke();
       ctx.fillStyle=light?'#1d1d1f':'#f2f2f4';ctx.fillText(label,x,y+.5);
     }
   }
@@ -584,7 +618,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
     ctx.fillStyle=textColor||(light?'#282a30':'#e6e7ea');ctx.textAlign='left';ctx.fillText(text,box.x+h/2+7,box.y+h/2+.5);ctx.textAlign='center';
   };
   if(sectors){
-    ctx.font=canvasFont(9,600);
+    ctx.font=canvasFont(10,500);
     [0,1,2].forEach(sector=>{
       const indices=sectors.map((s,i)=>s===sector?i:-1).filter(i=>i>=0);
       if(!indices.length)return;
@@ -597,7 +631,7 @@ function drawApiCircuitGuide(ctx, data, rect) {
   // Fastest point of this lap (where the speed trap normally sits).
   if(data.topSpeed&&Number.isFinite(+data.topSpeed.x)&&Number.isFinite(+data.topSpeed.y)){
     const p=project({x:+data.topSpeed.x,y:-+data.topSpeed.y});
-    ctx.font=canvasFont(9,600);
+    ctx.font=canvasFont(10,500);
     const label=`Top speed ${Math.round(data.topSpeed.speed)} km/h`,width=ctx.measureText(label).width+22;
     const spot=placeBeside(nearestIndex(p),width,16,[24,34,46,60,76,94]);
     if(spot){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(spot.x,spot.y);ctx.strokeStyle=light?'rgba(0,0,0,.35)':'rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.stroke();pill(spot.box,label,'#ffd60a');}

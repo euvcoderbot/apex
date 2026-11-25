@@ -1,0 +1,138 @@
+{
+ "year": 2023,
+ "fetched": "2026-11-15",
+ "circuits": [
+  {
+   "event": "Abu Dhabi Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Abu%20Dhabi%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Australian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Australian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Austrian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Austrian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Azerbaijan Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Azerbaijan%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Bahrain Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Bahrain%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Belgian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Belgian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "British Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20British%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Canadian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Canadian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Dutch Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Dutch%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Hungarian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Hungarian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Italian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Italian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Japanese Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Japanese%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Las Vegas Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Las%20Vegas%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20V3.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Mexico City Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Mexico%20City%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Miami Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Miami%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Monaco Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Monaco%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%2C%20Red%20Zone%20and%20Pirelli%20Preview.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Qatar Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Qatar%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20V2.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "SÃO PAULO GRAND PRIX",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20S%C3%A3o%20Paulo%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Saudi Arabian Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Saudi%20Arabian%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%20V4.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Singapore Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Singapore%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "Spanish Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20Spanish%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  },
+  {
+   "event": "United States Grand Prix",
+   "source": "https://www.fia.com/sites/default/files/decision-document/2023%20United%20States%20Grand%20Prix%20-%20Event%20Notes%20-%20Circuit%20Map%2C%20Pit%20Lane%20Drawing%20and%20Red%20Zone.pdf",
+   "zones": [],
+   "image_only": true
+  }
+ ]
+}

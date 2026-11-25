@@ -1,0 +1,591 @@
+/* Session overview and "where the time went".
+
+   Overview (above the telemetry): a readout of the loaded session (fastest lap, best ideal lap, best execution, most time
+   left on the table, top speed trap) and a lap chart: lap time against lap number for the chosen drivers (or the top three),
+   where clicking a point adds that lap to the comparison, as the lap list does.
+
+   Where the time went (under the sector times): for each compared lap against the reference, the corners and straights where
+   it lost and gained the most, measured as elapsed time over the same distance windows the corner analysis uses. The windows
+   come from the reference lap's corners (adaptiveCornerZones / sessionPerformanceZones), so every lap is measured over the
+   same stretch of track.
+
+   Classic script: uses the session globals (realDrivers, loaded, selected, telemetryCache...) at call time only. */
+(() => {
+  const SVG = 'http://www.w3.org/2000/svg';
+  const esc = value => (typeof escapeUI === 'function' ? escapeUI(value) : String(value ?? ''));
+  const fmtLap = t => (typeof time === 'function' ? time(t) : `${t.toFixed(3)}`);
+  const signedS = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(3)} s`;
+  let showSlowLaps = false, renderedOverview = '', drawnWidth = 0;
+  // Draw at the card's live width, so axis labels stay readable as the page narrows.
+  const chartWidth = () => {
+    const root = document.getElementById('sessionOverview');
+    const inner = (root?.clientWidth || 672) - 34;
+    return Math.round(Math.max(200, inner));
+  };
+  const lapAxisStep = (range, width, limit) =>
+    Math.max(1, Math.ceil(range / Math.max(1, Math.min(limit, Math.floor(width / 28)))));
+
+  // A lap that counts as a representative timed lap: timed, not deleted, not a pit in- or out-lap.
+  const timed = lap => Number.isFinite(lap?.time) && lap.time > 0 && !lap.deleted && !lap.in_lap && !lap.out_lap;
+  const bestOf = (laps, field) => { const v = laps.map(l => l[field]).filter(x => Number.isFinite(x) && x > 0); return v.length ? Math.min(...v) : null; };
+
+  /** Per driver: best lap, ideal lap (sum of their best sectors), best speed trap. Exported for tests. */
+  function driverSummary(driver) {
+    const laps = (driver.laps || []).filter(l => !l.deleted);
+    const best = bestOf(laps.filter(timed), 'time');
+    const sectors = ['s1', 's2', 's3'].map(f => bestOf(laps, f));
+    const ideal = sectors.every(Number.isFinite) ? sectors.reduce((a, b) => a + b, 0) : null;
+    const trap = bestOf(laps, 'speed_st') && Math.max(...laps.map(l => l.speed_st).filter(Number.isFinite));
+    // The ideal can only be at or below the best lap; a gap above a second means the sector bests came from different
+    // conditions (or a mis-timed sector) and is not a fair "time left" figure.
+    const left = Number.isFinite(best) && Number.isFinite(ideal) && best - ideal >= -0.0005 && best - ideal < 1 ? Math.max(0, best - ideal) : null;
+    return {code: driver.code, team: driver.team, number: driver.number, best, ideal, trap: Number.isFinite(trap) ? trap : null, left};
+  }
+
+  // Session summary: every driver in one table. Representative laps are timed, not in/out laps and within 107% of that
+  // driver's best (a lap behind a safety car or in traffic is not their pace). Consistency is the spread of the middle half
+  // of those laps (interquartile range): smaller is steadier.
+  let summaryOpen = false;
+  let timeSummaryOpen = false;   // Time gained and lost starts folded; the choice holds while laps change.
+  const summarySortLabels = {best: 'Best', ideal: 'Ideal', spread: 'Consistency', trap: 'Trap km/h'};
+  let summarySort = {key: 'best', descending: false};
+  function sessionSummary() {
+    const rows = [...realDrivers.values()].map(d => {
+      const base = driverSummary(d), laps = (d.laps || []).filter(l => !l.deleted);
+      const rep = laps.filter(timed).map(l => l.time).filter(t => Number.isFinite(base.best) && t <= base.best * 1.07).sort((a, b) => a - b);
+      const q = f => rep.length ? rep[Math.min(rep.length - 1, Math.floor(f * (rep.length - 1)))] : null;
+      const stints = new Set(laps.map(l => l.stint).filter(v => v != null)).size;
+      const bestLap = laps.find(lap => timed(lap) && lap.time === base.best);
+      return {...base, bestLap: bestLap?.lap, median: q(.5), spread: rep.length >= 4 ? q(.75) - q(.25) : null, clean: laps.length ? rep.length / laps.length : null, laps: laps.length, stints};
+    }).filter(r => Number.isFinite(r.best)).sort((a, b) => a.best - b.best);
+    if (rows.length < 2) return '';
+    const lead = rows[0].best, best = key => Math.min(...rows.map(r => r[key]).filter(Number.isFinite));
+    const top = {ideal: best('ideal'), median: best('median'), spread: best('spread')}, trapTop = Math.max(...rows.map(r => r.trap).filter(Number.isFinite));
+    const ranked = rows.map((row, i) => ({...row, rank: i + 1})).sort((a, b) => {
+      const x = a[summarySort.key], y = b[summarySort.key];
+      if (!Number.isFinite(x)) return Number.isFinite(y) ? 1 : 0;
+      if (!Number.isFinite(y)) return -1;
+      return summarySort.descending ? y - x : x - y;
+    });
+    const sortable = (key, tip = '') => {
+      const active = summarySort.key === key;
+      const direction = summarySort.descending ? 'descending' : 'ascending';
+      return `<th scope="col" class="num"${active ? ` aria-sort="${direction}"` : ''}${tip ? ` title="${tip}"` : ''}><button type="button" class="session-summary-sort" data-summary-sort="${key}">${summarySortLabels[key]}${active ? ` <span aria-hidden="true">${summarySort.descending ? '↓' : '↑'}</span>` : ''}</button></th>`;
+    };
+    const mark = (v, b, digits = 3) => (Number.isFinite(v) ? `<td class="num${Math.abs(v - b) < 1e-6 ? ' is-best' : ''}">${typeof digits === 'function' ? digits(v) : v.toFixed(digits)}</td>` : '<td class="num">—</td>');
+    const compareBest = row => {
+      const value = fmtLap(row.best);
+      if (!Number.isInteger(row.bestLap)) return value;
+      const pressed = loaded.some(lap => lap.code === row.code && lap.lap === row.bestLap);
+      return `<button type="button" class="session-best-lap" data-best-driver="${esc(row.code)}" data-best-lap="${row.bestLap}" aria-pressed="${pressed}" aria-label="${value}, ${esc(row.code)} fastest lap, lap ${row.bestLap}">${value}</button>`;
+    };
+    const body = ranked.map(r => `<tr><td class="num season-muted">${r.rank}</td><th scope="row"><span class="session-summary-driver">${teamLogoMarkup(r.team, r.number)}${esc(r.code)}</span></th>`
+      + `<td class="num${r.rank === 1 ? ' is-best' : ''}">${compareBest(r)}</td><td class="num">${r.rank === 1 ? '—' : signedS(r.best - lead).replace(' s', '')}</td>`
+      + mark(r.ideal, top.ideal, fmtLap) + mark(r.median, top.median, fmtLap) + mark(r.spread, top.spread)
+      + `<td class="num">${Number.isFinite(r.clean) ? Math.round(r.clean * 100) + '%' : '—'}</td>`
+      + mark(r.trap, trapTop, v => String(Math.round(v))) + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
+    return `<details class="session-summary" ${summaryOpen ? 'open' : ''}><summary>Best lap, ultimate lap and consistency</summary>
+      <div class="session-summary-wrap" tabindex="0" role="region" aria-label="Session summary"><table class="session-summary-table">
+      <thead><tr><th scope="col" class="num" aria-label="Fastest lap rank">#</th><th scope="col">Driver</th>${sortable('best')}<th scope="col" class="num">Gap</th>
+      ${sortable('ideal', 'Sum of the driver’s best sectors')}<th scope="col" class="num" title="Median representative lap">Median</th>
+      ${sortable('spread', 'Spread of the middle half of representative laps, in seconds')}
+      <th scope="col" class="num" title="Share of laps that were representative">Clean</th>${sortable('trap')}<th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
+      <tbody>${body}</tbody></table></div>
+      <p class="session-summary-note">Select a best time to add or remove that lap from your comparison. Representative laps are timed, within 107% of the driver’s best, and exclude in- and out-laps. Consistency is the spread of the middle half of them (seconds).</p></details>`;
+  }
+
+  function readout(rows) {
+    const pick = (key, better) => rows.filter(r => Number.isFinite(r[key])).sort((a, b) => better(a[key], b[key]))[0];
+    const fastest = pick('best', (a, b) => a - b);
+    const ideal = pick('ideal', (a, b) => a - b);
+    // Execution only among drivers within 2% of the fastest lap: a slow car's tidy lap is not the session's best execution.
+    const quick = rows.filter(r => Number.isFinite(r.left) && fastest && r.best <= fastest.best * 1.02);
+    const execution = quick.sort((a, b) => a.left - b.left)[0];
+    const leftOver = rows.filter(r => Number.isFinite(r.left)).sort((a, b) => b.left - a.left)[0];
+    const trap = pick('trap', (a, b) => b - a);
+    const tile = (label, row, value, note) => row ? `<div class="overview-tile"><small>${label}</small><b>${esc(value)}</b><span>${teamLogoMarkup(row.team, row.number)}${esc(row.code)}${note ? `<em>${esc(note)}</em>` : ''}</span></div>` : '';
+    return [
+      tile('Fastest lap', fastest, fastest && fmtLap(fastest.best)),
+      tile('Best ideal lap', ideal, ideal && fmtLap(ideal.ideal), 'sum of best sectors'),
+      tile('Best execution', execution, execution && signedS(execution.left).replace('+', ''), 'best lap to ideal'),
+      tile('Most time left', leftOver, leftOver && signedS(leftOver.left).replace('+', ''), leftOver && `ideal ${fmtLap(leftOver.ideal)}`),
+      tile('Top speed trap', trap, trap && `${Math.round(trap.trap)} km/h`),
+    ].join('');
+  }
+
+  // Teammates share a team colour: the second driver of a colour in a chart is drawn dashed with hollow points, so the two
+  // can be told apart without leaving the team's colour (identity) for something arbitrary. A colour picked from a legend
+  // dot (chartColours) replaces the team colour for that driver, and then the line is solid.
+  const chartColours = new Map();
+  const colourOf = code => chartColours.get(code) || getDriverColor(code);
+  function styleFor(codes) {
+    const seen = new Set(), out = new Map();
+    for (const code of codes) { const c = colourOf(code); out.set(code, {colour: c, dashed: seen.has(c)}); seen.add(c); }
+    return out;
+  }
+  // A legend entry: the dot is a colour picker (the native input sits on top of it, invisible), the name says who.
+  // The dot is the driver's photo on the series colour where there is one (the colour still keys the line).
+  const faceOf = code => window.apexDriverFaces?.img(realDrivers.get(code)?.name) || '';
+  const legendItem = (code, style) => `<span class="overview-legend-item"><label class="overview-swatch${style.dashed ? ' is-dashed' : ''}${faceOf(code) ? ' has-face' : ''}" style="--c:${esc(style.colour)}" title="Change ${esc(code)}’s colour">${faceOf(code)}<input type="color" value="${esc(toHex(style.colour))}" data-chart-colour="${esc(code)}" aria-label="Change ${esc(code)}’s chart colour"></label>${esc(code)}</span>`;
+  function toHex(colour) {
+    if (/^#[0-9a-f]{6}$/i.test(colour)) return colour;
+    if (/^#[0-9a-f]{3}$/i.test(colour)) return '#' + [...colour.slice(1)].map(c => c + c).join('');
+    const m = String(colour).match(/rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)/);
+    return m ? '#' + m.slice(1, 4).map(v => Number(v).toString(16).padStart(2, '0')).join('') : '#777777';
+  }
+
+  // Slow laps (hidden unless asked for): over 107% of the driver's best lap on the same kind of tyre (intermediates and
+  // wets against the best wet-tyre lap, slicks against the best slick lap). In a race a lap must also be over 107% of the
+  // fastest lap anyone set on that lap, so laps everyone ran slowly (rain arriving on slicks, a drying track) stay; a
+  // safety car, red flag or virtual safety car always counts as slow.
+  const tyreKind = lap => (/INTER|WET/i.test(String(lap.compound || '')) ? 'wet' : 'slick');
+  const isPit = lap => Boolean(lap.in_lap || lap.out_lap);
+  const neutralised = lap => /[4567]/.test(String(lap.track_status || '')) || /^(SC|VSC|RED)$/.test(lap.neutralised || '');
+  let fieldBest = null;   // lap number -> fastest timed lap of the race on that lap; rebuilt each render
+  function representative(laps) {
+    const best = {wet: bestOf(laps.filter(l => tyreKind(l) === 'wet'), 'time'), slick: bestOf(laps.filter(l => tyreKind(l) === 'slick'), 'time')};
+    return lap => {
+      if (lap.time <= (best[tyreKind(lap)] ?? Infinity) * 1.07) return true;
+      if (!fieldBest || neutralised(lap)) return false;
+      return lap.time <= (fieldBest.get(lap.lap) ?? Infinity) * 1.07;
+    };
+  }
+
+  // ---------- hover readout shared by the three charts ----------
+  // Each chart registers, per lap, a line for every driver shown; hovering anywhere over the plot picks the nearest lap,
+  // draws a guide line there and lists the values, sorted as the chart reads (fastest, nearest the leader, best place first).
+  const hoverCharts = new Map();
+  function registerHover(id, spec) { hoverCharts.set(id, spec); return `data-hover="${id}"`; }
+
+  // ---------- lap chart ----------
+  function chartDrivers() {
+    const chosen = selected.filter(code => realDrivers.has(code));
+    if (chosen.length) return chosen.slice(0, 6);
+    return [...realDrivers.values()].filter(d => Number.isFinite(d.position)).sort((a, b) => a.position - b.position).slice(0, 3).map(d => d.code);
+  }
+
+  function lapChart() {
+    const codes = chartDrivers();
+    fieldBest = null;
+    if (/^(race|sprint)$/i.test(loadedSessionName || '')) {
+      fieldBest = new Map();
+      for (const d of realDrivers.values()) for (const l of (d.laps || []).filter(timed)) if (!(fieldBest.get(l.lap) <= l.time)) fieldBest.set(l.lap, l.time);
+    }
+    const styles = styleFor(codes);
+    const series = codes.map(code => {
+      // Every lap with a time is a candidate. The driver's bests come from representative laps only. In a race the pit
+      // in- and out-laps are always drawn, so a stop never breaks the line; the scale is set by the other laps and a pit
+      // lap beyond it sits on the top edge (marked, with its real time in the hover card).
+      const d = realDrivers.get(code), laps = (d?.laps || []).filter(l => Number.isFinite(l?.time) && l.time > 0 && !l.deleted);
+      const keep = representative(laps.filter(timed));
+      return {code, colour: styles.get(code).colour, dashed: styles.get(code)?.dashed, laps: laps.filter(l => showSlowLaps || keep(l) || (fieldBest && isPit(l)))};
+    }).filter(s => s.laps.length);
+    if (!series.length) return '<p class="section-empty">No timed laps for these drivers.</p>';
+    const all = series.flatMap(s => s.laps);
+    const scaled = showSlowLaps || !fieldBest ? all : all.filter(l => !isPit(l));
+    const lapLo = Math.min(...all.map(l => l.lap)), lapHi = Math.max(...all.map(l => l.lap));
+    const tLo = Math.min(...(scaled.length ? scaled : all).map(l => l.time)), tHi = Math.max(...(scaled.length ? scaled : all).map(l => l.time));
+    // Round second ticks that enclose the data.
+    const span = Math.max(0.5, tHi - tLo), step = [0.25, 0.5, 1, 2, 5, 10, 20].find(s => span / s <= 5) || 30;
+    const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
+    const W = chartWidth(), H = 240, L = 48, R = 12, T = 10, B = 26;
+    const x = lap => L + (lapHi === lapLo ? (W - L - R) / 2 : (lap - lapLo) / (lapHi - lapLo) * (W - L - R));
+    const y = t => T + (yHi - Math.min(t, yHi)) / ((yHi - yLo) || 1) * (H - T - B);
+    const hover = registerHover('laps', {W, H, L, R, T, B, lapLo, lapHi, title: lap => `Lap ${lap}`, rows: lap => series.map(s => {
+      const l = s.laps.find(z => z.lap === lap);
+      return l && {code: s.code, colour: s.colour, hollow: s.dashed, value: l.time, text: `${fmtLap(l.time)}${l.compound && l.compound !== 'UNKNOWN' ? ` · ${String(l.compound).charAt(0)}${Number.isFinite(l.tyre_life) ? ` ${l.tyre_life}` : ''}` : ''}${l.in_lap ? ' · pit in' : l.out_lap ? ' · pit out' : ''}`};
+    }).filter(Boolean).sort((a, b) => a.value - b.value)});
+    // Many laps: small points (full size on hover) so overlapping lines stay readable.
+    const dense = (W - L - R) / Math.max(1, lapHi - lapLo) < 16;
+    let svg = `<svg class="overview-lap-chart${dense ? ' is-dense' : ''}" ${hover} viewBox="0 0 ${W} ${H}" role="group" aria-label="Lap times by lap for ${esc(codes.join(', '))}">`;  // a group: its lap points are buttons
+    // Tick labels carry only the decimals the step needs: 1:16 for whole seconds, 1:16.5 for halves, 1:16.25 for quarters.
+    const decimals = step >= 1 ? 0 : step >= .5 ? 1 : 2;
+    const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(decimals ? 3 + decimals : 2, '0')}`; };
+    for (let t = yLo; t <= yHi + 1e-9; t += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}"/><text class="axis" x="${L - 8}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(tick(t))}</text>`;
+    const lapStep = lapAxisStep(lapHi - lapLo, W - L - R, 10);
+    for (let lap = lapLo; lap <= lapHi; lap += lapStep) svg += `<text class="axis" x="${x(lap).toFixed(1)}" y="${H - 8}" text-anchor="middle">${lap}</text>`;
+    for (const s of series) {
+      const pts = s.laps.map(l => `${x(l.lap).toFixed(1)},${y(l.time).toFixed(1)}`).join(' ');
+      svg += `<polyline class="line${s.dashed ? ' is-dashed' : ''}" points="${pts}" style="stroke:${esc(s.colour)}"/>`;
+      for (const l of s.laps) {
+        const isLoaded = loaded.some(item => item.code === s.code && item.lap === l.lap);
+        if (l.time > yHi + 1e-9) {
+          // Off the scale (a pit lap): a small triangle on the top edge pointing up.
+          const px = x(l.lap), py = y(yHi);
+          svg += `<path class="point is-off-scale${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" d="M${(px - 3.5).toFixed(1)} ${(py + 3).toFixed(1)}L${px.toFixed(1)} ${(py - 2.5).toFixed(1)}L${(px + 3.5).toFixed(1)} ${(py + 3).toFixed(1)}Z" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}, ${l.in_lap ? 'pit in-lap' : l.out_lap ? 'pit out-lap' : 'off the scale'}. Select to compare`)}"/>`;
+          continue;
+        }
+        svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"/>`;
+      }
+    }
+    svg += '</svg>';
+    const legend = series.map(s => legendItem(s.code, styles.get(s.code))).join('');
+    return `<div class="overview-legend">${legend}<button type="button" class="overview-slow-toggle" aria-pressed="${showSlowLaps}">${showSlowLaps ? 'Hide slow laps' : 'Show slow laps'}</button></div>${svg}
+      <p class="overview-note">${selected.length ? 'The drivers chosen in the list' : 'With no driver chosen in the list, the top three finishers'}; laps over 107% of a driver’s best on the same kind of tyre (slick or wet)${fieldBest ? ', and of the fastest lap anyone set on that lap,' : ''} are ${showSlowLaps ? 'shown' : 'hidden'}${fieldBest ? '; pit stops are always drawn, a ▲ on the top edge when off the scale' : ''}. Select a point to add that lap to the comparison; select a colour dot to change a driver’s colour.</p>`;
+  }
+
+  // ---------- lap distribution: every driver's representative laps ----------
+  // The usual F1 lap-time distribution: one column per driver in classification order; a violin (the density of the
+  // driver's laps, Gaussian kernel) faintly tinted and outlined in the team colour, every lap a dot in its tyre's colour
+  // near the centre line, the median a cyan diamond (joined driver to driver by a dotted line), and a dashed line at the
+  // session's fastest representative lap. Lap time runs up the chart as in the lap chart (quicker lower). Same slow-lap rule
+  // as the lap chart; safety car and pit laps always left out. Hover a column for the stints.
+  const TYRE = {SOFT: '#ff493e', MEDIUM: '#ffd735', HARD: '#f5f5f7', INTERMEDIATE: '#43cf79', WET: '#3395ff'};
+  const tyreColour = c => TYRE[String(c || '').toUpperCase()] || 'var(--ui-tertiary)';
+  const quantile = (sorted, q) => { const at = (sorted.length - 1) * q, lo = Math.floor(at); return sorted[lo] + (sorted[Math.min(lo + 1, sorted.length - 1)] - sorted[lo]) * (at - lo); };
+  const mean = v => v.reduce((a, b) => a + b, 0) / v.length;
+  let distRows = [], distGeometry = null;
+  function lapDistribution() {
+    const chosen = new Set(selected);
+    distRows = [...realDrivers.values()].map(d => {
+      const laps = (d.laps || []).filter(timed), keep = representative(laps);
+      const rep = laps.filter(l => keep(l) && !neutralised(l));
+      if (!rep.length) return null;
+      const stints = new Map();
+      for (const l of rep) { const k = l.stint ?? l.compound; if (!stints.has(k)) stints.set(k, {compound: l.compound, laps: []}); stints.get(k).laps.push(l.time); }
+      const sorted = rep.map(l => l.time).sort((a, b) => a - b);
+      return {code: d.code, position: Number.isFinite(d.position) ? d.position : 99, colour: getDriverColor(d.code), laps: rep, best: sorted[0], median: quantile(sorted, .5), q1: quantile(sorted, .25), q3: quantile(sorted, .75),
+        stints: [...stints.values()].map(st => ({...st, average: mean(st.laps)}))};
+    }).filter(Boolean).sort((a, b) => a.position - b.position || a.median - b.median);
+    if (!distRows.length) return '<p class="section-empty">No representative laps yet.</p>';
+    // The scale stops at the 98th percentile of every lap shown, so a few slow laps do not squash the rest; laps beyond
+    // sit on the top edge as hollow dots (exact on hover of the column's stints).
+    const times = distRows.flatMap(r => r.laps.map(l => l.time)).sort((a, b) => a - b), tLo = times[0], tHi = quantile(times, .98);
+    const span = Math.max(0.5, tHi - tLo), step = [0.25, 0.5, 1, 2, 5, 10].find(st => span / st <= 6) || 20;
+    const yLo = Math.floor(tLo / step) * step, yHi = Math.ceil(tHi / step) * step;
+    // Laps slower than the scale get their own band above it (T), apart from the violins, rather than sitting on their tips.
+    const anyBeyond = times.at(-1) > tHi;
+    // On a phone the field gets 28 px a driver and the chart scrolls sideways (22 columns in 340 px ran the codes together).
+    const narrow = innerWidth <= 600, minW = narrow ? 52 + 8 + distRows.length * 28 : 0;
+    const W = Math.max(chartWidth(), minW), H = 360, L = 52, R = 8, T = anyBeyond ? 30 : 10, B = 8, n = distRows.length, col = (W - L - R) / n, half = Math.min(18, col * .46);
+    const y = t => T + (yHi - Math.min(t, yHi)) / ((yHi - yLo) || 1) * (H - T - B);
+    const cx = i => L + col * (i + .5);
+    distGeometry = {W, L, col};
+    const decimals = step >= .5 ? 1 : 2;
+    const tick = t => { const m = Math.floor(t / 60), sec = t - m * 60; return `${m}:${sec.toFixed(decimals).padStart(3 + decimals, '0')}`; };
+    const f = v => v.toFixed(1);
+    let svg = `<svg class="overview-lap-chart overview-dist" data-dist="1" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lap time distribution of every driver">`;
+    for (let t = yLo; t <= yHi + 1e-9; t += step) svg += `<line class="grid" x1="${L}" x2="${W - R}" y1="${f(y(t))}" y2="${f(y(t))}"/><text class="axis" x="${L - 8}" y="${f(y(t) + 3.5)}" text-anchor="end">${esc(tick(t))}</text>`;
+    const beyondY = 12;   // the band's centre line
+    if (anyBeyond) svg += `<text class="axis" x="${L - 8}" y="${beyondY + 3.5}" text-anchor="end">Slower</text><line class="grid dist-beyond-edge" x1="${L}" x2="${W - R}" y1="${beyondY + 9}" y2="${beyondY + 9}"/>`;
+    distRows.forEach((r, i) => {
+      const x0 = cx(i), faint = chosen.size && !chosen.has(r.code);
+      const v = r.laps.map(l => l.time), m = mean(v), sd = Math.sqrt(mean(v.map(t => (t - m) ** 2))) || .2;
+      const bw = Math.max(.06, 1.06 * sd * v.length ** -.2), from = Math.max(yLo, Math.min(...v) - bw), to = Math.min(yHi, Math.max(...v) + bw), N = 40;
+      const density = t => v.reduce((s, u) => s + Math.exp(-(((t - u) / bw) ** 2) / 2), 0);
+      const dens = Array.from({length: N + 1}, (_, k) => { const t = from + (to - from) * k / N; return [t, density(t)]; });
+      const top = Math.max(...dens.map(d => d[1])), w = val => val / top * half;
+      svg += `<g class="dist-col${faint ? ' is-faint' : ''}">`;
+      svg += `<path class="dist-violin" style="--c:${esc(r.colour)}" d="M${dens.map(d => `${f(x0 - w(d[1]))} ${f(y(d[0]))}`).join('L')}L${[...dens].reverse().map(d => `${f(x0 + w(d[1]))} ${f(y(d[0]))}`).join('L')}Z"/>`;
+      // Dots spread across the violin's width at their height, evenly by rank among laps of a similar time.
+      const order = r.laps.map((l, k) => [l, k]).sort((a, b) => a[0].time - b[0].time);
+      // Laps beyond the scale sit in the Slower band centred on their column, 6 units apart (one lap: on the centre line).
+      const beyond = order.filter(([l]) => l.time > yHi), gap = Math.min(6, (half * 2) / Math.max(1, beyond.length));
+      order.forEach(([l], k) => {
+        const spread = Math.min(5, w(density(l.time)) * .45), slot = ((k * 0.618034) % 1) * 2 - 1;
+        const b = beyond.findIndex(([x]) => x === l), bx = x0 + (b - (beyond.length - 1) / 2) * gap;
+        svg += `<circle class="dist-dot${b >= 0 ? ' is-beyond' : ''}" cx="${f(b >= 0 ? bx : x0 + slot * spread)}" cy="${f(b >= 0 ? beyondY : y(l.time))}" r="${b >= 0 ? 2.5 : 1.5}" style="--c:${esc(tyreColour(l.compound))}"/>`;
+      });
+      svg += '</g>';
+    });
+    // The fastest representative lap of the session, and the medians joined left to right, drawn over the columns.
+    const fastest = Math.min(...distRows.map(r => r.best));
+    svg += `<line class="dist-fastest" x1="${L}" x2="${W - R}" y1="${f(y(fastest))}" y2="${f(y(fastest))}"/><text class="dist-fastest-label" x="${W - R}" y="${f(y(fastest) - 5)}" text-anchor="end">Fastest</text>`;
+    svg += `<path class="dist-median-line" d="${distRows.map((r, i) => `${i ? 'L' : 'M'}${f(cx(i))} ${f(y(r.median))}`).join('')}"/>`;
+    distRows.forEach((r, i) => { const mx = cx(i), my = y(r.median); svg += `<path class="dist-median-mark${chosen.size && !chosen.has(r.code) ? ' is-faint' : ''}" d="M${f(mx)} ${f(my - 4.5)}L${f(mx + 4.5)} ${f(my)}L${f(mx)} ${f(my + 4.5)}L${f(mx - 4.5)} ${f(my)}Z"/>`; });
+    svg += '</svg>';
+    const used = [...new Set(distRows.flatMap(r => r.laps.map(l => String(l.compound || '').toUpperCase())))].filter(c => TYRE[c]);
+    const legend = used.map(c => `<span class="overview-legend-item"><span class="overview-swatch is-static" style="--c:${TYRE[c]}"></span>${esc(c.charAt(0) + c.slice(1).toLowerCase())}</span>`).join('');
+    // Under each column the driver's photo on the team colour (the code when there is no photo) and the code.
+    const faces = distRows.map(r => {
+      const photo = window.apexDriverFaces?.img(realDrivers.get(r.code)?.name) || `<b>${esc(r.code)}</b>`;
+      return `<span class="dist-face"><span class="dist-avatar" style="--team:${esc(r.colour)}">${photo}</span><small>${esc(r.code)}</small></span>`;
+    }).join('');
+    const body = `${svg}<div class="dist-faces" style="padding:0 ${R}px 0 ${L}px;grid-template-columns:repeat(${n},minmax(0,1fr))">${faces}</div>`;
+    return `<div class="overview-legend">${legend}</div>${minW ? `<div class="dist-scroll" style="overflow-x:auto"><div style="width:${W}px">${body}</div></div>` : body}<p class="overview-note">Each driver’s representative laps, in classification order: the shape is how their laps spread (wider where more laps fell), each dot a lap in its tyre’s colour, the cyan diamond the median (the dotted line joins them) and the dashed line the session’s fastest representative lap. Laps slower than the scale sit in the Slower band above it as hollow dots. The lap chart’s slow-lap rule applies; safety car and pit laps are left out. Hover a column for the stint averages.</p>`;
+  }
+  function distTip(svg, event) {
+    const box = svg.getBoundingClientRect(), g = distGeometry;
+    if (!g) return null;
+    const vx = (event.clientX - box.left) * g.W / box.width, r = distRows[Math.floor((vx - g.L) / g.col)];
+    if (!r) return null;
+    return {title: `${r.code} · median ${fmtLap(r.median)}`, rows: [{code: 'Best', colour: 'var(--ui-tertiary)', text: fmtLap(r.best)},
+      {code: 'Middle half', colour: r.colour, text: `${fmtLap(r.q1)} – ${fmtLap(r.q3)}`},
+      ...r.stints.map((st, n) => ({code: `Stint ${n + 1}`, colour: tyreColour(st.compound), text: `${String(st.compound || '?').charAt(0)} · ${st.laps.length} lap${st.laps.length === 1 ? '' : 's'} · avg ${fmtLap(st.average)}`}))]};
+  }
+
+  // End labels (docs/linear-components.md, Chart): the driver code in its colour, at least 13 px apart.
+  function endKey(entries, labelX) {
+    const list = [...entries].sort((a, b) => a.y - b.y);
+    list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + 13) : e.y; });
+    return list.map(e => `<text class="label" style="fill:${e.colour}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.code)}</text>`).join('');
+  }
+
+  // ---------- race: gap to the leader and position, lap by lap ----------
+  // When each driver finished each lap, on the session clock: the lap's own end, or the next lap's start.
+  function lapEnds(driver) {
+    const laps = [...(driver.laps || [])].sort((x, y) => x.lap - y.lap), out = new Map();
+    laps.forEach((l, i) => {
+      const end = Number.isFinite(l.lap_end_seconds) ? l.lap_end_seconds : Number.isFinite(laps[i + 1]?.lap_start_seconds) && laps[i + 1].lap === l.lap + 1 ? laps[i + 1].lap_start_seconds : null;
+      if (Number.isFinite(end)) out.set(l.lap, end);
+    });
+    return out;
+  }
+  /** {laps, rows: [{code, gaps: Map(lap -> s behind the leader), positions: Map(lap -> place)}]}. Exported for tests. */
+  function raceProgress(driverList) {
+    const ends = driverList.map(d => ({code: d.code, ends: lapEnds(d)}));
+    const maxLap = Math.max(0, ...ends.flatMap(e => [...e.ends.keys()]));
+    const rows = ends.map(e => ({code: e.code, gaps: new Map(), positions: new Map()}));
+    for (let lap = 1; lap <= maxLap; lap++) {
+      // Running order at the line: more laps first is implicit (only drivers who completed this lap are ranked).
+      const done = ends.map((e, i) => [i, e.ends.get(lap)]).filter(([, t]) => Number.isFinite(t)).sort((x, y) => x[1] - y[1]);
+      if (!done.length) continue;
+      const leader = done[0][1];
+      done.forEach(([i, t], place) => { rows[i].gaps.set(lap, t - leader); rows[i].positions.set(lap, place + 1); });
+    }
+    return {laps: maxLap, rows};
+  }
+
+  function raceCharts() {
+    if (!/^(race|sprint)$/i.test(loadedSessionName || '')) return '';
+    const progress = raceProgress([...realDrivers.values()]);
+    if (progress.laps < 2) return '';
+    const codes = chartDrivers();
+    const shown = progress.rows.filter(r => codes.includes(r.code));
+    const styles = styleFor(codes);
+    const W = chartWidth(), L = 58, R = 40, T = 10, B = 24;
+    const x = lap => L + (lap - 1) / Math.max(1, progress.laps - 1) * (W - L - R);
+    const lapAxis = H => { let out = ''; const step = lapAxisStep(progress.laps, W - L - R, 12); for (let lap = 1; lap <= progress.laps; lap += step) out += `<text class="axis" x="${x(lap).toFixed(1)}" y="${H - 7}" text-anchor="middle">${lap}</text>`; return out; };
+    const path = (map, y) => { let d = '', open = false; for (let lap = 1; lap <= progress.laps; lap++) { const v = map.get(lap); if (v == null) { open = false; continue; } d += `${open ? 'L' : 'M'}${x(lap).toFixed(1)} ${y(v).toFixed(1)}`; open = true; } return d; };
+    // Gap to the leader: the leader on the top line; capped at 60 s so one lapped car does not flatten the rest.
+    const H1 = 220, cap = Math.min(60, Math.max(5, ...shown.flatMap(r => [...r.gaps.values()]).filter(Number.isFinite)));
+    const step1 = [1, 2, 5, 10, 20].find(st => cap / st <= 6) || 30, top1 = Math.ceil(cap / step1) * step1;
+    const y1 = v => T + Math.min(v, top1) / top1 * (H1 - T - B);
+    const span = {W, L, R, T, B, lapLo: 1, lapHi: progress.laps, title: lap => `Lap ${lap}`};
+    const gapHover = registerHover('gap', {...span, H: H1, rows: lap => shown.map(r => r.gaps.has(lap) && {code: r.code, colour: colourOf(r.code), hollow: styles.get(r.code)?.dashed, value: r.gaps.get(lap), text: r.gaps.get(lap) < .0005 ? 'Leader' : `+${r.gaps.get(lap).toFixed(3)} s`}).filter(Boolean).sort((a, b) => a.value - b.value)});
+    const gapKeys = [], posKeys = [];
+    let gap = `<svg class="overview-lap-chart" ${gapHover} viewBox="0 0 ${W} ${H1}" role="img" aria-label="Gap to the race leader by lap">`;
+    for (let v = 0; v <= top1 + 1e-9; v += step1) gap += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y1(v).toFixed(1)}" y2="${y1(v).toFixed(1)}"/><text class="axis" x="${L - 6}" y="${(y1(v) + 3.5).toFixed(1)}" text-anchor="end">${v ? `+${v}s` : 'Leader'}</text>`;
+    for (const r of shown) {
+      const colour = esc(colourOf(r.code)), last = [...r.gaps.entries()].at(-1), dash = styles.get(r.code)?.dashed ? ' is-dashed' : '';
+      gap += `<path class="line is-solid${dash}" d="${path(r.gaps, y1)}" style="stroke:${colour}"/>`;
+      if (last) gapKeys.push({code: r.code, colour, x: x(last[0]), y: y1(last[1])});
+    }
+    gap += endKey(gapKeys, W - R + 2) + lapAxis(H1) + '</svg>';
+    // Position by lap, every driver in the session, the chosen ones in full colour.
+    const n = progress.rows.length, H2 = Math.max(200, n * 12 + T + B);
+    const y2 = p => T + (p - 1) / Math.max(1, n - 1) * (H2 - T - B);
+    const posHover = registerHover('position', {...span, H: H2, rows: lap => shown.map(r => r.positions.has(lap) && {code: r.code, colour: colourOf(r.code), hollow: styles.get(r.code)?.dashed, value: r.positions.get(lap), text: `P${r.positions.get(lap)}`}).filter(Boolean).sort((a, b) => a.value - b.value)});
+    let pos = `<svg class="overview-lap-chart" ${posHover} viewBox="0 0 ${W} ${H2}" role="img" aria-label="Position by lap">`;
+    for (const p of [1, 5, 10, 15, 20].filter(p => p <= n)) pos += `<text class="axis" x="${L - 6}" y="${(y2(p) + 3.5).toFixed(1)}" text-anchor="end">P${p}</text>`;
+    for (const r of [...progress.rows].sort((a, b) => codes.includes(a.code) - codes.includes(b.code))) {
+      const colour = esc(codes.includes(r.code) ? colourOf(r.code) : getDriverColor(r.code)), chosen = codes.includes(r.code), last = [...r.positions.entries()].at(-1);
+      pos += `<path class="line is-solid${chosen ? (styles.get(r.code)?.dashed ? ' is-dashed' : '') : ' is-faint'}" d="${path(r.positions, y2)}" style="stroke:${colour}"/>`;
+      if (last && chosen) posKeys.push({code: r.code, colour, x: x(last[0]), y: y2(last[1])});
+    }
+    pos += endKey(posKeys, W - R + 2) + lapAxis(H2) + '</svg>';
+    return `<div class="overview-chart"><h3>Gap to the leader</h3>${gap}<p class="overview-note">Time behind the car leading at the line on each lap, from when each lap ended on the session clock; capped at ${top1} s.</p></div>
+      <div class="overview-chart"><h3>Position by lap</h3>${pos}</div>`;
+  }
+
+  let overviewView = 'laps';
+  function renderSessionOverview() {
+    const root = document.getElementById('sessionOverview');
+    if (!root) return;
+    if (!realDrivers?.size) { root.hidden = true; root.innerHTML = ''; renderedOverview = ''; return; }
+    root.hidden = false;
+    const rows = [...realDrivers.values()].map(driverSummary);
+    // Rendered from many places (every renderAll): replace the markup only when it changed, so a point being clicked is
+    // never swapped out between mouse down and up.
+    const views = [['laps', 'Lap times'], ['spread', 'Distribution'], ['field', 'Driver summary']];
+    if (/^(race|sprint)$/i.test(loadedSessionName || '')) views.push(['race', 'Race order']);
+    if (!views.some(([key]) => key === overviewView)) overviewView = 'laps';
+    const buttons = views.map(([key, label]) => `<button type="button" data-overview-view="${key}" aria-pressed="${overviewView === key}">${label}</button>`).join('');
+    let content;
+    if (overviewView === 'spread') content = `<div class="overview-chart"><h3>Lap time distribution</h3>${lapDistribution()}</div>`;
+    else if (overviewView === 'race') content = raceCharts() || '<p class="section-empty">Race order needs at least two recorded laps.</p>';
+    else if (overviewView === 'field') content = sessionSummary();
+    else content = `<div class="overview-chart"><h3>Lap times</h3>${lapChart()}</div>`;
+    const html = `<div class="section-heading analysis-heading overview-heading"><h2 id="sessionOverviewTitle">Session overview</h2>
+      <div class="performance-scope-toggle" role="group" aria-label="Session evidence">${buttons}</div></div>
+      <div class="overview-readout">${readout(rows)}</div>
+      ${content}`;
+    if (renderedOverview !== html || !root.firstChild) {
+      root.innerHTML = html; renderedOverview = html;
+      root.querySelector('.session-summary')?.addEventListener('toggle', event => { summaryOpen = event.target.open; renderedOverview = ''; });
+    }
+    drawnWidth = chartWidth();
+  }
+
+  // ---------- where the time went ----------
+  function timeBreakdown(referenceSamples, samples, zones) {
+    return zones.map((z, index) => {
+      if (z.end <= z.start || z.kind === 'transition') return null;
+      const ref = performanceSectionDuration(referenceSamples, z.start, z.end), own = performanceSectionDuration(samples, z.start, z.end);
+      return Number.isFinite(ref) && Number.isFinite(own) ? {index, label: z.kind === 'corner' ? cornerLabel(z) : (z.label || '').replace(/^Straight /, ''), kind: z.kind, delta: own - ref} : null;
+    }).filter(Boolean);
+  }
+
+  function renderTimeSummary() {
+    let root = document.getElementById('timeSummary');
+    const sectors = document.querySelector('.sector-times');
+    if (!root && sectors) { root = document.createElement('div'); root.id = 'timeSummary'; root.className = 'time-summary'; sectors.after(root); }
+    if (!root) return;
+    const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
+    if (loaded.length < 2 || !reference?.length || typeof adaptiveCornerZones !== 'function') { root.hidden = true; root.innerHTML = ''; return; }
+    const totalDistance = reference[reference.length - 1].Distance || 1;
+    const zones = sessionPerformanceZones(adaptiveCornerZones(resolveCornerMarkers(reference, totalDistance, loaded[0].cornerMarkers)), totalDistance);
+    const readouts = loaded.slice(1).flatMap(lap => {
+      const samples = telemetryCache.get(telemetryKey(lap));
+      if (!samples?.length || lap.real?.out_lap || loaded[0].real?.out_lap) return [];
+      const parts = timeBreakdown(reference, samples, zones);
+      if (!parts.length) return [];
+      const losses = parts.filter(p => p.delta > 0.005).sort((a, b) => b.delta - a.delta).slice(0, 3);
+      const gains = parts.filter(p => p.delta < -0.005).sort((a, b) => a.delta - b.delta).slice(0, 3);
+      const corners = parts.filter(p => p.kind === 'corner').reduce((a, p) => a + p.delta, 0);
+      const straights = parts.filter(p => p.kind === 'straight').reduce((a, p) => a + p.delta, 0);
+      return [{lap, losses, gains, corners, straights}];
+    });
+    const largestShown = Math.max(0, ...readouts.flatMap(({losses, gains}) => [...losses, ...gains].map(part => Math.abs(part.delta))));
+    const list = (items, tone) => items.length ? items.map(part => {
+      const share = (100 * Math.abs(part.delta) / largestShown).toFixed(2);
+      return `<li class="${tone}"><button type="button" data-inspect-zone="${part.index}"><b>${esc(part.label)}</b><span class="time-summary-meter" aria-hidden="true"><i style="width:${share}%"></i></span><span>${signedS(part.delta)}</span><span class="visually-hidden">: show on the map</span></button></li>`;
+    }).join('') : '<li class="is-none">None over 0.005 s</li>';
+    const cards = readouts.map(({lap, losses, gains, corners, straights}) => {
+      return `<article class="time-summary-card" style="--team:${esc(getLapColor(lap))}">
+        <header>
+          <div class="time-summary-pair"><b>${esc(lap.code)} L${lap.lap}</b> vs ${esc(loaded[0].code)} L${loaded[0].lap}</div>
+          <dl class="time-summary-totals"><div><dt>Corners</dt><dd>${signedS(corners)}</dd></div><div><dt>Straights</dt><dd>${signedS(straights)}</dd></div></dl>
+        </header>
+        <div class="time-summary-lists"><div><small>Loses most</small><ol>${list(losses, 'is-loss')}</ol></div><div><small>Gains most</small><ol>${list(gains, 'is-gain')}</ol></div></div>
+      </article>`;
+    });
+    root.onclick = event => {
+      const action = event.target.closest('[data-inspect-zone]');
+      if (!action) return;
+      const index = Number(action.dataset.inspectZone);
+      const selector = `#cornerPickerRow [data-corner-index="${index}"]`;
+      if (!document.querySelector(selector)) return;
+      selectedCornerIndices = new Set([index]);
+      automaticStraightIndices.clear();
+      document.querySelector('[data-inspector-tab="track"]')?.click();
+      const disclosure = document.getElementById('cornerAnalysisToggle');
+      if (disclosure?.getAttribute('aria-expanded') === 'false') disclosure.click();
+      renderCornerAnalysis();
+      renderMiniSectorMap();
+      drawAll();
+      document.querySelector(selector)?.focus();
+    };
+    root.hidden = !cards.length;
+    // A disclosure like "Best lap, ultimate lap and consistency": the summary names the section and gives the headline total.
+    const headline = readouts.length === 1 ? ` <span class="time-summary-headline">${esc(readouts[0].lap.code)} L${readouts[0].lap.lap}: corners ${signedS(readouts[0].corners)} · straights ${signedS(readouts[0].straights)}</span>` : '';
+    root.innerHTML = cards.length ? `<details class="session-summary time-summary-disclosure"${timeSummaryOpen ? ' open' : ''}><summary>Time gained and lost${headline}</summary><div class="time-summary-cards">${cards.join('')}</div><p class="overview-note">Bars share a scale across the comparison. Deltas use the reference lap’s corner and straight windows. Short links between corners are left out, so the parts do not add up exactly to the lap gap.</p></details>` : '';
+    root.querySelector('.time-summary-disclosure')?.addEventListener('toggle', event => { timeSummaryOpen = event.target.open; });
+  }
+
+  // Bound on the section itself: page-level handlers elsewhere stop some clicks before they reach the document.
+  const host = document.getElementById('sessionOverview') || document;
+  host.addEventListener('click', event => {
+    const view = event.target.closest?.('[data-overview-view]');
+    if (view) {
+      overviewView = view.dataset.overviewView;
+      if (overviewView === 'field') summaryOpen = true;
+      renderSessionOverview();
+      host.querySelector(`[data-overview-view="${overviewView}"]`)?.focus({preventScroll: true});
+      return;
+    }
+    const point = event.target.closest?.('#sessionOverview .point');
+    if (point) { toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); return; }
+    const sort = event.target.closest?.('[data-summary-sort]');
+    if (sort) {
+      const key = sort.dataset.summarySort;
+      summarySort = {key, descending: summarySort.key === key ? !summarySort.descending : key === 'trap'};
+      const left = sort.closest('.session-summary-wrap').scrollLeft;
+      renderSessionOverview();
+      const replacement = host.querySelector(`[data-summary-sort="${CSS.escape(key)}"]`);
+      if (replacement) {
+        replacement.closest('.session-summary-wrap').scrollLeft = left;
+        replacement.focus({preventScroll: true});
+      }
+      return;
+    }
+    const best = event.target.closest?.('[data-best-driver]');
+    if (best) {
+      const {bestDriver: code, bestLap} = best.dataset;
+      const left = best.closest('.session-summary-wrap').scrollLeft;
+      if (best.getAttribute('aria-pressed') === 'false' && !selected.includes(code)) {
+        selected.push(code);
+        renderDrivers();
+      }
+      toggleLoadedLap(code, Number(bestLap));
+      const replacement = host.querySelector(`[data-best-driver="${CSS.escape(code)}"]`);
+      if (replacement) {
+        replacement.closest('.session-summary-wrap').scrollLeft = left;
+        replacement.focus({preventScroll: true});
+      }
+      return;
+    }
+    if (event.target.closest?.('#sessionOverview .overview-slow-toggle')) { showSlowLaps = !showSlowLaps; renderSessionOverview(); }
+  });
+  host.addEventListener('change', event => {
+    const input = event.target.closest?.('#sessionOverview input[data-chart-colour]');
+    if (input) { chartColours.set(input.dataset.chartColour, input.value); renderSessionOverview(); }
+  });
+  // The hover card: nearest lap under the pointer, a guide line on that lap and the values of every driver shown.
+  let tip = null;
+  const hideHover = () => { if (tip) tip.hidden = true; host.querySelectorAll?.('.hover-guide').forEach(g => g.remove()); };
+  const showHover = event => {
+    const dist = event.target.closest?.('#sessionOverview svg[data-dist]');
+    if (dist) {
+      const d = distTip(dist, event);
+      if (!d) { hideHover(); return; }
+      if (!tip) { tip = document.createElement('div'); tip.className = 'tooltip overview-tip'; tip.setAttribute('role', 'tooltip'); document.body.append(tip); }
+      tip.innerHTML = `<b>${esc(d.title)}</b>${d.rows.map(r => `<span><i style="--c:${esc(r.colour)}"></i>${esc(r.code)}<em>${esc(r.text)}</em></span>`).join('')}`;
+      tip.hidden = false;
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, event.clientX + 14 + w > innerWidth - 8 ? event.clientX - 14 - w : event.clientX + 14))}px`;
+      tip.style.top = `${Math.min(innerHeight - h - 8, Math.max(8, event.clientY - h / 2))}px`;
+      return;
+    }
+    const svg = event.target.closest?.('#sessionOverview svg[data-hover]'), spec = svg && hoverCharts.get(svg.dataset.hover);
+    if (!spec) { hideHover(); return; }
+    const box = svg.getBoundingClientRect(), vx = (event.clientX - box.left) * spec.W / box.width;
+    const span = spec.W - spec.L - spec.R, laps = spec.lapHi - spec.lapLo;
+    const lap = Math.round(spec.lapLo + Math.min(1, Math.max(0, (vx - spec.L) / span)) * laps);
+    const rows = spec.rows(lap);
+    if (!rows.length) { hideHover(); return; }
+    const gx = spec.L + (laps ? (lap - spec.lapLo) / laps * span : span / 2);
+    let guide = svg.querySelector('.hover-guide');
+    if (!guide) { guide = document.createElementNS(SVG, 'line'); guide.setAttribute('class', 'hover-guide'); svg.prepend(guide); }
+    for (const [k, v] of Object.entries({x1: gx, x2: gx, y1: spec.T, y2: spec.H - spec.B})) guide.setAttribute(k, v.toFixed(1));
+    if (!tip) { tip = document.createElement('div'); tip.className = 'tooltip overview-tip'; tip.setAttribute('role', 'tooltip'); document.body.append(tip); }
+    tip.innerHTML = `<b>${esc(spec.title(lap))}</b>${rows.map(r => `<span><i class="${r.hollow ? 'is-hollow' : ''}" style="--c:${esc(r.colour)}"></i>${esc(r.code)}<em>${esc(r.text)}</em></span>`).join('')}`;
+    tip.hidden = false;
+    const w = tip.offsetWidth, h = tip.offsetHeight, px = box.left + gx * box.width / spec.W;
+    tip.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, px + 14 + w > innerWidth - 8 ? px - 14 - w : px + 14))}px`;
+    tip.style.top = `${Math.min(innerHeight - h - 8, Math.max(8, event.clientY - h / 2))}px`;
+  };
+  host.addEventListener('pointermove', showHover);
+  host.addEventListener('focusin', event => {
+    const point = event.target.closest?.('#sessionOverview .point');
+    if (!point) return;
+    const box = point.getBoundingClientRect(); showHover({target: point, clientX: box.left + box.width / 2, clientY: box.top});
+  });
+  host.addEventListener('focusout', hideHover);
+  host.addEventListener('pointerleave', hideHover);
+  host.addEventListener('keydown', event => {
+    if (event.key === 'Escape') hideHover();
+    const point = event.target.closest?.('#sessionOverview .point');
+    if (point && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggleLoadedLap(point.dataset.code, Number(point.dataset.lap)); }
+  });
+
+  // Redraw when the card's width changes (window resize, sidebar toggled), so the charts keep their real pixel size.
+  if (typeof ResizeObserver === 'function') {
+    const host = document.getElementById('sessionOverview');
+    // Redraw on the next frame: drawing inside the callback changes the observed size and WebKit reports a ResizeObserver loop.
+    if (host) new ResizeObserver(() => requestAnimationFrame(() => { if (!host.hidden && Math.abs(chartWidth() - drawnWidth) > 8) renderSessionOverview(); })).observe(host);
+  }
+
+  window.addEventListener?.('apex-driver-photos', () => { renderedOverview = ''; if (realDrivers?.size) renderSessionOverview(); });
+  window.ApexSessionOverview = {driverSummary, timeBreakdown, raceProgress, render: renderSessionOverview, renderTimeSummary};
+})();

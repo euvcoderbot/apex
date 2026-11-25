@@ -1,11 +1,13 @@
 """Season hub (season_data.py, fia_documents.py): paging, standings with countback, driver stats, head-to-heads and the
 FIA document helpers. No network: Jolpica pages and FIA listings come from injected fakes."""
 from pathlib import Path
+import os
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+os.environ['APEX_RETIREMENT_SOURCES'] = 'off'   # no Wikipedia lookups for retirement causes
 import fia_documents as fia
 import season_data as sd
 
@@ -149,6 +151,27 @@ class SeasonDataTest(unittest.TestCase):
         self.assertEqual(ver['team_share'], round(51 / 63, 3))
         self.assertEqual([p['position'] for p in ver['position_after']], [1, 1])
         self.assertEqual(self.summary['driver_stats']['lin']['q3'], 1)
+        # HAD: retired in round 1 (3 classified, so counted as P4), fourth in round 2.
+        had = self.summary['driver_stats']['had']
+        self.assertEqual((had['retirements'], had['finish_rate'], had['average_finish'], had['average_result']), (1, 0.5, 4.0, 4.0))
+
+    def test_did_not_start_and_pit_lane_starts(self):
+        rows = [{'driver': 'a', 'team': 't', 'position': 1, 'grid': 0, 'points': 25, 'status': 'Finished', 'time_ms': None, 'laps': 50},
+                {'driver': 'b', 'team': 't', 'position': 2, 'grid': 1, 'points': 18, 'status': 'Finished', 'time_ms': None, 'laps': 50},
+                {'driver': 'c', 'team': 'u', 'position': None, 'grid': 2, 'points': 0, 'status': 'Did not start'},
+                {'driver': 'd', 'team': 'u', 'position': None, 'grid': 3, 'points': 0, 'status': 'Retired'}]
+        cards = sd._season_cards([{'round': 1, 'race': rows, 'qualifying': [], 'sprint': []}], {}, {})
+        self.assertEqual(cards['retirements'], {'by_team': {'u': 1}, 'did_not_start': {'u': 1}})
+        # From the pit lane (grid 0) to a win, behind the 3 starters: a 2-place gain.
+        self.assertEqual((cards['comeback']['driver'], cards['comeback']['gain'], cards['comeback']['pit_lane']), ('a', 2, True))
+
+    def test_team_share_follows_the_drivers_team(self):
+        # 'x' scores 10 for team A in round 1, then moves to team B and scores 5; team A also scores 20 (y), team B 15 (z).
+        r = lambda n, rows: {'round': n, 'race': rows, 'sprint': [], 'qualifying': []}
+        e = lambda d, t, p: {'driver': d, 'team': t, 'position': 1, 'grid': 1, 'points': p, 'status': 'Finished', 'position_text': '1'}
+        data = {'rounds': [r(1, [e('x', 'A', 10), e('y', 'A', 20)]), r(2, [e('x', 'B', 5), e('z', 'B', 15)])],
+                'drivers': {'x': {'team': 'B'}}}
+        self.assertEqual(sd.driver_stats(data, 'x', [])['team_share'], round(15 / 50, 3))
 
     def test_head_to_head_rules(self):
         h = sd.compare(self.summary, 'ver', 'had')
@@ -211,6 +234,58 @@ class FiaDocumentsTest(unittest.TestCase):
         self.assertEqual((shifted['component'], shifted['reason'], shifted['geometry']), ('Floor Leading Edge', 'Performance - Local Load', 'Reprofiled floor surfaces'))
         self.assertEqual(fia.repair_item({'component': 'Rear Wing Rear Wing', 'reason': 'Performance', 'geometry': 'x', 'description': 'y'})['component'], 'Rear Wing')
         self.assertIsNone(fia.repair_item({'component': '', 'reason': '', 'geometry': '', 'description': ''}))
+
+    def test_new_pu_elements_report(self):
+        # São Paulo 2026: elements fitted after Friday's table appear only in these reports (count = previous + 1).
+        text = '\n'.join([
+            '2026 SÃO PAULO GRAND PRIX', '06 - 08 November 2026', 'From The FIA Formula 1 Technical Delegate Document 42',
+            'The following driver is using a new internal combustion engine (ICE) for the remainder of the',
+            'Number Car Driver Previously used ICE', '44 Ferrari Lewis Hamilton 5', '3 Red Bull Racing RB Ford Max Verstappen 4',
+            'The internal combustion engine used by Lewis Hamilton is the sixth (6th) of the four (4) new',
+            'The following driver is using a new motor generator unit-kinetic (MGU-K) for the remainder of',
+            'Number Car Driver Previously used MGU-K', '44 Ferrari Lewis Hamilton 3',
+            'The following driver is using a new power unit ancillary component (PU-ANC):',
+            'Number Car Driver Previously used PU-ANC', '30 Racing Bulls RB Ford Liam Lawson 5'])
+        self.assertEqual(fia.parse_new_pu_text(text), {'44': {'ICE': 6, 'MGU-K': 4}, '3': {'ICE': 5}, '30': {'PU-ANC': 6}})
+
+    def test_new_pu_elements_report_states_the_allowances(self):
+        # The reports' sentences name each element's season allowance, wrapped across lines as the PDF text comes out.
+        text = '\n'.join([
+            'The internal combustion engine used by Lewis Hamilton is the sixth (6th) of the four (4) new',
+            'internal combustion engines allowed for the 2026 Championship season.',
+            'The MGU-K used by Lewis Hamilton is the fourth (4th) of the three (3) new motor generator units-kinetic allowed',
+            'The PU-ANC used by Liam Lawson is the sixth (6th) of the six (6) new power unit ancillary components allowed',
+            'Nothing here: of the two (2) new widgets allowed'])
+        self.assertEqual(fia.parse_new_pu_allowances(text), {'ICE': 4, 'MGU-K': 3, 'PU-ANC': 6})
+
+    def test_document_list_is_read_around_its_weekend_then_settles(self):
+        link = lambda name: f'<a href="/system/files/decision-document/{name}.pdf">'
+        pages = {fia.CHAMPIONSHIP: '<a href="/x/season/season-2026-2072">y</a>'}
+        weekend = iter([link('friday'),                                                      # Friday
+                        link('friday') + link('final_race_classification'),                  # race evening
+                        link('friday') + link('final_race_classification') + link('car_3_changes_to_pu_elements'),  # Monday
+                        link('friday') + link('final_race_classification') + link('car_3_changes_to_pu_elements'),  # Tuesday
+                        link('should_never_be_read')])
+        reads = []
+        def get(url, binary=False):
+            if url in pages:
+                return pages[url]
+            reads.append(url)
+            return next(weekend)
+        clock = [0.0]
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = fia.Documents(Path(tmp), get=get, now=lambda: clock[0])
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 1)
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 1)   # within 30 minutes: not read again
+            clock[0] += 2 * 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 2)   # a mid-weekend list is never final
+            clock[0] += 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 3)   # post-race decision picked up
+            clock[0] += 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 3)   # two days after the race: settles
+            clock[0] += 30 * 86400
+            self.assertEqual(len(docs.event_documents(2026, 'Test Grand Prix', True)), 3)
+            self.assertEqual(len(reads), 4)                                                  # never fetched again
 
     def test_event_names_in_either_encoding(self):
         self.assertEqual(fia._unquote('S%C3%A3o%20Paulo'), 'São Paulo')

@@ -1,0 +1,87 @@
+import {test,expect} from '@playwright/test';
+import {isolate,replayFixture} from './helpers.mjs';
+import {readFileSync} from 'node:fs';
+
+test('published Sprint appears alongside the bundled race',async({page})=>{
+  await isolate(page);
+  await replayFixture(page);
+  const bundled=JSON.parse(readFileSync(new URL('../assets/data/start-execution.json',import.meta.url),'utf8'));
+  const monaco=bundled.races.find(r=>r.event==='Monaco Grand Prix');
+  await page.route('**/assets/data/starts/2026.json',route=>route.fulfill({
+    json:{method:'start-execution-v1',races:[{...monaco,session:'Sprint',standing:monaco.standing.slice(0,2),rolling:[]}]}
+  }));
+  await page.goto('/apex/cars/starts?year=2026&scope=tracks&races=6&run=1');
+  const panel=page.locator('#performanceMetricPanel');
+  await expect(panel.getByText('Monaco Grand Prix · 2026',{exact:true})).toBeVisible();
+  await panel.getByRole('combobox',{name:'Session',exact:true}).click();
+  await panel.getByRole('option',{name:'Monaco Grand Prix · Sprint',exact:true}).click();
+  await expect(panel.getByText('Monaco Grand Prix · Sprint · 2026')).toBeVisible();
+  await expect(panel.getByText('2 launches ·')).toBeHidden();
+  await page.locator('#explanationsToggle').click();
+  await expect(panel.getByText('2 launches ·')).toBeVisible();
+});
+
+for(const width of [390,1440])test('Las Vegas start coverage '+width,async({page},info)=>{
+  await page.setViewportSize({width,height:900});
+  await isolate(page);
+  await replayFixture(page);
+  await page.goto('/apex/cars/starts?year=2026&scope=tracks&races=21&run=1');
+  const panel=page.locator('#performanceMetricPanel');
+  await expect(panel.getByText('Las Vegas Grand Prix · 2026')).toBeVisible();
+  await expect(panel.getByText('20 launches ·')).toBeHidden();
+  const distance = panel.getByRole('columnheader',{name:/^200 m\b/});
+  await expect(distance).toBeVisible();
+  await distance.scrollIntoViewIfNeeded();
+  await expect(distance).toBeInViewport();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1);
+  await panel.screenshot({path:info.outputPath('standing.png')});
+  await panel.getByRole('button',{name:'Safety-car releases'}).click();
+  await expect(panel.getByText('No verified safety-car release measurements for this race.')).toBeVisible();
+});
+
+test('Mexico City shows long checkpoints and keeps partial coverage visible on phones',async({page})=>{
+  await page.setViewportSize({width:390,height:900});
+  await isolate(page);
+  await replayFixture(page);
+  await page.goto('/apex/cars/starts?year=2026&scope=tracks&races=19&run=1');
+  const panel=page.locator('#performanceMetricPanel');
+  await expect(panel.getByText('Mexico City Grand Prix · 2026')).toBeVisible();
+  const longest=panel.getByRole('columnheader',{name:/^800 m\b/});
+  await longest.scrollIntoViewIfNeeded();
+  await expect(longest).toBeInViewport();
+  const cells=await panel.locator('tbody tr td:last-child').allTextContents();
+  expect(cells.filter(value=>value!=='—')).toHaveLength(2);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1);
+});
+
+for(const width of [390,1440])for(const theme of ['dark','light']){
+  test('Monaco start execution '+theme+' '+width,async({page},info)=>{
+    await page.setViewportSize({width,height:900});
+    await isolate(page);
+    await replayFixture(page);
+    await page.addInitScript(theme=>localStorage.setItem('apex-theme',theme),theme);
+    await page.goto('/apex/cars/starts?year=2026&scope=tracks&races=6&run=1');
+    const panel=page.locator('#performanceMetricPanel');
+    await expect(panel.getByText('Monaco Grand Prix · 2026')).toBeVisible();
+    await expect(panel.getByRole('columnheader',{name:/^20 m/})).toBeVisible();
+    await expect(panel.getByRole('columnheader',{name:/^50 m/})).toHaveCount(0);
+    await panel.getByRole('button',{name:'Teams',exact:true}).click();
+    await panel.getByRole('button',{name:'Speed at distance',exact:true}).click();
+    await expect(panel.getByText('Mercedes',{exact:true})).toBeVisible();
+    await expect(panel.getByText(/km\/h/).first()).toBeVisible();
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth)).toBeLessThanOrEqual(1);
+    const placement=await panel.locator('.start-comparison').evaluate(node=>{
+      const profile=node.querySelector('.start-profile').getBoundingClientRect();
+      const table=node.querySelector('.start-table').getBoundingClientRect();
+      return {aligned:Math.abs(profile.top-table.top)<=1,stacked:profile.bottom<=table.top};
+    });
+    expect(width===390?placement.stacked:placement.aligned).toBe(true);
+    await panel.getByRole('combobox',{name:'Driver',exact:true}).click();
+    await panel.getByRole('option',{name:/^RUS/}).click();
+    await expect(panel.getByRole('group',{name:'Launch speed by distance for RUS'})).toBeVisible();
+    await panel.screenshot({path:info.outputPath('standing.png')});
+    await panel.getByRole('button',{name:'Safety-car releases'}).click();
+    await expect(panel.getByRole('columnheader',{name:'At green'})).toBeVisible();
+    await panel.screenshot({path:info.outputPath('rolling.png')});
+  });
+}

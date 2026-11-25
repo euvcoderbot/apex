@@ -43,6 +43,30 @@ class RecordedPhysicsTests(unittest.TestCase):
         self.assertIs(cars['McLaren'][0],a)
         self.assertEqual(timing['McLaren'][0],{'official_time_s':91.824,'completed_at_s':2000.,'driver':'NOR','lap':18})
 
+    def test_expanded_native_batch_counts_laps_and_retains_an_entrant_after_a_failed_lap(self):
+        from performance_tracks import speed_domain_only
+        file=ROOT/'data/val/2026-Austin.json.gz'
+        laps=json.loads(gzip.decompress(file.read_bytes()))['laps']
+        selections, extracted, seen = [], [], set()
+        for lap in sorted(laps,key=lambda row: row['time']):
+            driver=lap['driver']
+            if driver in seen:
+                continue
+            seen.add(driver)
+            key=driver+':'+str(lap['lap'])
+            selections.append({'team':key,'team_name':lap['team'],'driver':driver,'lap':lap['lap'],'time':lap['time']})
+            samples=[dict(zip(('Distance','ElapsedSeconds','Speed','Throttle','Brake','X','Y','DRS'), values))
+                     for values in zip(*(lap['samples'][k] for k in ('d','t','v','thr','brk','x','y','drs')))]
+            extracted.append((key,samples,None))
+        team=selections[0]['team_name']
+        selections.append({'team':'missing','team_name':team})
+        extracted.append(('missing',None,'Missing supplemental trace'))
+        result=speed_domain_only(extracted,selections)
+        self.assertNotIn(team,result['excluded'])
+        evidence=result['speed_domain']['cars'][team]['lap_evidence']
+        self.assertEqual(evidence['laps'],2)
+        self.assertEqual(len(evidence['drivers']),2)
+
     def test_integral_has_correct_units_and_matches_constant_acceleration(self):
         for acceleration in (-6.,0.,3.):
             distance=np.array([0.,7.,45.,100.])

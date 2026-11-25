@@ -25,19 +25,21 @@ export function PitsView(p: PitsViewProps) {
       <Card title="Pit stops & pit lane" note={p.note}>
         <p className="performance-note">{p.serviceNote}</p>
         {p.failures.length ? (
-          <p className="performance-note">{p.failures.map(f => `${f.name}: ${f.error}`).join(' · ')}{' '}
+          <p className="performance-error" role="alert">{p.failures.map(f => `${f.name}: ${f.error}`).join(' · ')}{' '}
             <button type="button" className="performance-explain-toggle" data-pit-retry="">Retry unavailable</button></p>
         ) : null}
         {p.noStationary ? <p className="performance-note">The source has no stationary-at-the-box values for this selection. “—” means unavailable, not a zero-second stop.</p> : null}
         <p className="performance-quality-status">
+          <span className="explanation-only">
           {p.quality.stationary} / {p.quality.visits} stationary timings · {p.quality.lane} / {p.quality.visits} lane timings.{' '}
           {p.quality.gaps && p.quality.visits > p.quality.stationary ? <>
             Untimed: {[p.quality.gaps.pack ? `${p.quality.gaps.pack} came in together (likely red flag or safety car; DHL times none)` : '',
               p.quality.gaps.awaiting ? `${p.quality.gaps.awaiting} await DHL's table for that race` : '',
               p.quality.gaps.other ? `${p.quality.gaps.other} single visits (penalty, retirement or repair)` : ''].filter(Boolean).join(' · ')}.{' '}
           </> : null}
-          {p.quality.refresh ? <button type="button" data-pit-retry="">Refresh missing timing</button> : null}
           {' '}Consistency (IQR) needs 4 samples. No recorded visit is not a zero-second stop.
+          </span>
+          {p.quality.refresh ? <button type="button" data-pit-retry="">Refresh missing timing</button> : null}
         </p>
         <div className="performance-pit-controls">
           <div className="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
@@ -60,13 +62,15 @@ export function PitsView(p: PitsViewProps) {
             : <BarChart rows={p.chartRows} options={p.chart} />
           : <p className="section-empty" role="status">{p.emptyMessage}</p>}
         <DataTable
+          evidenceFrom={p.isDriver ? 6 : 5}
           headers={[p.sort.pitName, ...(p.isDriver ? [p.sort.pitTeam] : []), p.sort.pitMean, p.sort.pitMedian, p.sort.pitFastest, p.sort.pitSpread, p.sort.pitCount, p.sort.pitEvents]}
+          heat={(['mean', 'median', 'fastest'] as const).map((k, i) => ({col: (p.isDriver ? 2 : 1) + i, values: p.rows.map(r => r.sample[k]), better: 'low' as const}))}
           rows={p.rows.map(r => [
             p.isDriver ? r.driver : <TeamLabel team={r} />, ...(p.isDriver ? [<TeamLabel team={r} />] : []),
             seconds(r.sample.mean), seconds(r.sample.median), seconds(r.sample.fastest),
             finite(r.sample.spread)
               ? <>{fmt(r.sample.spread, 3, ' s')}<small>{fmt(r.sample.p25, 3)}–{fmt(r.sample.p75, 3)} s</small></>
-              : <>—<small>{r.sample.count ? `Needs 4 ${unit} · ${r.sample.count} measured` : 'No timed samples'}</small></>,
+              : <>—<small className="explanation-only">{r.sample.count ? `Needs 4 ${unit} · ${r.sample.count} measured` : 'No timed samples'}</small></>,
             r.sample.count, r.eventCount,
           ])} />
       </Card>

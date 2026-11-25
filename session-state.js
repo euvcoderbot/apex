@@ -35,7 +35,8 @@ let showSpeedAnnotations = window.ApexAnalysis?.preference('speed-annotations',f
 // Deliberately opt-in on each page load, never silently restore an estimate.
 let estimateAlignmentCorrection = false;
 let speedAnnotationCache = null;
-const traceTintEnabled = false;
+// Tint under the main telemetry traces (speed, throttle, brake, rpm): off unless chosen in Display.
+let traceTintEnabled = window.ApexAnalysis?.preference('trace-tint', false) === true;
 const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
 let dominanceMapGeometryCache = null;
@@ -161,7 +162,7 @@ function replaceUI(root, html) {
   }
 }
 
-function canvasFont(size = 12, weight = 400) {
+function canvasFont(size = 12, weight = 450) {
   // Canvas labels use the same font as the surrounding interface.
   const family = typeof getComputedStyle === 'function' ? getComputedStyle(document.body).fontFamily : '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro", Inter, "Segoe UI", system-ui, sans-serif';
   return `${weight} ${size + 1}px ${family}`;
@@ -507,6 +508,9 @@ async function loadApiData(url, options = {}) {
   return structuredClone(data);
 }
 window.apexDataRequest=(path,signal)=>loadApiData(apiUrl(path),{signal});
+// Optional, versioned snapshot. A missing expanded batch must not trigger a
+// live computation from the published dashboard.
+window.apexPreparedSpeedBatch=path=>preparedData(apiUrl(path));
 window.apexMeasurementRequest=(path,signal)=>loadApiData(new URL(path,window.location.href).href,{signal});
 
 function notify(message, tone = 'error') {
@@ -664,18 +668,18 @@ function canvasTheme() {
     mapBase: 'rgba(20, 25, 32, .16)',
     labelStroke: 'rgba(250, 251, 252, .96)',
     labelFill: 'rgba(20, 25, 32, .92)',
-    crosshair: 'rgba(20, 25, 32, .3)',
+    crosshair: 'rgba(20, 25, 32, .6)',
   } : {
     text: '#a1a1aa',
     textStrong: 'rgba(255, 255, 255, .72)',
     grid: 'rgba(255, 255, 255, .05)',
     gridStrong: 'rgba(255, 255, 255, .25)',
-    panel: '#1c1c1e',
+    panel: '#191a1b',  // Linear card
     outline: 'rgba(255, 255, 255, .22)',
     mapBase: 'rgba(255, 255, 255, .12)',
-    labelStroke: '#101114',
+    labelStroke: '#191a1b',
     labelFill: 'rgba(255,255,255,.92)',
-    crosshair: 'rgba(255, 255, 255, .25)',
+    crosshair: 'rgba(255, 255, 255, .65)',
   };
 }
 
@@ -749,15 +753,20 @@ function telemetryKey(lap) {
 
 // Team marks are resolved by the session's team, never by a driver's current team: a historical session keeps its team's
 // mark. They are drawn by team-marks.js (the teams' own logos are trademarks the site does not publish).
-function teamLogoMarkup(teamName) {
-  return window.ApexTeamMarks?.teamMarkMarkup(teamName) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
+function teamLogoMarkup(teamName, number) {
+  // A driver of the loaded session with a photo: the photo on the team colour; otherwise the team mark with the number.
+  const driver = number != null && number !== '' && typeof realDrivers !== 'undefined' ? [...realDrivers.values()].find(d => String(d.number) === String(number) && (!teamName || String(d.team || '').toLowerCase() === String(teamName).toLowerCase())) : null;
+  const src = driver && window.apexDriverFaces?.src(driver.name);
+  // One element: the photo itself on the team colour (its background shows through the cut-out).
+  if (src) return `<img class="driver-face" src="${src}" alt="" aria-hidden="true" loading="lazy" decoding="async" style="--team:${escapeUI(window.apexTeamColour?.(driver.team_color) || driver.team_color || '#777')}">`;
+  return window.ApexTeamMarks?.teamMarkMarkup(teamName, number) || '<span class="team-logo" aria-hidden="true"><i class="team-logo-fallback"></i></span>';
 }
 
 function compoundBadgeMarkup(compound) {
   const name = String(compound || '').trim().toLowerCase();
   const spec = ({soft:['S','#ff493e'], medium:['M','#ffd735'], hard:['H','#f5f5f7'], intermediate:['I','#43cf79'], inter:['I','#43cf79'], wet:['W','#3395ff']})[name];
   if (!spec) return `<span class="compound-label">${escapeUI(compound || 'Unknown')}</span>`;
-  return `<svg class="compound-badge" viewBox="0 0 32 32" role="img" aria-label="${name}" width="26" height="26"><title>${name}</title><circle cx="16" cy="16" r="15" fill="#202124"/><circle cx="16" cy="16" r="12" fill="none" stroke="${spec[1]}" stroke-width="3" stroke-dasharray="31.7 6" transform="rotate(-76 16 16)"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-size="15" font-weight="700">${spec[0]}</text></svg>`;
+  return `<svg class="compound-badge" viewBox="0 0 32 32" role="img" aria-label="${name}" width="26" height="26"><title>${name}</title><circle cx="16" cy="16" r="15" fill="#202124"/><circle cx="16" cy="16" r="12" fill="none" stroke="${spec[1]}" stroke-width="3" stroke-dasharray="31.7 6" transform="rotate(-76 16 16)"/><text x="16" y="16.5" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="15" font-weight="700">${spec[0]}</text></svg>`;
 }
 
 // A tyre drawn by the app (dark sidewall, the compound's colour stripe, a five-spoke rim), in place of the tyre maker's images.

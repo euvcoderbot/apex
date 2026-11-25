@@ -3,7 +3,9 @@ import { resolve, dirname } from "node:path";
 import {createHash} from 'node:crypto';
 import {buildUiStyles,prepareStyle,UI_STYLES,LOCAL_STYLES} from '../lib/ui-style-build.mjs';
 import {copyPublishedAssets} from '../lib/published-assets.mjs';
+import {DATA_FOLDERS} from '../lib/data-store.mjs';
 import {sourceRevisionBytes} from '../lib/source-revision.mjs';
+import {calculateRetirementRevision} from '../lib/retirement-revision.mjs';
 import {snapshotPolicy} from '../lib/snapshot-policy.mjs';
 
 const root = process.cwd();
@@ -35,8 +37,19 @@ const measurementRevision=computedMeasurementRevision==='a8844f34c906faa5b4a9'?'
 // availability, not the native lap schema, units or sample processing.
 // Retain the exact audited raw identity so native exporters can append safely.
 const rawRevision = ['58a74edf7681fe405d91','6e8c99430260a385b676','e7075057264f10091bdd'].includes(computedSourceRevision) ? '5b02cc1bb2a6daf808ad' : computedSourceRevision;
-const backendRevision = computedBackendRevision==='112288f02c1cac1636c7'?'f7216b3d5e4981b881ec':computedBackendRevision;
-await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, upstream calculations and race snapshots invalidate independently.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backendRevision)};\nexport const RACE_REVISION = ${JSON.stringify(measurementRevision)};\n`);
+// These exact changes affect retirement classifications and lap-evidence
+// metadata. Existing numerical snapshots retain their backend identity.
+// Repeat-lap requests have distinct keys and retirement has its own gate.
+const backendRevision = ({
+  '112288f02c1cac1636c7': 'f7216b3d5e4981b881ec',
+  'c6598db8232ef9321fa3': 'c18f75bc4ecbc34e05f2',
+  '067ba3f6b33a3ab4a396': 'c18f75bc4ecbc34e05f2',
+})[computedBackendRevision] ?? computedBackendRevision;
+const retirementRevision = calculateRetirementRevision(
+  await readFile(resolve(root, 'performance.py')),
+  await readFile(resolve(root, 'retirement_sources.py')),
+);
+await writeFile(resolve(root,'lib/cache-revision.mjs'),`// Generated: source, backend calculations, race measurements and retirement annotations have independent identities.\nexport const CACHE_REVISION = ${JSON.stringify(cacheRevision)};\nexport const SOURCE_REVISION = ${JSON.stringify(rawRevision)};\nexport const BACKEND_REVISION = ${JSON.stringify(backendRevision)};\nexport const RACE_REVISION = ${JSON.stringify(measurementRevision)};\nexport const RETIREMENT_REVISION = ${JSON.stringify(retirementRevision)};\n`);
 const destination = resolve(root, "public", "apex");
 const staticFiles = [
   "index.html",
@@ -50,6 +63,8 @@ const staticFiles = [
   "session-map.js",
   "session-init.js",
   "session-tyres.js",
+  "session-overview.js",
+  "svg-scale.js",
   "analysis-core.js",
   "url-state.js",
   "motion.js",
@@ -58,6 +73,8 @@ const staticFiles = [
   "team-marks.js",
   "linear-workspace.js",
   "live.js",
+  "telemetry-frame.html",
+  "telemetry-frame.js",
   "season.js",
   "lap-sheet.js",
   "alignment.js",
@@ -107,7 +124,7 @@ for(const file of [...staticFiles.filter(file=>file.endsWith('.js')),'react-isla
   const source=await readFile(resolve(destination,file),'utf8');
   await writeFile(resolve(destination,file),source.replace(/((?:from\s+|import\s+)['"]\.\/[^'"?]+\.js)(?:\?[^'"]*)?(['"])/g,`$1?v=${browserRevision}$2`));
 }
-for(const filename of ['index.html','ui-catalog.html']){
+for(const filename of ['index.html','ui-catalog.html','telemetry-frame.html']){
   const page=await readFile(resolve(destination,filename),'utf8');
   await writeFile(resolve(destination,filename),page.replace(/((?:src|href)="[^"/:?]+\.(?:js|css))(?:\?[^" ]*)?("[^>]*>)/g,`$1?v=${browserRevision}$2`));
 }
@@ -122,7 +139,10 @@ ${prepared.css}
 }
 `);
 }
-await copyPublishedAssets(resolve(root,"assets"),resolve(destination,"assets"));
+// APEX_DATA=r2: the hosted build ships no data; the Site serves it from R2, where scripts/publish-data.mjs puts it
+// (lib/data-store.mjs). Track profiles keep a bundled history that R2 can update.
+// Without R2 mode the regular snapshot data is bundled for local previews and tests.
+await copyPublishedAssets(resolve(root,"assets"),resolve(destination,"assets"),{remoteFolders:process.env.APEX_DATA==='r2'?DATA_FOLDERS.filter(folder=>folder!=='track-profiles'):[]});
 // Shipped scripts and the stylesheet are minified (about a fifth less to download). Top-level names of the classic
 // scripts are kept: they share one global scope and the page's inline handlers call them by name.
 // APEX_NO_MINIFY=1 keeps them readable for debugging.

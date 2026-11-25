@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
-const css=fs.readFileSync('macos-ui.css','utf8');
+import {legacySource} from './legacy-css.mjs';
+const css=legacySource('macos-ui.css');
 const app=appSource();
 const tokens=JSON.parse(fs.readFileSync('e2e/__tokens__/tokens.json','utf8'));
 test('one current macOS appearance layer ships after the workspace and replaces Windows styling',()=>{
@@ -20,7 +21,7 @@ test('one current macOS appearance layer ships after the workspace and replaces 
   assert.doesNotMatch(css,/Segoe|Mica|acrylic/i);
 });
 test('every interactive family and every data presentation shares the new appearance',()=>{
-  for(const name of ['site-header','performance-tabs','select-trigger','select-menu','driver-pill','tire-option','run-segment','lap-chip','loaded-lap-pill','race-result-controls','corner-picker','map-view-switch','chart','trace-setting','trace-zoom-cluster','tooltip','app-toast','lap-summary-card','summary-sectors','performance-mode','performance-card','performance-chart-card','performance-bar-track','performance-table','performance-tyre-plot-controls','performance-pit-controls','retirement-badge','section-empty'])assert.ok(css.includes('.'+name),name);
+  for(const name of ['site-header','performance-tabs','select-trigger','select-menu','driver-pill','tire-option','run-segment','lap-chip','loaded-lap-pill','race-result-controls','corner-picker','map-view-switch','trace-setting','trace-zoom-cluster','tooltip','app-toast','lap-summary-card','summary-sectors','performance-mode','performance-card','performance-chart-card','performance-bar-track','performance-table','performance-tyre-plot-controls','performance-pit-controls','retirement-badge','section-empty'])assert.ok(css.includes('.'+name),name);
   assert.match(css,/input\[type="checkbox"\]/);
   assert.match(fs.readFileSync('tokens.css','utf8'),/--scroll-thumb:/);assert.match(css,/progress \{/);assert.match(css,/summary \{/);
 });

@@ -1,7 +1,38 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {gzipSync} from 'node:zlib';
 import {validateIndex,decodeSnapshot,validatePayload,validateSeasonIndex,validateSeasonPayload} from '../lib/release-validation.mjs';
+import {RETIREMENT_REVISION} from '../lib/cache-revision.mjs';
+import {calculateRetirementRevision,isRacePerformanceRoute} from '../lib/retirement-revision.mjs';
+import {snapshotCompatible} from '../lib/snapshot-policy.mjs';
+
+test('retirement metadata changes only with the retirement inputs',()=>{
+  const performance=readFileSync(new URL('../performance.py',import.meta.url));
+  const sources=readFileSync(new URL('../retirement_sources.py',import.meta.url));
+  assert.equal(calculateRetirementRevision(performance,sources),RETIREMENT_REVISION);
+  assert.equal(calculateRetirementRevision(Buffer.from('# Unrelated tyre work\n'+performance),sources),RETIREMENT_REVISION);
+  const classifierChanged=Buffer.from(performance.toString().replace("'Unknown / unverified'", "'Unknown reason'"));
+  const countsChanged=Buffer.from(performance.toString().replace("team['pu_retirements'] += 1", "team['pu_retirements'] += 2"));
+  for(const changed of [
+    calculateRetirementRevision(classifierChanged,sources),
+    calculateRetirementRevision(countsChanged,sources),
+    calculateRetirementRevision(performance,Buffer.concat([sources,Buffer.from('\n# Matcher change')])),
+  ]){
+    assert.notEqual(changed,RETIREMENT_REVISION);
+    assert.equal(snapshotCompatible('retirementRevision','2e4a10782d8503619079',changed),false);
+  }
+  assert.equal(snapshotCompatible('retirementRevision','2e4a10782d8503619079','8af09b53855a2c0be4b1'),true);
+  assert.equal(snapshotCompatible('retirementRevision','8af09b53855a2c0be4b1',RETIREMENT_REVISION),false);
+  assert.equal(snapshotCompatible('retirementRevision',null,RETIREMENT_REVISION),false);
+});
+
+test('retirement metadata is required only for race performance snapshots',()=>{
+  for(const session of ['R','Race','race'])assert.equal(isRacePerformanceRoute('/api/performance?session='+session),true);
+  for(const route of ['/api/performance?session=Q','/api/performance/trace-batch?session=R','/api/session?session=R'])
+    assert.equal(isRacePerformanceRoute(route),false);
+});
+
 test('release indexes fail closed for absent entries and future schemas',()=>{
   for(const index of [{},[],{entries:[]},{entries:{},schema:'future'}])assert.throws(()=>validateIndex(index,'local-captures'));
   validateIndex({entries:{},schema:'apex-local-captures-v1'},'local-captures');

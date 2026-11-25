@@ -4,7 +4,8 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
 import {UI_STYLES,buildUiStyles} from '../lib/ui-style-build.mjs';
-const read=file=>readFileSync(file,'utf8');
+import {legacySource} from './legacy-css.mjs';
+const read=file=>/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system).css$/.test(file)?legacySource(file):readFileSync(file,'utf8');
 
 test('expanded charts isolate only background siblings and restore pre-existing state and focus',()=>{
   function node(name,inert=false){return {name,inert,children:[],attrs:{},setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];}};}
@@ -40,10 +41,12 @@ test('keyboard telemetry readout keeps estimates, partial-lap delta and visible 
   const nodes=Object.fromEntries(['telemetryDataAccess','telemetrySample','telemetrySampleDistance','telemetrySampleRows','telemetrySampleStatus','year'].map(id=>[id,{open:true,value:id==='year'?'2026':'250',setAttribute(k,v){this[k]=v;}}]));
   const reference={code:'VER',lap:1},partial={code:'LEC',lap:2,real:{out_lap:true}},calls=[];
   const series=[{Distance:0},{Distance:6000}];
-  const box={$:s=>nodes[s.slice(1)],loaded:[reference,partial],telemetryCache:new Map([['VER',series],['LEC',series]]),telemetryKey:l=>l.code,
+  const box={window:{},$:s=>nodes[s.slice(1)],loaded:[reference,partial],telemetryCache:new Map([['VER',series],['LEC',series]]),telemetryKey:l=>l.code,
     visibleTraceLaps:()=>[{lap:reference,index:0},{lap:partial,index:1}],traceTelemetryValue:(samples,fraction,field)=>{calls.push([fraction,field]);return field==='Speed'?301.25:75;},
     interpolate:(samples,distance,field)=>field==='Brake'?0:8,isReconstructedTelemetry:(samples,fraction,field)=>field==='Speed',telemetryEstimateInfo:()=>({confidence:'low'}),telemetrySourceGapAt:()=>null,escapeUI:s=>s,displayDeltaAt:()=>.1};
   vm.createContext(box);const source=read('session-charts.js');
+  const alignment=read('alignment.js');
+  vm.runInContext(alignment.slice(alignment.indexOf('function referenceDistance'),alignment.indexOf('function rawFractionAt')),box);
   vm.runInContext(source.slice(source.indexOf('function renderTelemetryReadout'),source.indexOf('function deltaAt')),box);box.renderTelemetryReadout();
   assert.equal(nodes.telemetrySampleDistance.textContent,'1.500 km');assert.equal(nodes.telemetrySample['aria-valuetext'],'1.500 km');
   assert.match(nodes.telemetrySampleRows.innerHTML,/VER L1 \(reference\)/);assert.match(nodes.telemetrySampleRows.innerHTML,/~301\.250 \(low confidence\)/);

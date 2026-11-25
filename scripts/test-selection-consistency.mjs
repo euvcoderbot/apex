@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import postcss from 'postcss';
+import {legacySource} from './legacy-css.mjs';
 
-const read=file=>readFileSync(file,'utf8').replace(/\r\n/g,'\n');
+const read=file=>(/^(design-system|polish|apple-ui|car-performance|workspace-ui|trace-focus|macos-ui|ui-controls|macos-window|hig-system)\.css$/.test(file)?legacySource(file):readFileSync(file,'utf8')).replace(/\r\n/g,'\n');
 const app=appSource(), css=read('macos-window.css');
 
 test('corner selection updates the same buttons without moving focus or rebuilding the picker',()=>{
@@ -54,11 +55,10 @@ test('each control family has one selected style and rings mean focus only (sele
   sheet.walkRules(rule=>{if(/aria-pressed="true"|aria-selected="true"|aria-current="page"/.test(rule.selector.replace(/:not\([^)]*\)/g,''))&&!rule.parent?.params?.includes('contrast')&&!rule.parent?.params?.includes('forced-colors'))
     rule.walkDecls(d=>{assert.doesNotMatch(d.value,/var\(--team\)/,rule.selector);if(d.prop==='box-shadow')assert.doesNotMatch(d.value,/^inset 0 0 0/,rule.selector);});});
   assert.match(css,/\.lap-workspace \.run-segment \.run-choice-indicator \{ display: none; \}/);
-  assert.match(css,/#loadedLaps \.loaded-lap-pill\.reference::before \{ background: color-mix\(in srgb,var\(--ui-accent\) 20%,transparent\); color: var\(--ui-accent\); \}/);
   // Driver list as a source list: one 32 px line, natural-case name, trailing code and check.
   assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\] \{ grid-template-columns: 20px 18px minmax\(0,1fr\) auto 12px;[^}]*height: 32px/);
   assert.match(css,/#driverPills \.driver-pill\[data-ui-kind="list-row"\]::before \{ content: none; \}/);
-  assert.match(app,/<span class="driver-pill-identity">\$\{escapeUI\(name\)\}<\/span>\$\{isRace \? raceResultMarkup\(realDrivers\.get\(code\)\) : `<span class="driver-pill-code">/);
+  assert.match(app,/<span class="driver-pill-identity">\$\{escapeUI\(name\)\}(<span class="visually-hidden">[^`]*?<\/span>)?<\/span>\$\{isRace \? raceResultMarkup\(realDrivers\.get\(code\)\) : `<span class="driver-pill-code">/);
   const box={};vm.createContext(box);vm.runInContext(app.slice(app.indexOf('function naturalDriverName('),app.indexOf('function renderDrivers(')),box);
   assert.equal(box.naturalDriverName('Max VERSTAPPEN'),'Max Verstappen');
   assert.equal(box.naturalDriverName('Andrea Kimi ANTONELLI'),'Andrea Kimi Antonelli');

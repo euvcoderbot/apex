@@ -51,18 +51,18 @@
     if(el.matches('.select-trigger'))return 'popup';
     if(el.matches('[role="option"]'))return 'menu-item';
     if(el.matches('#loadSession,#performanceLoad,[data-ui-primary]'))return 'primary';
-    if(el.matches('.driver-pill'))return 'list-row';
+    if(el.matches('.driver-pill,[data-inspect-zone],.season-cell-drill,.season-strip-cell'))return 'list-row';
     if(el.matches('.category-tab'))return 'tab';
     if(el.matches('.run-segment'))return 'run';
     if(el.matches('.lap-chip,.track-pill,.corner-pick,.fastest-lap-pick'))return 'choice';
     if(el.matches('.loaded-lap-main'))return 'reference';
-    if(el.matches('.perf-sort-btn,[data-corner-sort]')||el.closest('.corner-table-head'))return 'sort';
+    if(el.matches('.perf-sort-btn,.season-sort-button,.season-row-toggle,.season-analysis-row,.season-track-choice,.home-tile,.home-round,.home-glance-open,.season-field-open,.season-track-pick,.corner-every-pick,[data-corner-sort]')||el.closest('.corner-table-head'))return 'sort';
     if(el.matches('#performanceToggleTracks'))return 'picker';
     if(el.matches('.workspace-disclosure,.corner-analysis-toggle'))return 'disclosure';
     if(el.matches('[data-performance-metric],[data-session-view]'))return 'tab';
     if(el.matches('[data-zoom],[data-pan],[data-delta-zoom]'))return 'stepper';
-    if(el.matches('.remove,[data-remove],.map-guide-info'))return 'icon';
-    if(el.closest(groups))return 'segment';
+    if(el.matches('.remove,[data-remove],.map-guide-info,.season-info,.season-swap,.season-step'))return 'icon';
+    if(el.closest(groups)||el.closest('.season-segment'))return 'segment';
     if(el.closest('.workspace-tools')||el.matches('#windowSidebarToggle'))return 'toolbar';
     return 'push';
   }
@@ -101,7 +101,11 @@
       let name=el.matches('[data-pan="left"]')?'left':el.matches('[data-pan="right"]')?'right':el.matches('[data-zoom="in"],[data-delta-zoom="in"]')?'plus':el.matches('[data-zoom="out"],[data-delta-zoom="out"]')?'minus':el.matches('[data-remove],.remove')?'close':null;
       if(name&&!el.querySelector('[data-ui-symbol]'))el.innerHTML=symbol(name);
       if(el.matches('button')&&(!el.hasAttribute('title')||el.dataset.uiTooltip==='auto')){
-        const label=el.getAttribute('aria-label')||el.textContent.trim();
+        // A tooltip from the button's own text only for a short, plain label: a row-sized button (avatars, figures, bars)
+        // reads as its text run together ("51543COLvs10GAS...").
+        const plain=!el.querySelector('div,img,table,ul,ol,dl,.season-who');
+        const text=el.textContent.replace(/\s+/g,' ').trim();
+        const label=el.getAttribute('aria-label')||(plain&&text.length<=48?text:'');
         if(label){el.title=label;el.dataset.uiTooltip='auto';}
       }
     }
@@ -144,6 +148,9 @@
   if(typeof MutationObserver!=='undefined')new MutationObserver(records=>{
     let relevant=false;
     for(const record of records){
+      // Chart hover cards contain text only. Rescanning the entire page for each value update blocks pointer feedback.
+      if(record.target.closest?.('.tooltip,.season-tip'))continue;
+      if(record.addedNodes.length&&[...record.addedNodes].every(node=>node.nodeType===1&&node.matches('.tooltip,.season-tip')))continue;
       if(record.type==='childList'&&record.addedNodes.length){dirtyRoots.add(record.target);relevant=true;}
     }
     if(!relevant||pending)return;
@@ -153,7 +160,7 @@
   document.addEventListener('keydown',event=>{
     const resizer=event.target.closest?.('.ui-column-resizer');
     if(resizer&&['ArrowLeft','ArrowRight','Home'].includes(event.key)){event.preventDefault();resizeColumn(resizer,event.key==='ArrowLeft'?-8:8,event.key==='Home');return;}
-    const button=event.target.closest?.('button[data-ui-kind="segment"],button[data-ui-kind="run"]'),group=button?.closest('[data-ui-group="segments"],.run-segments');
+    const button=event.target.closest?.('button[data-ui-kind="segment"],button[data-ui-kind="run"],.season-segment button'),group=button?.closest('[data-ui-group="segments"],.run-segments,.season-segment');
     if(!group||event.altKey||event.metaKey||event.ctrlKey||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     const choices=[...group.querySelectorAll('button:not(:disabled)')];
     const index=choices.indexOf(button),next=event.key==='Home'?choices[0]:event.key==='End'?choices.at(-1):choices[(index+(event.key==='ArrowRight'?1:-1)+choices.length)%choices.length];

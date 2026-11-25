@@ -42,8 +42,13 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
           <SegmentedControl name="results-chart" label="Results measure" value={chartMetric} options={MEASURES} />
         </div>
         <div className="results-overview">
-        <BarChart rows={overview} options={chart} />
+        <BarChart rows={overview.map(row => ({...row, evidenceLabel: chartMetric === 'exposure'
+          ? `${row.completedLaps ?? 0} laps`
+          : `${row.starts} race starts`}))} options={chart} />
         <DataTable headers={['Team', 'Total points', 'Race', 'Sprint', 'Race points / start', 'Finished / starts']}
+          heat={[{col: 1, values: overview.map(t => t.points), better: 'high'}, {col: 2, values: overview.map(t => t.racePoints), better: 'high'},
+            {col: 3, values: overview.map(t => t.sprintPoints), better: 'high'}, {col: 4, values: overview.map(t => t.pointsPerStart), better: 'high'},
+            {col: 5, values: overview.map(t => (t.starts ? t.finishes / t.starts : null)), better: 'high'}]}
           rows={overview.map(t => [<TeamLabel team={t} />, value(t.points), value(t.racePoints), value(t.sprintPoints),
             fmt(t.pointsPerStart, 2), `${t.finishes} / ${t.starts}`])} />
         </div>
@@ -64,7 +69,7 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
       </Card>
       <Card title="Retirement classifications"
         note="Causes are the reasons reported in each race's Wikipedia classification, used only when the car number, driver and laps completed match the timing data; each links to the page revision it came from. They are reported context, not verified failure analysis. Where no matching report exists the timing status is shown, and a generic Retired status counts as unknown, never as mechanical. DSQ and medical withdrawals do not count as mechanical failures.">
-        <DataTable headers={['Team', 'Event', 'Driver', 'Category', 'Reported cause', 'Source']}
+        <DataTable evidenceFrom={5} headers={['Team', 'Event', 'Driver', 'Category', 'Reported cause', 'Source']}
           rows={rows.flatMap(t => t.retirements.map(r => [
             <TeamLabel team={t} />, <EventLabel event={r.event} />, r.driver, <RetirementBadge category={r.category} />,
             <span style={{fontWeight: 600}}>{r.cause || 'Unclassified retirement'}</span>,

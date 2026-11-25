@@ -1,15 +1,18 @@
 """Rebuild retirement metadata only, from retained complete race classifications.
 Original timings, capture times and revision IDs remain unchanged.
 """
-import copy, gzip, hashlib, json, sys
+import copy, gzip, hashlib, json, re, sys
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from capture_storage import repository_lock, atomic_bytes
 from retirement_sources import reported_retirements, match
 from performance import classify_retirement
+if len(sys.argv) != 2:
+ raise SystemExit('Usage: refresh-retirement-classifications.py <prepared checkout>')
 root=Path(sys.argv[1]).resolve()
-revision=sys.argv[2]
+revisions=(Path(__file__).resolve().parents[1] / 'lib/cache-revision.mjs').read_text(encoding='utf-8')
+revision=re.search(r'RETIREMENT_REVISION = "([a-f0-9]{20})"', revisions).group(1)
 folders=['prerendered','local-captures']
 indexes={f:json.loads((root/'assets/data'/f/'index.json').read_text()) for f in folders}
 sessions={}
@@ -48,7 +51,17 @@ with repository_lock(root):
      if found:
       classified=classify_retirement(retirement.get('cause','Retired'),g,retirement['driver'],y,{**found,'url':report.get('url')})
       retirement.update(classified);matched+=1
-     else:unmatched+=1
+     else:
+      # Reapply current rules to a previously sourced cause even when the
+      # upstream article is unavailable. Never invent a new source or reason.
+      cause=retirement.get('cause')
+      if cause:
+       current=classify_retirement(cause,g,retirement['driver'],y)
+       for field in ('category','is_mechanical','year_compliant'):
+        retirement[field]=current[field]
+      elif retirement.get('is_mechanical'):
+       retirement.update(category='Unknown / unverified',is_mechanical=False)
+      unmatched+=1
     counts={key:0 for key in fields if key!='retirements'}
     for r in team.get('retirements',[]):
      category=r.get('category')

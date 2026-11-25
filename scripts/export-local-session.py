@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import server
 from capture_storage import repository_lock,atomic_bytes
+from start_archive import START_SESSIONS, capture_start
 
 
 def timestamp(value):
@@ -128,6 +129,11 @@ def main():
     event = next((e for e in calendar if e.get('name') == args.gp and e.get('round') == args.round),None)
     if event is None:
         raise ValueError('Grand Prix and round do not match the calendar')
+    if session in START_SESSIONS:
+        try:
+            capture_start(identity, event, ROOT / 'assets/data', server.openf1, finish_confirmed=True)
+        except (OSError, ValueError, KeyError, RuntimeError) as error:
+            print(f'Starts capture pending: {error}', file=sys.stderr, flush=True)
     # Completion is confirmed independently of telemetry/export readiness.
     event.setdefault('session_statuses',{})[session] = 'completed'
     calendar_path=ROOT/f'assets/data/events/{args.year}.json'

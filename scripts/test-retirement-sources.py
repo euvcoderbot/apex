@@ -117,7 +117,8 @@ class Classification(unittest.TestCase):
 
     def test_categories_for_reasons_as_wikipedia_words_them(self):
         cases = {'Collision damage': 'Incident / collision', 'Accident': 'Incident / collision', 'Hydraulics': 'Chassis / team-related',
-                 'Gearbox': 'Chassis / team-related', 'Water pressure': 'PU-related', 'Power loss': 'PU-related', 'Battery': 'PU-related',
+                 'Gearbox': 'Chassis / team-related', 'Water pressure': 'PU-related', 'Power loss': 'Unknown / unverified', 'Vibrations': 'Unknown / unverified',
+                 'Puncture': 'Unknown / unverified', 'Loss of drive': 'Unknown / unverified', 'Battery': 'PU-related',
                  'Positive COVID-19 test': 'Other confirmed', 'Safety switch': 'Unknown / unverified'}
         for reason, category in cases.items():
             self.assertEqual(classify_retirement('Retired', 'X', 'AAA', 2026, self.reported(reason))['category'], category, reason)

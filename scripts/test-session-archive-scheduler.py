@@ -22,6 +22,54 @@ def session(key, end, name='Practice 1', cancelled=False):
 
 
 class SchedulerTests(unittest.TestCase):
+    def test_start_retry_checks_previously_archived_races_independently(self):
+        old = session(1,NOW-timedelta(days=7),'Race')
+        practice = session(2,NOW-timedelta(hours=2),'Practice 1')
+        upcoming = session(3,NOW+timedelta(hours=1),'Sprint')
+        event = {'name':'Test GP','round':1}
+        with patch.object(scheduler,'event_for_session',return_value=(event,'Race')), \
+             patch.object(scheduler,'capture_start',side_effect=[ValueError('missing packets'),True]) as capture:
+            self.assertEqual(len(scheduler.capture_due_starts([old,practice,upcoming],NOW,{2026:[event]})),1)
+            self.assertEqual(scheduler.capture_due_starts([old,practice,upcoming],NOW,{2026:[event]}),[])
+        self.assertEqual([call.args[0] for call in capture.call_args_list],[old,old])
+
+    def test_old_sessions_without_a_capture_are_caught_up_a_few_per_run(self):
+        old=[session(k,NOW-timedelta(days=30+k),'Practice 2') for k in range(1,6)]
+        captured={('2026','Old GP 1','Practice 2')}
+        events={k:({'name':f'Old GP {k}'},'Practice 2') for k in range(1,6)}
+        with TemporaryDirectory() as directory, patch.object(scheduler.server,'RAW_ROOT',Path(directory)), \
+             patch.object(scheduler.mirror,'acquire_watch_lock',return_value=None), \
+             patch.object(scheduler,'captured_sessions',return_value=captured), \
+             patch.object(scheduler.server,'event_calendar',return_value=[]), \
+             patch.object(scheduler,'event_for_session',side_effect=lambda item,calendar: events[item['session_key']]), \
+             patch.object(scheduler,'finished',return_value=True), \
+             patch.object(scheduler.mirror,'run_once'), \
+             patch.object(scheduler,'prepare_session',return_value=False) as prepare, redirect_stdout(io.StringIO()):
+            scheduler.mirror.save_state({'sessions':{str(k):{} for k in range(1,6)},'provisional_sessions':{}})
+            scheduler.run_due(old,NOW)
+        prepared=[call.args[0]['session_key'] for call in prepare.call_args_list]
+        self.assertEqual(len(prepared),scheduler.CATCH_UP_PER_RUN)   # a few per run
+        self.assertNotIn(1,prepared)                                 # already captured
+        self.assertEqual(prepared,[5,4,3])                           # oldest first
+
+    def test_recent_sessions_are_not_limited_by_catch_up(self):
+        recent=[session(k,NOW-timedelta(hours=2+k),'Practice 1') for k in range(1,5)]
+        with TemporaryDirectory() as directory, patch.object(scheduler.server,'RAW_ROOT',Path(directory)), \
+             patch.object(scheduler.mirror,'acquire_watch_lock',return_value=None), \
+             patch.object(scheduler,'finished',return_value=True), \
+             patch.object(scheduler.mirror,'run_once'), \
+             patch.object(scheduler,'prepare_session',return_value=False) as prepare, redirect_stdout(io.StringIO()):
+            scheduler.mirror.save_state({'sessions':{str(k):{} for k in range(1,5)},'provisional_sessions':{}})
+            scheduler.run_due(recent,NOW)
+        self.assertEqual(prepare.call_count,4)
+
+    def test_captured_sessions_reads_both_indexes(self):
+        with TemporaryDirectory() as directory:
+            for folder,key in (('local-captures','/api/session?gp=A+GP&round=1&session=Practice+1&year=2026'),('prerendered','/api/session?gp=B+GP&round=2&session=Race&year=2026')):
+                (Path(directory)/'assets'/'data'/folder).mkdir(parents=True)
+                (Path(directory)/'assets'/'data'/folder/'index.json').write_text(json.dumps({'entries':{key:{}}}),encoding='utf-8')
+            self.assertEqual(scheduler.captured_sessions(directory),{('2026','A GP','Practice 1'),('2026','B GP','Race')})
+
     def test_busy_job_is_not_reported_as_a_healthy_check(self):
         with patch.object(scheduler.mirror,'acquire_watch_lock',return_value='busy'):
             self.assertIsNone(scheduler.run_due([],NOW))
@@ -61,7 +109,8 @@ class SchedulerTests(unittest.TestCase):
                  patch.object(scheduler.shutil,'which',return_value='node'), patch.object(scheduler.subprocess,'run') as run:
                 scheduler.sync_prepared()
                 args=run.call_args.args[0]
-                self.assertEqual(args[-5:],['--from',str(root),'--to',str(target),'--apply'])
+                self.assertEqual(args[-5::2],['--from','--to','--apply'])
+                self.assertEqual((Path(args[-4]),Path(args[-2])),(root,target))
                 (target/'.openai'/'hosting.json').write_text(json.dumps({'project_id':'different'}))
                 with self.assertRaises(RuntimeError): scheduler.sync_prepared()
                 self.assertEqual(run.call_count,1)
@@ -77,10 +126,19 @@ class SchedulerTests(unittest.TestCase):
              patch.object(scheduler,'urlopen',return_value=response), \
              patch.object(scheduler.json,'load',return_value={'mode':'local'}), \
              patch.object(scheduler,'revisions',return_value={}), \
-             patch.object(scheduler.subprocess,'run',side_effect=[None,None,subprocess.CalledProcessError(2,'precompute')]), \
-             patch.object(scheduler,'sync_prepared') as sync:
+             patch.object(scheduler.subprocess,'run',side_effect=[None,None,None,subprocess.CalledProcessError(2,'precompute'),None]) as run, \
+             patch.object(scheduler,'sync_prepared') as sync, \
+             patch.object(scheduler,'publish_prepared') as publish:
             with self.assertRaises(subprocess.CalledProcessError): scheduler.prepare_session(item,False)
             sync.assert_called_once()
+            # Validated captures are published to the live Site even when derived results are partial.
+            publish.assert_called_once()
+            self.assertEqual(run.call_args_list[2].args[0][-3:], ['2026', '--gp', 'Test GP'])
+            self.assertTrue(str(run.call_args_list[2].args[0][1]).endswith('build-track-profiles.mjs'))
+            # The Season hub snapshot is refreshed even when derived results are partial.
+            snapshot=run.call_args_list[-1]
+            self.assertTrue(str(snapshot.args[0][1]).endswith('snapshot-season.mjs'))
+            self.assertEqual(snapshot.kwargs['env']['APEX_LOCAL_API_PORT'],'8000')
 
     def test_plan_waits_40_minutes_and_ignores_cancelled_and_far_events(self):
         sessions = [session(1, NOW + timedelta(hours=2)), session(2, NOW + timedelta(days=9)),

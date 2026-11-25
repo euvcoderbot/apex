@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-skin="linear">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lap telemetry · F1 Apex Data</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html { scrollbar-width: none; scrollbar-gutter: auto; scroll-padding-top: 0; }
+    body::before, body::after { content: none !important; }
+    #charts { grid-template-columns: minmax(0, 1fr); }
+    body { min-height: 0; margin: 0; background: var(--ui-panel); }
+    body:not(.trace-focus) #telemetryCard { padding: 0; }
+  </style>
+</head>
+<body>
+  <input type="hidden" id="year" value="2026">
+  <section id="telemetryCard" class="telemetry-card">
+    <p id="loadedSessionContext" class="visually-hidden"></p>
+    <div id="telemetryContent" class="telemetry-content">
+      <div class="telemetry-analysis-grid">
+        <div id="charts" class="charts" role="region" aria-label="Telemetry traces" tabindex="0"></div>
+      </div>
+      <div id="realTooltip" class="tooltip"></div>
+    </div>
+  </section>
+  <div id="appToast" role="status"></div>
+  <script src="analysis-core.js"></script>
+  <script src="team-colours.js"></script>
+  <script src="telemetry-model.js"></script>
+  <script src="corner-position.js"></script>
+  <script src="session-state.js"></script>
+  <script src="session-charts.js"></script>
+  <script src="session-capture.js"></script>
+  <script src="session-loader.js"></script>
+  <script src="session-hover.js"></script>
+  <script src="session-corners.js"></script>
+  <script src="session-map.js"></script>
+  <script src="alignment.js"></script>
+  <script src="ui-system.js"></script>
+  <script src="telemetry-frame.js"></script>
+</body>
+</html>

@@ -7,7 +7,7 @@
 /* The rail row matches the other Analysis rows: 28 px, 8 px radius, a 14 px glyph (here the live dot). */
 :root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button {
   display: flex; justify-content: flex-start; align-items: center; gap: 8px; width: 100%; height: 28px; min-height: 28px; margin: 2px 0 0; padding: 0 7px;
-  border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: var(--ui-secondary); font: 510 13px/1 var(--ui-font);
+  border: 0; border-radius: 8px; background: transparent; box-shadow: none; color: var(--ui-secondary); font: 500 13px/1 var(--ui-font);
 }
 :root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button .live-dot { flex: 0 0 8px; width: 8px; height: 8px; margin: 0 4px 0 4px; }
 :root[data-skin="linear"][data-skin] #linearWorkspace .linear-navigation .live-view-button:hover:not([aria-pressed="true"]) { background: var(--lin-nav-hover); color: var(--ui-label); }
@@ -17,43 +17,37 @@
 :root[data-skin="linear"][data-skin] #liveTiming { padding: 24px var(--linear-content-pad) 32px; gap: 12px; }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-grid, .live-col) { gap: 12px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-title .workspace-eyebrow { display: none; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-title h1 { font: 590 20px/1.3 var(--ui-font); letter-spacing: -.012em; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-title p { font: 400 13px/1.5 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-card-head h2 { font: 590 13px/1.4 var(--ui-font); }
-/* Cards: the corner shine. */
+:root[data-skin="linear"][data-skin] #liveTiming .live-title h1 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-title p { font: 450 13px/1.5 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-card-head h2 { color: var(--ui-label); font: 600 14px/1.4 var(--ui-font); }
+/* Cards: the spec's card (§8). */
 :root[data-skin="linear"][data-skin] #liveTiming .dashboard-card {
-  position: relative; isolation: isolate; border: 0; border-radius: 8px; padding: 16px;
-  background-color: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border);
-  background-image: radial-gradient(60% 50% at 0% 0%, var(--lin-glow), transparent 70%);
+  position: relative; border: 0; border-radius: var(--lin-card-radius); padding: 16px;
+  background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow);
 }
 :root[data-skin="linear"][data-skin] #liveTiming .live-card-head { padding: 0; margin-bottom: 12px; }
-:root[data-skin="linear"][data-skin] #liveTiming .dashboard-card::after {
-  content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; padding: 1px; pointer-events: none;
-  background: radial-gradient(220px 220px at 0% 0%, var(--lin-shine), transparent 70%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-/* Controls: Linear's pills (28 px, 3% fill, 5% ring, 510 12 px). */
+/* Controls: the spec's pills (28 px, 500 12). */
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-button, .live-source input, .live-chip, .live-badge) {
   height: 28px; min-height: 28px; padding: 0 11px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
-  color: var(--ui-secondary); font: 510 12px/1 var(--ui-font);
+  color: var(--ui-secondary); font: 500 12px/1 var(--ui-font);
 }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:hover:not(:disabled) { background: var(--lin-pill-hover); color: var(--ui-label); }
 /* The :not(#…) chain outranks the general push-button pill rule above, which carries three IDs. */
-:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: #e5484d; box-shadow: none; color: #fff; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: #ec5d61; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--ui-action); box-shadow: none; color: #fff; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: color-mix(in srgb, var(--ui-action) 90%, black); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-button:not(.live-primary):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { background: var(--lin-pill-hover); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary-compare:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):not(:disabled) { background: var(--ui-action); color: white; box-shadow: none; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-button.live-primary-compare:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):not(:disabled):hover { background: color-mix(in srgb, var(--ui-action) 90%, black); }
 /* Choosing comparison laps belongs to Session analysis. */
 :root[data-skin="linear"][data-skin] body.live-view #linearWorkspace #lapWorkspaceToggle { display: none; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="live"] { background: #e5484d; box-shadow: none; color: #fff; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="live"] { background: var(--ui-action); box-shadow: none; color: #fff; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-badge[data-kind="replay"] { background: var(--lin-pill-on); color: var(--ui-label); }
-:root[data-skin="linear"][data-skin] #liveTiming .select-shell .select-trigger:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { box-sizing: border-box; height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 510 12px/1 var(--ui-font); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-group-label { font: 510 11px/1 var(--ui-font); letter-spacing: .02em; text-transform: none; color: var(--ui-quaternary, var(--ui-tertiary)); }
-:root[data-skin="linear"][data-skin] #liveTiming :is(.live-source label, .live-compare-pick label) { font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-flag { border-radius: 9999px; padding: 6px 14px; font: 590 13px/1.2 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .select-shell .select-trigger:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { box-sizing: border-box; height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 500 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-source label, .live-compare-pick label) { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-flag { border-radius: 9999px; padding: 6px 14px; font: 600 13px/1.2 var(--ui-font); }
 /* Timing tower: the group-header band, quiet rows. */
-:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th { background: var(--lin-band); border-bottom: 0; font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); padding-block: 8px; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th { background: var(--lin-band); border-bottom: 0; font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); padding-block: 8px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:first-child { border-radius: 8px 0 0 8px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:last-child { border-radius: 0 8px 8px 0; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table td { border-bottom: 0; font-size: 13px; }
@@ -62,21 +56,39 @@
 :root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr:hover td { background: var(--lin-nav-hover); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr[aria-selected="true"] td { background: var(--lin-nav-active); }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-readout, .live-compare-lap, .live-rc li) { border-radius: 8px; background: var(--lin-band); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-signin input { height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 400 12px/1 var(--ui-font); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-signin label { font: 510 12px/1 var(--ui-font); color: var(--ui-tertiary); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-chart { border-radius: 6px; background: var(--lin-band); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-chart figcaption strong { font: 590 12px/1.4 var(--ui-font); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-chart figcaption small { font: 400 12px/1.4 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-signin input { height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 450 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-signin label { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table th:first-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:first-child { padding-left: 10px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table th:last-child, :root[data-skin="linear"][data-skin] #liveTiming .live-table td:last-child { padding-right: 10px; }
+/* Retain context as the timing and strategy tables scroll across sector and pit columns. */
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table {
+  --live-place-width: 32px;
+  border-collapse: separate; border-spacing: 0;
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table :is(th, td):not([colspan]):nth-child(-n+2) {
+  position: sticky; z-index: 1; background: var(--lin-card);
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table :is(th, td):not([colspan]):first-child {
+  box-sizing: border-box; width: var(--live-place-width); min-width: var(--live-place-width); inset-inline-start: 0;
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table :is(th, td):nth-child(2) {
+  inset-inline-start: var(--live-place-width); box-shadow: 1px 0 var(--lin-hairline);
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table thead th:nth-child(-n+2) { background: var(--lin-band); }
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table tr:hover td:not([colspan]):nth-child(-n+2) {
+  background: color-mix(in srgb, var(--lin-card) 96%, var(--ui-label));
+}
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table tr[aria-selected="true"] td:nth-child(-n+2) {
+  background: var(--ui-selected);
+}
 /* Lap chips and the picker in Linear's shapes: 28 px pills with the 5% ring, the picker as Linear's menus. */
 :root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip { background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body { min-height: 28px; font: 510 12px/1 var(--ui-font); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body :is(strong, b) { font-weight: 590; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body { min-height: 28px; font: 500 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body :is(strong, b) { font-weight: 600; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-body:hover, :root[data-skin="linear"][data-skin] #liveTiming .live-lap-chip-remove:hover { background: var(--lin-pill-hover); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-lap-add { min-height: 28px; border-color: var(--lin-pill-ring); font: 510 12px/1 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-lap-add { min-height: 28px; border-color: var(--lin-pill-ring); font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-lap-picker { border-radius: 12px; background: var(--ui-panel); box-shadow: 0 0 0 1px var(--ui-border), var(--lin-shadow-high, 0 12px 32px #00000040); }
-:root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver, .live-picker-lap) { font: 400 13px/1.2 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver, .live-picker-lap) { font: 450 13px/1.2 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver:hover, .live-picker-lap:hover:not(:disabled), .live-picker-lap[aria-pressed="true"]) { background: var(--lin-nav-hover); }
 /* The picker's and chips' own buttons are not push buttons: no generic pill ring (that rule carries three IDs). */
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-driver, .live-picker-lap, .live-picker-close, .live-lap-chip-body, .live-lap-chip-remove):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: transparent; box-shadow: none; }
@@ -84,11 +96,88 @@
 :root[data-skin="linear"][data-skin] #liveTiming .live-picker-driver[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: color-mix(in srgb, var(--team) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--team) 60%, transparent); color: var(--ui-label); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-picker-lap[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-nav-active); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-lap-add:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: transparent; box-shadow: none; border: 1px dashed var(--ui-border-strong); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-auth { font: 400 12px/1.3 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-auth { font: 450 12px/1.3 var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-picker-lap, .live-lap-add, .live-picker-driver):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: auto; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-picker-lap:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { min-height: 36px; padding: 7px 10px; border-radius: 8px; row-gap: 2px; align-content: center; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-picker-driver:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { height: 30px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell { border-radius: 6px; background: var(--lin-band); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
-:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell b { font: 590 13px/1.2 var(--ui-font); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell b { font: 600 13px/1.2 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-sectors-cell.is-lap b { font-size: 14px; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-row.is-head span { font: 510 11px/1 var(--ui-font); color: var(--ui-tertiary); }
+:root[data-skin="linear"][data-skin] #liveTiming .live-sectors-row.is-head span { font: 500 11px/1 var(--ui-font); color: var(--ui-tertiary); }
+/* Lap chart (docs/linear-components.md "Chart (SVG)", the session chart's rules via .overview-lap-chart): driver chips are
+   Linear label pills with a team-colour dot; a chosen driver's pill is filled. The lap list is a compact table whose cells
+   load a lap; a lap in the comparison carries the label ring, a new stint a hairline above it. */
+:root[data-skin="linear"] #liveTiming .live-lapchart { display: grid; gap: 8px; margin: 0 0 8px; }
+:root[data-skin="linear"] #liveTiming .live-card-actions { align-items: center; }
+:root[data-skin="linear"] #liveTiming .live-chart-drivers { display: flex; flex-wrap: wrap; gap: 6px; }
+:root[data-skin="linear"] #liveTiming .live-chart-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+:root[data-skin="linear"] #liveTiming .live-chart-driver:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { display: inline-flex; align-items: center; gap: 6px; height: 24px; min-height: 0; padding: 0 9px 0 8px; border: 0; border-radius: 9999px; background: none; box-shadow: inset 0 0 0 1px var(--lin-label-border); color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); cursor: pointer; }
+:root[data-skin="linear"] #liveTiming .live-chart-driver[aria-pressed="true"]:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-on); color: var(--ui-label); }
+:root[data-skin="linear"] #liveTiming .live-chart-driver:hover:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { background: var(--lin-pill-hover); }
+:root[data-skin="linear"] #liveTiming .live-chart-driver i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+:root[data-skin="linear"] #liveTiming .live-chart-driver[aria-pressed="false"] i { opacity: .45; }
+:root[data-skin="linear"] #liveTiming .live-chart-driver small { color: var(--ui-tertiary); font: 450 11px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #liveTiming .live-chart-actions .live-button[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
+:root[data-skin="linear"] #liveTiming .live-chart-plot { min-height: 220px; }
+:root[data-skin="linear"] #liveTiming .live-lap-chart { display: block; width: 100%; height: auto; overflow: visible; }
+:root[data-skin="linear"] #liveTiming .live-lap-chart .hover-guide { stroke: var(--ui-tertiary); stroke-width: 1; stroke-dasharray: 2 3; pointer-events: none; }
+
+:root[data-skin="linear"] #liveTiming .live-lap-list-wrap { max-height: 380px; overflow: auto; }
+:root[data-skin="linear"] #liveTiming .live-lap-tiles { display: grid; grid-template-columns: repeat(var(--columns), minmax(156px, 1fr)); gap: 8px; }
+:root[data-skin="linear"] #liveTiming .live-lap-column { display: grid; align-content: start; gap: 6px; }
+:root[data-skin="linear"] #liveTiming .live-lap-column-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; height: 28px; background: var(--lin-card, var(--ui-panel)); font: 500 12px/1 var(--ui-font); color: var(--ui-label); }
+:root[data-skin="linear"] #liveTiming .live-lap-column-head i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+:root[data-skin="linear"] #liveTiming .live-lap-column-head small { color: var(--ui-tertiary); font: 450 11px/1 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-overall .lap-clock { color: #bf5af2; }
+:root[data-skin="linear"] #liveTiming .live-lap-tiles .lap-chip.is-personal .lap-clock { color: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-condition-icon { display: inline-block; width: 18px; margin-right: 4px; font-style: normal; font-size: 13px; text-align: center; }
+/* Timing tower: mini-sectors under each sector time in F1's colours (purple overall best, green personal best, yellow
+   slower, blue pit lane), places gained or lost against the grid, and the Live/Best switch for the sector columns. */
+:root[data-skin="linear"] #liveTiming .live-minis { display: flex; gap: 1px; margin-top: 3px; }
+:root[data-skin="linear"] #liveTiming .live-minis i { flex: 1 1 0; min-width: 2px; height: 3px; border-radius: 1px; background: var(--lin-hairline); }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="overall"] { background: #bf5af2; }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="personal"] { background: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="slower"] { background: #ffd60a; }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="pit"] { background: #0a84ff; }
+:root[data-skin="linear"] #liveTiming .live-moved { margin-left: 4px; font: 500 10px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #liveTiming .live-moved.is-up { color: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-moved.is-down { color: #ff6961; }
+:root[data-skin="linear"] #liveTiming .live-tower-mode { margin-left: auto; }
+:root[data-skin="linear"] #liveTiming > nav.live-tower-mode { width: 100%; max-width: 100%; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  :root[data-skin="linear"] #liveTiming > nav.live-tower-mode { margin-left: 0; height: auto; }
+  :root[data-skin="linear"] #liveTiming > nav.live-tower-mode > button { min-height: 32px; }
+}
+/* Replay seek: the progress bar is a slider (select to jump; arrows ±1 min, Page ±5 min) with a jump-to-lap menu. */
+:root[data-skin="linear"] #liveTiming .live-seek { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+:root[data-skin="linear"] #liveTiming .live-seek[hidden] { display: none; }
+:root[data-skin="linear"] #liveTiming .live-seek .live-progress { flex: 1 1 auto; height: 6px; margin: 0; border-radius: 3px; background: var(--lin-nav-hover); cursor: pointer; }
+:root[data-skin="linear"] #liveTiming .live-seek .live-progress span { display: block; height: 100%; border-radius: 3px; background: var(--ui-accent); }
+:root[data-skin="linear"] #liveTiming .live-seek .live-progress:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 3px; }
+:root[data-skin="linear"] #liveTiming .live-seek select { flex: 0 0 auto; height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: var(--lin-pill); color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); }
+/* Race strategy: four insight tiles (the session overview's tile recipe) and a compact table; gains green, losses red. */
+:root[data-skin="linear"] #liveTiming .live-engineer[hidden] { display: none; }
+:root[data-skin="linear"] #liveTiming .live-engineer-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 0 0 12px; }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--lin-card-radius, 10px); background: var(--lin-band, var(--ui-well)); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile small { color: var(--ui-tertiary); font: 450 12px/1.2 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile b { color: var(--ui-label); font: 600 18px/1.2 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #liveTiming .live-engineer-tile span { color: var(--ui-tertiary); font: 450 12px/1.3 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-gain { color: #30d158; }
+:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-loss { color: #ff6961; }
+:root[data-skin="linear"] body.is-descriptions-hidden #liveTiming .explanation-only { display: none; }
+
+.live-grid[data-workspace="timing"] :is(.live-compare, .live-telemetry-card),
+.live-grid[data-workspace="laps"] :is(.live-tower, .live-engineer, .live-col-side),
+.live-grid[data-workspace="telemetry"] :is(.live-col-main, .live-side) { display: none; }
+.live-grid:is([data-workspace="laps"], [data-workspace="telemetry"]) { grid-template-columns: minmax(0, 1fr); }
+.live-grid[data-workspace="telemetry"] .live-telemetry-card { order: -1; }
+
+/* The page stacks to its content: the grid's rows never stretch to fill the window (that left the header, the source card
+   and the workspace pills standing in tall empty bands). The workspace pills keep their own width. */
+:root[data-skin="linear"] #liveTiming { align-content: start; }
+@media (min-width: 761px) { :root[data-skin="linear"] #liveTiming > nav.live-tower-mode { width: max-content; margin-left: 0; } }
+/* Waiting and empty messages: quiet centred notes (Linear's status text), not bold labels on a band. */
+:root[data-skin="linear"] #liveTiming .live-empty { padding: 24px 8px; background: none; border: 0; color: var(--ui-tertiary); font: 450 13px/18px var(--ui-font); text-align: center; }
+:root[data-skin="linear"] #liveTiming :is(.live-readouts, .live-lap-chips) .live-empty { padding: 4px 0; text-align: left; }
+:root[data-skin="linear"] #liveTiming .live-auth { color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
+:root[data-skin="linear"] #liveTiming .live-rc > li.live-empty { background: none; box-shadow: none; }

@@ -1,13 +1,30 @@
 import {color, finite, fmt, signed} from '../../performance-format.js';
 import {TeamLabel, type TeamLike} from './TeamLabel';
+import {useExplanations} from './useExplanations';
 import {visibleBarValue} from '../../lib/chart-bar.mjs';
 
-type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string};
+type Row = TeamLike & Record<string, unknown> & {missingReason?: string; traceProvisional?: boolean; coverageLabel?: string; evidenceLabel?: string; evidenceBadge?: string};
 export type BarChartOptions = {
   title?: string; subtitle?: string; valueKey?: string; labelKey?: string; colorKey?: string;
   unit?: string; digits?: number; signedValue?: boolean; zeroBaseline?: boolean;
   preserveSignedValues?: boolean; invertBest?: boolean;
+  /** Describe zero for a signed comparison whose values already have a benchmark. */
+  benchmark?: string;
+  /** Row key holding a [low, high] range for the value (same units, before rebasing): drawn as a whisker. */
+  intervalKey?: string;
+  evidenceSummary?: string;
+  /** Typical lap in seconds: a % gap is also shown as seconds per lap. */
+  perLapSeconds?: number | null;
 };
+
+/** Evidence counts ("19 GPs") show only on a row whose count differs from the most common one (usually fewer races),
+ *  so a full field stays one line per entrant with no repeated count. */
+function evidenceNote(rows: {evidenceLabel?: string}[]) {
+  const counts = new Map<string, number>();
+  for (const r of rows) if (r.evidenceLabel) counts.set(r.evidenceLabel, (counts.get(r.evidenceLabel) || 0) + 1);
+  const common = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  return {common};
+}
 
 /**
  * Ranked horizontal bars (`.performance-chart-card`), the component form of
@@ -15,24 +32,40 @@ export type BarChartOptions = {
  * the best entrant, and unranked rows for missing values (never zero).
  */
 export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartOptions}) {
+  const explanations = useExplanations();
   const {title = '', subtitle = '', valueKey = 'value', labelKey = 'team', colorKey = 'color', unit = '%', digits = 3,
-    signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false} = options;
+    signedValue = true, zeroBaseline = true, preserveSignedValues = false, invertBest = false, intervalKey, perLapSeconds = null,
+    evidenceSummary} = options;
+  // A long unit ('% of lap') is said once, under the title; each value carries only its short form ('%').
+  const shortUnit = unit.replace(/ of .*$/, ''), unitNote = shortUnit !== unit ? unit : '';
+  const evidence = evidenceNote(rows || []);
   const valid = (rows || []).filter(r => r && finite(r[valueKey] as number)).map((r): Row & {chart: number} => ({...r, chart: 0}));
   const missing = (rows || []).filter(r => r && !finite(r[valueKey] as number));
   const unranked = missing.map((r, i) => (
-    <div key={'missing' + i} className="performance-bar-row is-unranked" title={r.missingReason || 'No comparable supported measurement; not zero'}>
+    <div key={'missing' + i} className="performance-bar-row is-unranked" title={explanations ? r.missingReason : undefined}
+      role="img" data-chart-value={`${title}:${String(r[labelKey] || r.team || r.name || '')}`} tabIndex={!valid.length && i === 0 ? 0 : -1}
+      aria-label={`${String(r[labelKey] || r.team || r.name || '')}: Unranked.${explanations && r.missingReason ? ' ' + r.missingReason : ''}`}>
       <div className="performance-bar-label"><TeamLabel team={r} /></div>
       <div className="performance-bar-track" />
       <span className="performance-bar-val">Unranked</span>
     </div>
   ));
   if (!valid.length) return missing.length ? (
-    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4><div className="performance-bars">{unranked}</div></div>
+    <div className="performance-chart-card"><h4 className="perf-chart-heading">{title}</h4>
+      {evidenceSummary ? <p className="performance-quality-status" data-inline-evidence="">{evidenceSummary}</p> : null}
+      <div className="performance-bars">{unranked}</div></div>
   ) : null;
 
   const values = valid.map(r => r[valueKey] as number);
+  // Whiskers move with the bar: the same shift that puts the best entrant at zero.
+  const range = (r: Row, shift: number): [number, number] | null => {
+    const v = intervalKey ? r[intervalKey] as [number, number] | undefined : undefined;
+    return v && finite(v[0]) && finite(v[1]) ? [Math.max(0, v[0] - shift), Math.max(0, v[1] - shift)] : null;
+  };
+  const ranges = new Map<Row, [number, number]>();
   if (signedValue && !preserveSignedValues) {
     const best = invertBest ? Math.max(...values) : Math.min(...values);
+    for (const r of valid) { const w = !invertBest && range(r, best); if (w) ranges.set(r, w); }
     for (const r of valid) r.chart = Math.max(0, invertBest ? best - (r[valueKey] as number) : (r[valueKey] as number) - best);
     valid.sort((a, b) => a.chart - b.chart);
   } else {
@@ -41,37 +74,47 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
   }
   const charted = valid.map(r => r.chart);
   const lo = zeroBaseline ? Math.min(0, ...charted) : Math.min(...charted);
-  const hi = Math.max(lo + 0.001, ...charted, preserveSignedValues ? 0 : -Infinity);
+  const hi = Math.max(lo + 0.001, ...charted, ...[...ranges.values()].map(w => w[1]), preserveSignedValues ? 0 : -Infinity);
   const span = Math.max(0.0001, hi - lo);
   const zero = (-lo / span) * 100;
 
   return (
-    <div className="performance-chart-card">
+    // A long list (drivers) is laid out in two columns where the card is wide enough (season-style.css container query),
+    // so it stands as tall as the teams beside it.
+    <div className={`performance-chart-card${(rows || []).length > 14 ? ' is-long' : ''}`}>
       {title ? (
         <div className="perf-chart-header"><div className="perf-chart-title-group">
           <h4 className="perf-chart-heading">{title}</h4>
-          {subtitle ? <span className="perf-chart-sub">{subtitle}</span> : null}
+          {subtitle || unitNote ? <span className="perf-chart-sub">{subtitle || unitNote}</span> : null}
         </div></div>
       ) : null}
-      {new Set(rows.map(r => r.coverageLabel).filter(Boolean)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
+      {evidenceSummary ? <p className="performance-quality-status" data-inline-evidence="">{evidenceSummary}</p> : null}
+      {rows.some(r => r.coverageLabel) && new Set(valid.map(r => r.evidenceLabel)).size > 1 ? <p className="performance-quality-status">GP coverage differs between entrants. These are averages over each entrant’s available GPs, not a comparison over identical races.</p> : null}
       <div className="performance-bars">
         {valid.map((r, i) => {
           const value = r.chart, plotted = visibleBarValue(value, digits), position = ((plotted - lo) / span) * 100;
           const left = preserveSignedValues ? Math.min(zero, position) : 0;
           const width = preserveSignedValues ? Math.abs(position - zero) : Math.min(100, Math.max(0, position));
-          const display = preserveSignedValues ? signed(value, digits, unit) : signedValue
-            ? (value <= 0.00001 ? fmt(0, digits, unit) : `+${fmt(value, digits, unit)}`) : fmt(value, digits, unit);
+          const display = preserveSignedValues ? signed(value, digits, shortUnit) : signedValue
+            ? (value <= 0.00001 ? fmt(0, digits, shortUnit) : `+${fmt(value, digits, shortUnit)}`) : fmt(value, digits, shortUnit);
           const gain = signedValue ? (preserveSignedValues ? (value < 0 ? 'is-gain' : 'is-loss') : value <= 0.00001 ? 'is-gain' : 'is-loss') : '';
           const label = String(r[labelKey] || r.team || r.name || '');
+          const whisker = ranges.get(r);
+          const badge = r.evidenceBadge ?? (r.evidenceLabel !== evidence.common ? r.evidenceLabel : '');
+          const seconds = perLapSeconds && unit === '%' && signedValue && !preserveSignedValues && value > 0.00001 ? value / 100 * perLapSeconds : null;
+          const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · 90% GP-resample range ${fmt(whisker[0], digits, unit)} to ${fmt(whisker[1], digits, unit)}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${explanations && r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}${explanations && r.evidenceLabel ? ' · ' + r.evidenceLabel : ''}`;
           return (
             <div key={label + i} className="performance-bar-row"
-              title={`${label}: ${display}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}`}>
-              <div className="performance-bar-label"><TeamLabel team={r} />{r.coverageLabel ? <small className="metric-coverage">{r.coverageLabel}</small> : null}</div>
+              title={summary} aria-label={summary} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
+              <div className="performance-bar-label rank-label"><TeamLabel team={r} />{badge ? <small className="rank-evidence">{badge}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}
                 <i className="performance-bar" style={{'--bar-color': color(r[colorKey] as string), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as React.CSSProperties} />
+                {whisker ? <i className="performance-bar-range" aria-hidden="true" style={{left: `${((whisker[0] - lo) / span * 100).toFixed(2)}%`, width: `${((whisker[1] - whisker[0]) / span * 100).toFixed(2)}%`}} /> : null}
               </div>
-              <span className={`performance-bar-val ${gain}${r.traceProvisional ? ' is-provisional' : ''}`.trim()}>{display}</span>
+              <span className={`performance-bar-val ${gain}${r.traceProvisional ? ' is-provisional' : ''}`.trim()}>
+                {display}
+              </span>
             </div>
           );
         })}

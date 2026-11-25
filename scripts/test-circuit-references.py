@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def load(name, file):
     spec = importlib.util.spec_from_file_location(name, ROOT/'scripts'/file)
     module = importlib.util.module_from_spec(spec)
-    with patch.dict(sys.modules, {'pypdf': type(sys)('pypdf')}):
+    with patch.dict(sys.modules, {'pdfplumber': type(sys)('pdfplumber')}):
         spec.loader.exec_module(module)
     return module
 
@@ -53,6 +53,61 @@ class FiaMapTests(unittest.TestCase):
         self.assertEqual(data['centreline_m'], 4381)
         self.assertEqual(data['zones'], [])
         self.assertNotIn('speed_trap', data)
+
+
+def phrase(x, text, top):
+    """A phrase as pdfplumber returns it: one word each, 4 points a character, 2 points apart."""
+    out = []
+    for word in text.split():
+        out.append({'x0': x, 'x1': x + 4*len(word), 'top': top, 'text': word})
+        x += 4*len(word) + 2
+    return out
+
+
+def ending(x1, text, top):
+    """A right-aligned phrase (the normal-grip column) ending at x1."""
+    return phrase(x1 - (4*len(text.replace(' ', '')) + 2*text.count(' ')), text, top)
+
+
+# The 2026 Hungarian map's table, laid out as printed: an Overtake activation wrapped onto the next line ("30m before" /
+# "T14-exit"), a detection printed just above its label, a zone point naming a corner's entry, and a low-grip "n/a".
+HUNGARY_2026 = (phrase(97, 'CIRCUIT DATA', 747) + phrase(273, 'OVERTAKE', 747) + phrase(430, 'STRAIGHT MODE', 747)
+                + phrase(293, '- Entry T14', 758)
+                + phrase(246, 'DETECTION', 759) + ending(437, '40m after T14', 759) + phrase(447, '- ZONE A1 -', 759) + phrase(498, '100m after T14', 759)
+                + phrase(247, 'ACTIVATION - 30m before', 766) + ending(436, '30m after T1A-entry', 766) + phrase(446, '- ZONE A2 -', 766)
+                + phrase(498, '100m after T1A-entry', 766)
+                + phrase(297, 'T14-exit', 773) + ending(437, '50m after T3', 773) + phrase(447, '- ZONE A3 -', 773) + phrase(498, 'n/a', 773))
+
+
+class Fia2026TableTests(unittest.TestCase):
+    def test_points_as_printed(self):
+        self.assertEqual(maps.read_point('45m after T14-entry'), {'text': '45m after T14-entry', 'turn': '14', 'offset_m': 45, 'at': 'entry'})
+        self.assertEqual(maps.read_point('T15 Exit'), {'text': 'T15 Exit', 'turn': '15', 'offset_m': 0, 'at': 'exit'})
+        self.assertEqual(maps.read_point('Exit of T17')['at'], 'exit')
+        self.assertEqual(maps.read_point('Mid-T15'), {'text': 'Mid-T15', 'turn': '15', 'offset_m': 0, 'at': 'mid'})
+        self.assertEqual(maps.read_point('100m after T11 / Pit Exit')['offset_m'], 100)
+        self.assertEqual(maps.read_point('12m after finish line'), {'text': '12m after finish line', 'line': 'finish', 'offset_m': 12})
+        self.assertEqual(maps.read_point('SC2 before Turn 2'), {'text': 'SC2 before Turn 2'}, 'loose wording is kept, not placed')
+        self.assertIsNone(maps.read_point('n/a'))
+
+    def test_overtake_and_straight_mode_columns(self):
+        table = maps.table_2026(HUNGARY_2026)
+        self.assertEqual(table['overtake']['detection']['text'], 'Entry T14')
+        self.assertEqual(table['overtake']['activation'], {'text': '30m before T14-exit', 'turn': '14', 'offset_m': -30, 'at': 'exit'})
+        zones = {z['zone']: z for z in table['straight_mode']}
+        self.assertEqual(zones['A1']['normal']['offset_m'], 40)
+        self.assertEqual(zones['A1']['low']['offset_m'], 100)
+        self.assertEqual(zones['A2']['normal']['turn'], '1A')
+        self.assertIsNone(zones['A3']['low'], 'n/a: the zone is not used in low grip')
+        data = maps.parse('STRAIGHT MODE\nCIRCUIT CENTRELINE LENGTH - 4.381km', HUNGARY_2026)
+        self.assertEqual(data['zone_kind'], 'straight-mode')
+        self.assertEqual([z['offset_m'] for z in data['zones']], [40, 30, 50], 'the audit gets the normal-grip activation points')
+
+    def test_drs_legend_numbers_and_wordings(self):
+        drs = maps.drs_points('DRS Detection 40m After Turn 15\nDRS Activation 305m After Turn 16\n'
+                              'DRS DETECTION 2\nDRS Detection 1 [250m before Turn 5] 19 S2\nDRS Activation 2 (155m before Turn 12) 3 2')
+        self.assertEqual([(p['number'], p['offset_m']) for p in drs['detection']], [(None, 40), (1, -250)])
+        self.assertEqual([(p['number'], p['turn']) for p in drs['activation']], [(None, '16'), (2, '12')])
 
 
 class FiaCheckTests(unittest.TestCase):

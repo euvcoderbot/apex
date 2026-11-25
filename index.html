@@ -31,7 +31,20 @@
     } catch (_) {
       document.documentElement.dataset.theme = 'dark';
     }
+    // Opening a season page: start its saved data now, alongside the page's scripts, not after them. season.js takes
+    // these requests over (ApexSeasonEarly) instead of asking again.
+    if (/^\/apex\/season(\/|$)/.test(location.pathname) && typeof fetch === 'function') {
+      var seasonYear = (location.search.match(/[?&]year=(\d{4})/) || [])[1] || String(new Date().getFullYear());
+      var seasonIndex = fetch('assets/data/season/index.json', {cache: 'no-cache'}).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+      var seasonPath = '/api/season?year=' + seasonYear;
+      window.ApexSeasonEarly = {index: seasonIndex, path: seasonPath, bytes: seasonIndex.then(function (index) {
+        var entry = index && index.entries && index.entries[seasonPath];
+        return entry && /^[a-f0-9]{24}\.json\.gz$/.test(entry.file || '') ? fetch('assets/data/season/' + entry.file).then(function (r) { return r.ok ? r.arrayBuffer() : null; }) : null;
+      }).catch(function () { return null; })};
+    }
   </script>
+  <!-- The interface font, requested with the stylesheet rather than after it is parsed, so text does not swap fonts on first paint. -->
+  <link rel="preload" href="assets/fonts/inter/inter-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css?v=20261007-ui-system">
 </head>
 <body>
@@ -44,12 +57,12 @@
     </div>
     <div class="header-actions">
       <nav class="performance-tabs" aria-label="Analysis view">
-        <button type="button" data-analysis-view="session" aria-selected="true" aria-label="Session analysis"><span class="view-label">Session analysis</span><span class="view-short" aria-hidden="true">Sessions</span></button>
-        <button type="button" data-analysis-view="performance" aria-selected="false" aria-label="Car performance"><span class="view-label">Car performance</span><span class="view-short" aria-hidden="true">Cars</span></button>
+        <button type="button" data-analysis-view="session" aria-selected="true"><span class="view-label">Session analysis</span><span class="view-short">Sessions</span></button>
+        <button type="button" data-analysis-view="performance" aria-selected="false"><span class="view-label">Car performance</span><span class="view-short">Cars</span></button>
       </nav>
     </div>
     <div class="workspace-tools" role="group" aria-label="Display options">
-      <button type="button" popovertarget="computeSettings" aria-label="Compute settings" title="Compute settings"><svg class="ui-symbol" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="2.1"/><path d="M8 1.8v1.6M8 12.6v1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M1.8 8h1.6M12.6 8h1.6M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></svg></button>
+      <button type="button" popovertarget="computeSettings" aria-label="Compute settings" title="Compute settings"><svg class="ui-symbol" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5"/><rect x="6.3" y="6.3" width="3.4" height="3.4" rx=".6"/><path d="M6 1.8V4M10 1.8V4M6 12v2.2M10 12v2.2M1.8 6H4M1.8 10H4M12 6h2.2M12 10h2.2"/></svg></button>
       <div id="computeSettings" popover aria-label="Compute settings">
         <strong>Compute</strong>
         <p data-compute-status>Showing published data.</p>
@@ -128,7 +141,7 @@
                 <div class="corner-metric-grid" id="cornerMetricGrid"></div>
                 <section class="dominance-map" aria-labelledby="dominanceTitle">
               <div class="dominance-map-header">
-                <h2 id="dominanceTitle">Mini-sector dominance <small>25 M SEGMENTS</small></h2>
+                <h2 id="dominanceTitle">Mini-sector dominance <small>25 m segments</small></h2>
                 <div class="legend" id="dominanceLegend"></div>
               </div>
               <div class="map-view-row">
@@ -146,7 +159,9 @@
     </aside>
     <div class="analysis-column">
       <div class="main-dashboard">
-        <section class="telemetry-card is-empty" id="telemetryCard">
+        <div class="session-load-state" id="sessionLoadState" hidden aria-hidden="true"></div>
+        <section class="session-overview" id="sessionOverview" aria-labelledby="sessionOverviewTitle" hidden></section>
+      <section class="telemetry-card is-empty" id="telemetryCard">
           <div class="section-heading analysis-heading">
             <div class="analysis-heading-main">
               <h2>Lap telemetry</h2>
@@ -157,23 +172,24 @@
           </div>
         <div class="comparison-tray" aria-label="Loaded comparison laps">
           <div class="comparison-tray-heading">
-            <span>Comparison</span>
-            <small class="explanation-only">Click a lap to use as reference</small>
+            <h3>Comparison</h3>
+            <small class="explanation-only">Select a lap to make it the reference</small>
+            <div class="comparison-actions">
+              <div class="comparison-picker">
+                <button id="lapWorkspaceToggle" class="comparison-choose" type="button" aria-expanded="false" aria-controls="lapSelectionBody" aria-haspopup="dialog"><span>Choose laps</span></button>
+                <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
+              </div>
+              <button type="button" id="clearComparison" class="comparison-clear" hidden>Clear all</button>
+            </div>
           </div>
           <div class="loaded-laps" id="loadedLaps">
             <span class="section-empty">No laps loaded.</span>
           </div>
-          <div class="comparison-picker">
-            <button id="lapWorkspaceToggle" class="comparison-choose" type="button" aria-expanded="false" aria-controls="lapSelectionBody" aria-haspopup="dialog"><span>Choose laps</span></button>
-            <div id="lapWorkspaceActions" class="workspace-heading-actions"></div>
-          </div>
-          <button type="button" id="clearComparison" class="comparison-clear" hidden>Clear all</button>
         </div>
 
           <div class="telemetry-empty" id="telemetryEmpty">
-            <span>Ready when you are</span>
-            <strong>Your telemetry stack will appear here.</strong>
-            <p>Select laps in the workspace above to start the comparison.</p>
+            <strong>No telemetry to compare yet</strong>
+            <p>Load a session, then choose laps to see their sector times and telemetry.</p>
           </div>
 
           <div class="telemetry-content" id="telemetryContent">
@@ -229,6 +245,11 @@
         </div>
       </div>
       <div id="performanceTrackChoices" class="performance-track-choices">
+      <div id="performanceTrackFilter" class="performance-track-filter" hidden>
+        <input type="search" id="performanceTrackSearch" aria-label="Find a Grand Prix" placeholder="Find a Grand Prix" autocomplete="off">
+        <button type="button" id="performanceSelectedOnly" class="btn-track-action" aria-pressed="false">Selected only</button>
+        <p id="performanceTrackSearchStatus" role="status" hidden></p>
+      </div>
       <div id="performanceTrackPills" class="performance-track-pills" role="group" aria-label="Track selection"></div>
       </div>
     </section>
@@ -286,7 +307,27 @@
   <script src="session-init.js"></script>
   <script src="lap-sheet.js"></script>
   <script src="session-tyres.js"></script>
-  <script src="live.js"></script>
+  <script src="session-overview.js"></script>
+  <script src="svg-scale.js" defer></script>
+  <script type="apex-local" src="live.js"></script>
+  <script>
+    // A published snapshot can be explored without downloading the live timing client.
+    (() => {
+      const source = document.currentScript.previousElementSibling.src;
+      let loading = false;
+      const connectLive = () => {
+        if (loading || window.ApexLive || !(window.APEX_LOCAL_MODE || window.APEX_COMPUTE_ORIGIN)) return;
+        loading = true;
+        const client = document.createElement('script');
+        client.src = source;
+        client.onload = () => { loading = false; };
+        client.onerror = () => { loading = false; };
+        document.head.append(client);
+      };
+      addEventListener('apex-compute', connectLive);
+      connectLive();
+    })();
+  </script>
   <script src="alignment.js?v=euv2-release-20261003-position-motion-check"></script>
   <!-- Car performance and its React views are about 40% of the script weight and are not needed to read a session.
        They stay inert until that view is opened, or until the browser is idle after load, whichever is first. -->
@@ -295,23 +336,30 @@
   <script type="lazy-module" src="season.js"></script>
   <script>
     (function () {
-      var pending = null, ready = false;
+      var pending = null, ready = false, started = {};
+      // Each lazy module is added once, whichever path asks for it first.
+      function one(inert) {
+        var src = inert.getAttribute('src');
+        if (!started[src]) started[src] = new Promise(function (resolve, reject) {
+          var script = document.createElement('script');
+          script.type = 'module'; script.src = src; script.async = false;
+          script.onload = resolve; script.onerror = function (error) { delete started[src]; reject(error); };
+          document.head.appendChild(script);
+        });
+        return started[src];
+      }
       function load() {
-        if (!pending) pending = Promise.all([].map.call(document.querySelectorAll('script[type="lazy-module"]'), function (inert) {
-          return new Promise(function (resolve, reject) {
-            var script = document.createElement('script');
-            script.type = 'module'; script.src = inert.getAttribute('src'); script.async = false;
-            script.onload = resolve; script.onerror = reject;
-            document.head.appendChild(script);
-          });
-        })).then(function () { ready = true; window.ApexCarsPending = false; }, function (error) { pending = null; window.ApexCarsPending = false; throw error; });
+        if (!pending) pending = Promise.all([].map.call(document.querySelectorAll('script[type="lazy-module"]'), one)).then(function () { ready = true; window.ApexCarsPending = false; }, function (error) { pending = null; window.ApexCarsPending = false; throw error; });
         return pending;
       }
       window.ApexLoadCars = load;
       var start = window.ApexUrl && window.ApexUrl.read();
       // Until the module is in, the page must not rewrite a car-performance address to the session view it is showing.
       if (start && start.view === 'cars') { window.ApexCarsPending = true; load().catch(function () {}); }
-      if (start && start.view === 'season') load().catch(function () {});
+      // The season module loads at once on every page, not with the idle batch: it adds the rail's Season entry, a primary
+      // navigation row that must not appear seconds after the page (it builds only that row and the page shell; Season
+      // data is fetched when a Season page opens). The car-performance modules follow when idle.
+      one(document.querySelector('script[type="lazy-module"][src^="season.js"]')).catch(function () {});
       addEventListener('load', function () {
         var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1200); };
         idle(function () { load().catch(function () {}); }, {timeout: 3000});
