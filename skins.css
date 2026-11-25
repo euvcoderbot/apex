@@ -1942,7 +1942,7 @@
 /* Tables (spec §8): a 32 px header in 450 12 tertiary with no band or line; 44 px rows without separators; a wash on hover. */
 :root[data-skin="linear"] .performance-table { border-color: transparent; }
 :root[data-skin="linear"] .performance-table thead th { height: 32px; background: transparent; color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); border-bottom: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
-:root[data-skin="linear"] .performance-table tbody :is(td, th) { height: 44px; padding-block: 6px; border-color: transparent; }
+:root[data-skin="linear"] .performance-table tbody :is(td, th) { height: 36px; padding-block: 2px; border-color: transparent; }  /* Season's table density: 36 px rows, two-line cells grow */
 :root[data-skin="linear"] .performance-table tbody tr:hover { background: var(--lin-nav-hover); }
 
 /* Empty states: centred, quiet. */
@@ -2588,7 +2588,10 @@
    headline totals beside the name, the cards in their grid once open. */
 :root[data-skin="linear"] .time-summary { display: block; margin: 0 0 16px; }
 :root[data-skin="linear"] .time-summary-disclosure { margin-top: 0; }
-:root[data-skin="linear"] .time-summary-headline { margin-inline-start: 8px; color: var(--ui-tertiary); font-weight: 450; font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] .time-summary-headline { margin-inline-start: 8px; color: var(--ui-tertiary); font-weight: 450; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* On a phone the name and its totals wrap to two clean lines inside the outlined summary instead of overflowing 24 px. */
+:root[data-skin="linear"] .session-summary > summary { flex-wrap: wrap; row-gap: 4px; height: auto; min-height: 24px; padding-block: 4px; box-sizing: border-box; line-height: 16px; }
+@media (max-width: 520px) { :root[data-skin="linear"] .time-summary-headline { margin-inline-start: 0; flex-basis: 100%; } }
 :root[data-skin="linear"] .time-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 8px; margin-top: 8px; }
 :root[data-skin="linear"] .time-summary-cards > .time-summary-card:only-child { grid-column: 1 / -1; }
 :root[data-skin="linear"] .session-summary-table { width: 100%; border-collapse: collapse; font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; }

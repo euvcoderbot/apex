@@ -1712,7 +1712,13 @@
       }
       shown = true;
       const upcoming = next.sessions.find(x => new Date(x.start) > now());
-      if (!upcoming) { countLabel.textContent = 'Race'; countValue.textContent = 'under way'; return; }
+      if (!upcoming) {
+        // Three hours after the start the race is over; until the saved data has its result it is awaiting results.
+        const race = next.sessions.find(x => x.name === 'Race');
+        const over = race && now() - new Date(race.start) > 3 * 3600e3;
+        countLabel.textContent = over ? 'Race finished' : 'Race'; countValue.textContent = over ? 'results pending' : 'under way';
+        return;
+      }
       countLabel.textContent = upcoming.name === 'Race' ? 'Race in' : `${upcoming.name} in`;
       countValue.textContent = fmtLeft(new Date(upcoming.start) - now());
     };
@@ -3699,7 +3705,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     // driver's race finish (the small number their sprint finish). The pinned column counts the sessions each was ahead.
     const label = id => { const th = el('th'); th.scope = 'row'; th.append(who(data, id, {code: true, team: false})); return th; };
     // A section's own header row: its name in the first column, the rest of the row left clear.
-    const sectionRow = name => { const tr = el('tr', 'season-section-row'); const th = el('th', null, name); th.scope = 'rowgroup'; tr.append(th); for (let i = 0; i < data.rounds.length + 1; i++) tr.append(el('td')); return tr; };
+    const sectionRow = name => { const tr = el('tr', 'season-section-row'); const th = el('th', null, name); th.scope = 'rowgroup'; tr.append(th); for (let i = 0; i < data.rounds.length; i++) tr.append(el('td')); tr.append(pin(el('td'))); return tr; };  // the pinned column runs unbroken through it
     gbody.append(sectionRow('Qualifying'));
     for (const id of [a, b]) {
       const tr = el('tr'); tr.append(label(id));

@@ -950,5 +950,6 @@ body.performance-view #sidebarToggle {
 
 /* Measurements with no data on the chosen weekends, named once under the strengths table. */
 .team-profile-card .team-profile-missing { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
-.subject-pair > .subject-pair-note { display: grid; align-content: start; gap: 4px; margin: 0; padding: 16px; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
-.subject-pair > .subject-pair-note strong { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
+:is(.subject-pair, .subject-bands) > .subject-pair-note { display: grid; align-content: start; gap: 4px; margin: 0; padding: 16px; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
+:is(.subject-pair, .subject-bands) > .subject-pair-note strong { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
+.start-table .start-best { display: inline-block; min-width: 32px; padding: 3px 6px; border-radius: 6px; background: color-mix(in oklch, var(--ui-accent) 24%, transparent); color: var(--ui-label); font-weight: 600; }

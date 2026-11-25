@@ -39,7 +39,10 @@ function Bands({charts, subject}: {charts: SpeedChart[]; subject: string}) {
   if (notes.length === charts.length) {
     return <p className="subject-band-empty" role="status"><strong>{subject}</strong> · {[...new Set(notes)].join(' ')}</p>;
   }
-  return <div className="subject-bands">{charts.map((c, i) => <Chart key={i} chart={c} />)}</div>;
+  // A band with nothing measured beside measured ones is a plain note in its column, not an empty card.
+  return <div className="subject-bands">{charts.map((c, i) => 'empty' in c
+    ? <p key={i} className="subject-pair-note" role="status"><strong>{c.title}</strong><span>{c.empty}</span></p>
+    : <Chart key={i} chart={c} />)}</div>;
 }
 
 /** The same measurement for teams and for drivers, side by side. */
