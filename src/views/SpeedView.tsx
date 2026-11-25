@@ -37,7 +37,7 @@ function Chart({chart}: {chart: SpeedChart}) {
 function Bands({charts, subject}: {charts: SpeedChart[]; subject: string}) {
   const notes = charts.flatMap(c => ('empty' in c ? [c.empty] : []));
   if (notes.length === charts.length) {
-    return <p className="performance-quality-status subject-band-empty"><strong>{subject}</strong> · {[...new Set(notes)].join(' ')}</p>;
+    return <p className="subject-band-empty" role="status"><strong>{subject}</strong> · {[...new Set(notes)].join(' ')}</p>;
   }
   return <div className="subject-bands">{charts.map((c, i) => <Chart key={i} chart={c} />)}</div>;
 }
@@ -45,6 +45,10 @@ function Bands({charts, subject}: {charts: SpeedChart[]; subject: string}) {
 /** The same measurement for teams and for drivers, side by side. */
 function ChartPair({chart, driverChart}: {chart: SpeedChart; driverChart?: SpeedChart}) {
   if (!driverChart) return <Chart chart={chart} />;
+  // Nothing measured for teams or drivers: one quiet line instead of two empty cards.
+  if ('empty' in chart && 'empty' in driverChart) {
+    return <p className="subject-band-empty" role="status"><strong>Teams and drivers</strong> · {[...new Set([chart.empty, driverChart.empty])].join(' ')}</p>;
+  }
   return <div className="subject-pair"><Chart chart={chart} /><Chart chart={driverChart} /></div>;
 }
 

@@ -41,7 +41,7 @@ function updateZoomReadout() {
   const fullLap = traceZoom.start <= 1e-6 && traceZoom.end >= 1 - 1e-6;
   if (readout) {
     readout.textContent = distance
-      ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} KM`
+      ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} km`
       : 'Full lap';
   }
   if (reset) reset.disabled = fullLap;

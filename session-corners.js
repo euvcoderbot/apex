@@ -270,8 +270,8 @@ function renderCornerAnalysis() {
       </table></div>
       ${referencePhases&&metrics.length>1?`<details class="corner-phase-evidence" ${diagnosticOpen?'open':''}><summary>Modelled entry / exit diagnostic</summary><p>Modelled, not measured: the same entry-speed correction and exit-speed credit the season cornering metric uses, applied to these laps. Separate from the measured section times above.</p>${rankedMetrics.map(item=>{const split=phaseSplit(item.lap);return split?`<div><b>${item.lap.code}</b>${split}</div>`:'';}).join('')}</details>`:''}
     </article>`;
-  // Every corner at once: each loaded lap's minimum speed in every corner, the higher minimum marked with a dot in its lap colour (as the session
-  // table), and with two laps the difference. A corner's name selects it above.
+  // Every corner at once: each loaded lap's minimum speed in every corner, the quickest lap's cell filled (the heat-grid
+  // look), and with two laps the difference. A corner's name selects it above.
   const everyCorner=cornerOrder.filter(([,i])=>allMetrics[i]?.length);
   if(everyCorner.length&&loaded.length){
     const lapHead=loaded.map(lap=>`<th scope="col" class="num"><span class="corner-every-lap" style="--team:${escapeUI(getLapColor(lap))}">${escapeUI(lap.code)} <small>L${lap.lap}</small></span></th>`).join('');
@@ -287,7 +287,7 @@ function renderCornerAnalysis() {
       <div class="corner-every-wrap" tabindex="0" role="region" aria-label="Minimum corner speeds"><table class="corner-every-table">
         <thead><tr><th scope="col">Corner</th>${lapHead}${loaded.length===2?`<th scope="col" class="num" title="Speed difference in km/h; positive means the second lap carried a higher minimum">${escapeUI(loaded[1].code)} − ${escapeUI(loaded[0].code)}</th>`:''}</tr></thead>
         <tbody>${body}</tbody></table></div>
-      <p class="corner-every-note">km/h, the lowest plotted speed inside each geometry-defined turn. The dotted value is the higher minimum, not necessarily the quicker corner time. The map compares elapsed time. Select a corner to mark each lap’s minimum on the speed trace; hover a value for its distance.</p></details>`);
+      <p class="corner-every-note">km/h, the lowest plotted speed inside each geometry-defined turn. The filled cell has the higher minimum, not necessarily the quicker corner time. The map compares elapsed time. Select a corner to mark each lap’s minimum on the speed trace; hover a value for its distance.</p></details>`);
     const every=root.querySelector('.corner-every');
     every.addEventListener('toggle',()=>{if(every.isConnected)cornerEveryOpen=every.open;});
     every.addEventListener('click',event=>{

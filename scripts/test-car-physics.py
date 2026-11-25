@@ -9,7 +9,7 @@ import sys, unittest
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import numpy as np
-from car_physics import speed_domain_metrics, straight_totals, band_totals, acceleration_curve, throttle_lifting
+from car_physics import speed_domain_metrics, straight_totals, band_totals, acceleration_curve, throttle_lifting, acceleration_index, TRACTION_RANGE
 
 G = 9.80665
 # (length m, curvature 1/m). Apex speeds span the low/medium/high bands.
@@ -386,16 +386,28 @@ class CorruptLapTests(unittest.TestCase):
 class TractionEdgeTests(unittest.TestCase):
     def test_edge_node_does_not_extrapolate_a_steep_slope(self):
         # Exit packets only from 110 km/h, rising steeply with speed (0.2 g at 110, 1.4 g at 160). The local-linear
-        # intercept at the 105 km/h node extends that slope to about 0 g; the edge rule stays within the observed values.
+        # intercept at the 105 km/h node extends that slope to about 0 g; the edge rule leaves that node empty (the
+        # straight simulation fills it from the field, shifted to the car), rather than inventing a value there.
         speed = np.array([110., 111, 114, 122, 130, 142, 150, 160])
         accel = (0.2+(speed-110)/50*1.2)*G
         _, linear = acceleration_curve(speed, accel, 100, 170)
         nodes, edge = acceleration_curve(speed, accel, 100, 170, edge_constant=True)
         at = lambda curve: curve[list(nodes).index(105.)]
         self.assertLess(at(linear), .1*G)
-        self.assertGreater(at(edge), accel.min())
+        self.assertTrue(np.isnan(at(edge)))
         inner = [i for i, n in enumerate(nodes) if 120 <= n <= 150]
         np.testing.assert_allclose(edge[inner], linear[inner])
+
+    def test_identical_car_with_later_data_is_not_credited(self):
+        # Four cars with one true exit curve; D's packets start at 88 km/h instead of 72. Holding D's first value below
+        # its data, or a kernel mean at the edge node, made it up to 1.9 s quicker than the identical median car.
+        true = lambda v: np.clip(.2+(v-80)/50*1.2, .02, 1.6)*G
+        rng, curves = np.random.default_rng(1), {}
+        for name, start in [("A", 72), ("B", 72), ("C", 72), ("D", 88)]:
+            speed = np.sort(rng.uniform(start, 170, 120))
+            nodes, curves[name] = acceleration_curve(speed, true(speed), *TRACTION_RANGE, edge_constant=True)
+        result, _ = acceleration_index(curves, nodes, TRACTION_RANGE[0], v_end=TRACTION_RANGE[1])
+        self.assertLess(abs(result["D"]["gap_to_median_s"]), .05)
 
     def test_lifting_throttle_is_not_traction(self):
         t = np.arange(10)*.25

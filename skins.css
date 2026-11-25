@@ -2535,9 +2535,7 @@
 :root[data-skin="linear"] .corner-every-table th { height: 28px; padding: 0 8px; color: var(--ui-tertiary); font-weight: 450; text-align: left; }
 :root[data-skin="linear"] .corner-every-table th.num, :root[data-skin="linear"] .corner-every-table td.num { text-align: center; }
 :root[data-skin="linear"] .corner-every-table td { height: 30px; padding: 2px; color: var(--ui-secondary); }
-:root[data-skin="linear"] .corner-every-table td.is-best { color: var(--ui-label); font-weight: 600; white-space: nowrap; }
-/* The higher minimum is marked as in the session table: weight and a 6 px dot, here in that lap's colour, not a filled cell. */
-:root[data-skin="linear"] .corner-every-table td.is-best::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: var(--team); vertical-align: 1px; }
+:root[data-skin="linear"] .corner-every-table td.is-best { color: var(--ui-label); font-weight: 600; background: color-mix(in oklch, var(--team) 30%, transparent) content-box; border-radius: 6px; }
 :root[data-skin="linear"] .corner-every-lap { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-label); font-weight: 500; }
 :root[data-skin="linear"] .corner-every-lap::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--team); }
 :root[data-skin="linear"] .corner-every-lap small { color: var(--ui-tertiary); font-size: 11px; }
@@ -2607,14 +2605,13 @@
 :root[data-skin="linear"] .session-summary-table :is(.session-best-lap, .session-summary-sort):hover { background: var(--lin-nav-hover); color: var(--ui-label); }
 :root[data-skin="linear"] .session-summary-table .session-best-lap[aria-pressed="true"] { color: var(--ui-label); background: var(--lin-pill-on); }
 /* The table follows the table recipe: sort titles and best-lap times are text (the scanner tags them as push buttons, whose
-   fill must not apply here); a lap in the comparison is marked by weight and its pill, and the best value in a column by
-   weight and a 6 px accent dot, not a filled cell. */
+   fill must not apply here); the best value in a column fills its cell, with nothing boxed inside it; a lap in the
+   comparison is marked by weight (and its pill outside a filled cell). */
 :root[data-skin="linear"] #sessionOverview .session-summary-table :is(.session-best-lap, .session-summary-sort)[data-ui-kind]:not(#loadSession):not(#performanceLoad) { background: transparent; box-shadow: none; }
 :root[data-skin="linear"] #sessionOverview .session-summary-table :is(.session-best-lap, .session-summary-sort)[data-ui-kind]:not(#loadSession):not(#performanceLoad):hover { background: var(--lin-nav-hover); }
 :root[data-skin="linear"] #sessionOverview .session-summary-table .session-best-lap[data-ui-kind][aria-pressed="true"]:not(#loadSession):not(#performanceLoad) { background: var(--lin-pill-on); color: var(--ui-label); font-weight: 600; }
 :root[data-skin="linear"] #sessionOverview .session-summary-table th[aria-sort] .session-summary-sort { color: var(--ui-label); }
-:root[data-skin="linear"] .session-summary-table td.is-best { background: none; border-radius: 0; color: var(--ui-label); font-weight: 600; white-space: nowrap; }
-:root[data-skin="linear"] .session-summary-table td.is-best::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-inline-end: 6px; border-radius: 50%; background: var(--ui-accent); vertical-align: 1px; }
+:root[data-skin="linear"] #sessionOverview .session-summary-table td.is-best .session-best-lap[data-ui-kind]:not(#loadSession):not(#performanceLoad) { background: transparent; }
 :root[data-skin="linear"] .session-summary-driver { display: inline-flex; align-items: center; gap: 8px; }
 :root[data-skin="linear"] .session-summary-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
 /* Head-to-head: the pair being compared, marked in the list of every teammate battle. */
@@ -2703,12 +2700,15 @@
    so the pair stands level; narrow cards (three across) keep one column. Each group of pills is set apart by a gap and a
    hairline, so stop type, subject and statistic read as separate choices. */
 :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long { container-type: inline-size; }
-@container (min-width: 480px) {
+@container (min-width: 440px) {
   :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long :is(.performance-bars, .performance-tyre-age-chart) { display: block; columns: 2; column-gap: 28px; }
   /* Out of the list's grid (columns replace it), each row keeps its own: name, bar, value on one line. */
   :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long :is(.performance-bar-row, .performance-tyre-age-row) { display: grid; grid-column: auto; grid-template-columns: minmax(40px, max-content) minmax(36px, 1fr) max-content; align-items: center; gap: 10px; min-height: 30px; padding-block: 0; break-inside: avoid; }
 }
 :root[data-skin="linear"] #performanceMetricPanel .subject-pair { align-items: start; }
+/* Charts start below a floated action (Refresh missing timing): beside the float a grid is squeezed to the space left,
+   which on a phone was half the card. */
+:root[data-skin="linear"] #performanceMetricPanel :is(.subject-pair, .subject-bands, .performance-card-body > .performance-chart-card) { clear: both; }
 /* An empty chart is an outline card (spec: empty / add): it reads as a note, not as a chart that failed to draw. */
 :root[data-skin="linear"] #performanceMetricPanel .subject-bands { align-items: start; }
 :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty { background: none; box-shadow: inset 0 0 0 1px var(--lin-outline-border); }

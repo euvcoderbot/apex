@@ -111,9 +111,10 @@ function bindAllChartHover() {
               && isReconstructedTelemetry(series, fraction, field);
             if (reconstructed) hasReconstructedValue = true;
             if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
+            // Speed and throttle are interpolated between whole-number samples: one decimal, not three.
             const precision = (hoveredChartName === 'Speed trace'
               || hoveredChartName === 'Throttle application')
-              ? val.toFixed(3)
+              ? val.toFixed(1)
               : Math.round(val);
             display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
           }
@@ -122,10 +123,10 @@ function bindAllChartHover() {
       });
       
       const reconstructionNote = hasReconstructedValue
-        ? `<br><small>~ ${hasLowConfidenceValue ? 'LOW-CONFIDENCE GAP ESTIMATE' : 'ESTIMATED REPAIR'}</small>`
+        ? `<br><small>~ ${hasLowConfidenceValue ? 'Low-confidence gap estimate' : 'Estimated repair'}</small>`
         : '';
-      const sourceGapNote=sourceGapNotes.size?`<br><small>SOURCE GAP · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
-      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} KM</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
+      const sourceGapNote=sourceGapNotes.size?`<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
+      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} km</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
       tooltip.style.display = 'block';
       
       if (document.body.classList.contains('trace-focus')) {
@@ -218,12 +219,12 @@ function bindTrackMapHover() {
         const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
           const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} km/h` : '—';
           const timeDisplay = Number.isFinite(sectionTime) && sectionTime > 0
-            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · NOT COMPARED' : Math.abs(sectionTime - bestTime) < .0005 ? ' FASTEST' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
-            : 'NO SECTION TIME';
+            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · not compared' : Math.abs(sectionTime - bestTime) < .0005 ? ' · fastest' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
+            : 'no section time';
           return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
         });
 
-        tooltip.innerHTML = `<b>TRACK MAP · ${distanceKM.toFixed(3)} KM · ${((segmentEnd-segmentStart)*totalDistance).toFixed(1)} M SECTION</b><br>${lines.join('<br>')}`;
+        tooltip.innerHTML = `<b>Track map · ${distanceKM.toFixed(3)} km · ${((segmentEnd-segmentStart)*totalDistance).toFixed(1)} m section</b><br>${lines.join('<br>')}`;
         tooltip.style.display = 'block';
 
         const parentRect = telemetryCard.getBoundingClientRect();

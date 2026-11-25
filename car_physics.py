@@ -232,17 +232,18 @@ def acceleration_curve(speed_kmh, accel, lo, hi, edge_constant=False):
         w = np.exp(-.5*((speed_kmh-node)/BANDWIDTH_KMH)**2)
         if w.sum() < 3:
             continue
-        # edge_constant: where the car has packets on one side of the node only, take their weighted mean rather than the
-        # local-linear intercept. At the edge of its data that fit extends the slope past the last packet; out of a slow
-        # corner the slope is steep, so it read about 0 g where the car never was (Mexico City 2026, Russell: -0.02 g at
-        # 105 km/h, his slowest exit packet 110 km/h). Dropping such nodes instead cost too much coverage on 9-packet laps.
-        if edge_constant and not (np.any((speed_kmh < node) & (speed_kmh >= node-NODE_KMH))
-                                  and np.any((speed_kmh > node) & (speed_kmh <= node+NODE_KMH))):
-            curve[i] = float(np.sum(w*accel)/w.sum())
-            continue
         X = np.column_stack([np.ones(len(w)), speed_kmh-node])
         sw = np.sqrt(w)
         beta, *_ = np.linalg.lstsq(X*sw[:, None], accel*sw, rcond=None)
+        # edge_constant: a node beyond the speeds the car reached is left empty, so the straight simulation takes the
+        # field reference there, shifted to meet the car's own first value (simulate_straight). Extending the local-linear
+        # slope past the last packet read about 0 g where the car never was (Mexico City 2026, Russell: -0.02 g at
+        # 105 km/h, his slowest exit packet 110 km/h); the kernel mean that replaced it read too high, because out of a
+        # corner acceleration rises with speed and the mean sits up to ~25 km/h above the node (an identical car whose
+        # data started 16 km/h higher gained 0.58 s). Nodes inside the car's range keep the fit, so sparse laps keep
+        # their coverage.
+        if edge_constant and not speed_kmh.min() <= node <= speed_kmh.max():
+            continue
         curve[i] = beta[0]
     return nodes, curve
 
@@ -259,12 +260,18 @@ def simulate_straight(nodes, curve, v0_kmh, distance_m, fallback, step=2.):
     known_v, known_a = nodes[finite]/3.6, curve[finite]
     ref_v, ref_a = nodes/3.6, fallback
     offset = known_a[-1]-np.interp(known_v[-1], ref_v, ref_a)
+    # Below the car's slowest supported node the field reference is used the same way, shifted to meet its first value.
+    # Holding that first value constant instead credited a car whose data starts at a higher speed: out of a corner
+    # acceleration rises with speed, so its first value overstates what it had below it.
+    low_offset = known_a[0]-np.interp(known_v[0], ref_v, ref_a)
     v, t, extrapolated = v0_kmh/3.6, 0., False
     if not math.isfinite(distance_m) or distance_m < 0 or not math.isfinite(step) or step <= 0:
         raise ValueError('Distance must be non-negative and step must be positive')
     for i in range(math.ceil(distance_m/step)):
         ds = min(step, distance_m-i*step)
-        if v <= known_v[-1]:
+        if v < known_v[0]:
+            a = float(np.interp(v, ref_v, ref_a))+low_offset
+        elif v <= known_v[-1]:
             a = float(np.interp(v, known_v, known_a))
         else:
             a = float(np.interp(v, ref_v, ref_a))+offset

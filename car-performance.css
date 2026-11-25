@@ -838,14 +838,14 @@ body.performance-view #sidebarToggle {
 .start-section-heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 4px 12px;
   min-height: 28px;
 }
 .start-section-heading .perf-chart-heading { margin: 0; }
 .start-section-heading :is(select, .select-shell) { width: auto; max-width: 100%; min-height: 28px; }
-.start-section-heading .select-shell { min-width: 96px; }
+.start-section-heading .select-shell { min-width: 96px; margin-inline-start: auto; }
 .start-table { display: grid; gap: 8px; min-width: 0; }
 .start-table .performance-table-wrap { margin: 0; }
 .start-table .performance-table :is(th, td):not(:first-child) { padding-inline: 8px; }
@@ -856,8 +856,9 @@ body.performance-view #sidebarToggle {
 .start-method { max-width: 64ch; color: var(--ui-secondary); font-size: 13px; }
 .start-method summary { cursor: pointer; }
 .start-method p { margin: 8px 0 0; }
-@media (min-width: 1180px) {
-  .start-comparison { grid-template-columns: minmax(0, 4fr) minmax(0, 5fr); gap: 24px; }
+/* The launch table needs about 650 px for its eight distances: side by side only where it gets that, stacked below. */
+@media (min-width: 1400px) {
+  .start-comparison { grid-template-columns: minmax(0, 1fr) minmax(660px, 1.7fr); gap: 24px; }
 }
 @media (max-width: 600px) {
   .start-table-standing .performance-table :is(th, td) { padding-inline: 6px; }

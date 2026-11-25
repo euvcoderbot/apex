@@ -126,7 +126,7 @@ for (const theme of ['dark', 'light']) test(`Live uses official fastest times wh
   await compare.getByRole('button', {name: 'Set NOR as reference'}).click();
   await expect(charts.locator('#traceDriverToggles b').first()).toHaveText('NOR');
   await charts.getByRole('button', {name: 'Zoom in', exact: true}).click();
-  await expect(charts.locator('#traceZoomReadout')).toHaveText('1.35–4.65 KM');
+  await expect(charts.locator('#traceZoomReadout')).toHaveText('1.35–4.65 km');
   await charts.getByText('Inspect telemetry values', {exact: true}).click();
   await charts.getByRole('slider', {name: 'Lap distance'}).press('End');
   await expect(charts.getByRole('slider', {name: 'Lap distance'})).toHaveAttribute('aria-valuetext', '6.000 km');
@@ -140,7 +140,7 @@ for (const theme of ['dark', 'light']) test(`Live uses official fastest times wh
   await expect(charts.getByRole('dialog', {name: 'Expanded lap telemetry'})).toBeVisible();
   await charts.getByRole('button', {name: 'Close view'}).press('Escape');
   await expect(charts.getByRole('dialog')).toHaveCount(0);
-  await expect(charts.locator('#traceZoomReadout')).toHaveText('1.35–4.65 KM');
+  await expect(charts.locator('#traceZoomReadout')).toHaveText('1.35–4.65 km');
   await expect.poll(() => charts.locator('.speed-chart').evaluate(chart => {
     const {left, right} = chart.getBoundingClientRect();
     return left >= 0 && right <= window.innerWidth + 1;
@@ -160,7 +160,7 @@ for (const theme of ['dark', 'light']) test(`Live uses official fastest times wh
   const current = page.frameLocator('iframe[title="Current lap telemetry charts"]');
   await expect(current.locator('canvas[data-chart="Gear"]')).toBeVisible();
   await expect(current.locator('#alignmentCorrectionToggle')).toBeDisabled();
-  await expect(current.locator('#traceZoomReadout')).toHaveText('0.00–6.00 KM');
+  await expect(current.locator('#traceZoomReadout')).toHaveText('0.00–6.00 km');
   await current.getByText('Inspect telemetry values', {exact: true}).click();
   await current.getByRole('slider', {name: 'Lap distance'}).press('End');
   await expect(current.getByRole('row', {name: /^VER L30/}).getByRole('cell').first()).toHaveText('—');
