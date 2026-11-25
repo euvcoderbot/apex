@@ -1,5 +1,6 @@
 """Small, deterministic supported-range models; no extrapolated tyre life."""
 import math
+from collections import Counter
 import numpy as np
 
 
@@ -103,7 +104,8 @@ def qualifying_conditions(rows, selections):
               and r.get('age') is not None and r['age']<=3 and not r.get('pit')
               and r.get('rain') is False and r.get('accurate') and r.get('track')=='1'
               and not r.get('deleted') and r.get('time') and r.get('compound') in {'SOFT','MEDIUM','HARD'}]
-    compounds=sorted({r['compound'] for r in eligible},key=lambda c:-sum(r['compound']==c for r in eligible))
+    compound_counts = Counter(r['compound'] for r in eligible)
+    compounds = sorted(compound_counts, key=lambda compound: (-compound_counts[compound], compound))
     result={'status':'unsupported','reason':'Need repeated fresh-set laps from at least eight drivers on one dry compound','estimates':{}}
     if not compounds:return result
     eligible=[r for r in eligible if r['compound']==compounds[0]]
