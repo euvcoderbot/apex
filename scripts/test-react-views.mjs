@@ -71,9 +71,9 @@ test('results overview table follows the chart measure, independent of detailed-
 test('bar chart rebases to the best entrant and marks provisional values', () => {
   const html = render(views.BarChart, {rows: [{team: 'A', value: 1.5, color: '#00ff00'}, {team: 'B', value: 1.0, traceProvisional: true}], options: {unit: '%'}});
   assert.ok(html.indexOf('>B<') < html.indexOf('>A<'), 'best first');
-  // Provisional values say so in the row tooltip, not with a glyph in the value.
+  // The server markup starts with explanations hidden.
   assert.match(html, /is-gain is-provisional">0.000%/);
-  assert.match(html, /Provisional: source gaps over 0.6 s/);
+  assert.doesNotMatch(html, /Provisional: source gaps over 0.6 s/);
   assert.match(html, /is-loss">\+0.500%/);
 });
 
@@ -101,7 +101,7 @@ test('pit stops view draws the measured sample, never a zero for a missing stop'
   assert.match(html, /data-pit-measure="stop" aria-pressed="true"/);
   assert.match(html, /<button type="button" data-pit-chart="median" aria-pressed="true">Median<\/button>/);
   assert.match(html, /0\.500 s<small>2\.000–2\.500 s<\/small>/);
-  assert.match(html, /—<small>No timed samples<\/small>/);
+  assert.match(html, /—<small class="explanation-only">No timed samples<\/small>/);
   assert.match(html, /<button type="button" data-pit-retry="">Refresh missing timing<\/button>/);
   assert.match(html, />2\.1 s</, 'exact seconds as published');
   assert.match(html, /is-unranked/);
@@ -149,8 +149,8 @@ test('pace view: toggles, two charts, cell notes and evidence tables', () => {
   assert.match(html, /data-pace-stat="median" aria-pressed="true"/);
   assert.match(html, /data-qualy-mode="adjusted" title="Estimate allowing for track evolution" aria-pressed="true"/);
   assert.equal((html.match(/performance-chart-card/g) || []).length, 2);
-  assert.match(html, /0\.500% <span class="perf-tercile-badge is-mid">Provisional estimate<\/span><small>LEC · 3\/3 races supported<\/small>/);
-  assert.match(html, /0\.4–0\.7%<small>3 deletion fits<\/small>/);
+  assert.match(html, /0\.500% <span class="perf-tercile-badge is-mid explanation-only">Provisional estimate<\/span><small class="explanation-only">LEC · 3\/3 races supported<\/small>/);
+  assert.match(html, /0\.4–0\.7%<small class="explanation-only">3 deletion fits<\/small>/);
   assert.match(html, />89\.123</);
 });
 
@@ -166,7 +166,7 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
   assert.equal((relative.match(/data-tyre-compound=/g) || []).length, 4);
   assert.match(relative, /data-tyre-compound="C4" aria-pressed="true"/);
   assert.match(relative, /aria-labelledby="performanceTyreCompoundLabel"/);
-  assert.match(relative, /\+0\.020 s\/lap<small>Provisional · 2\/3 supported events<\/small>/);
+  assert.match(relative, /\+0\.020 s\/lap<small class="explanation-only">Provisional · 2\/3 supported events<\/small>/);
   const plot = {title: 'LEC · Bahrain Grand Prix · C3 · stint 2', teamColor: '#ff0000', empty: false, noTrend: false, caption: 'Recorded times · dots are laps',
     exclusions: {pressed: false, label: 'Show 1 excluded lap'}, axis: {lo: 1, hi: 20, grid: [{y: 180, label: '0.000'}]}, curve: 'M 55 170 L 645 40',
     points: [{cx: 55, cy: 170, title: 'Lap 3 · age 1'}], excluded: [], laps: [{lap: 3, age: 1, time: 95.2, status: 'Used'}]};
@@ -184,7 +184,7 @@ test('tyre trend view: toolbar per mode, compound pills, stint plot and run pick
   assert.doesNotMatch(inspected, /data-tyre-subject=/);
   assert.match(age, /data-tyre-subject="driver" aria-pressed="true"/);
   assert.match(age, /performance-tyre-age-bar" style="--bar-color:#ff0000;left:0\.00%;width:100\.00%"/);
-  assert.match(age, /—<small>P75 needs C3: 3\/4 GPs<\/small>/);
+  assert.match(age, /—<small class="explanation-only">P75 needs C3: 3\/4 GPs<\/small>/);
   assert.match(inspected, /<select data-tyre-plot-filter="team">/);
   assert.match(inspected, /<svg class="stint-plot"/);  // the fit is dashed by svg.stint-plot .fit in skins.css, scale-corrected
   assert.match(inspected, /<path class="fit"/);

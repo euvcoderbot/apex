@@ -122,7 +122,7 @@ test('telemetry loading status remains visible with explanations disabled',()=>{
   const css=legacySource('macos-window.css'),view=readFileSync('src/views/SpeedView.tsx','utf8');
   assert.match(css,/p\.performance-quality-status:not\(\.is-loading\):not\(:has\(button\)\)/);
   assert.match(view,/p\.status\.running \? ' is-loading'/);
-  assert.match(view,/Lap times are loaded; fetching and processing the fastest laps/);
+  assert.match(view,/Loading qualifying telemetry… <span className="explanation-only">/);
 });
 
 test('real straights and lap shares put corners and straights on the qualifying-gap scale',()=>{
