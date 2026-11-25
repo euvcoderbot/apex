@@ -17,8 +17,10 @@ test('sector differences precede their measured times, with labelled weather rea
   assert.match(html,/title="Gap to fastest compared lap">\+0\.123s/);
   assert.match(second,/title="Gap to fastest compared lap">\+0\.000s[\s\S]*?<strong>91\.373<\/strong>/);
   assert.match(second,/<small>S1<\/small><span class="sector-time-pair"><span class="sector-delta-slot"><em[^>]*>−0\.271s<\/em><\/span><strong>27\.002s<\/strong><\/span><\/span>\s*<span class="sector-status-line"/);
-  for(const [icon,label] of [['🌤️','Air'],['🌡️','Track'],['💨','Wind'],['🌧️','Rain']])
-    assert.ok(html.includes(`<i aria-hidden="true">${icon}</i><small>${label}</small></span><strong>—</strong>`));
+  // Weather is one quiet row of labelled readings, no pictograms.
+  for(const label of ['Air','Track','Wind','Rain'])
+    assert.ok(html.includes(`<span class="summary-condition-label"><small>${label}</small></span><strong>—</strong>`));
+  assert.doesNotMatch(html,/summary-condition-label"><i/);
   assert.doesNotMatch(html,/<small>L21<\/small>/);
   // The lap card uses the same compound badge as the lap tiles, not the tyre photo.
   assert.match(html,/summary-tyre[^"]*"><svg class="compound-badge" data-c="SOFT">/);

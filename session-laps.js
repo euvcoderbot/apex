@@ -465,8 +465,9 @@ function renderSectors() {
     const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     return directions[Math.round(((degrees % 360) + 360) % 360 / 45) % directions.length];
   };
-  const conditionCell = (icon, label, value) => `
-    <span class="summary-condition"><span class="summary-condition-label"><i aria-hidden="true">${icon}</i><small>${label}</small></span><strong>${value}</strong></span>`;
+  // One quiet line of readings: label, then value. No pictograms; the words carry it.
+  const conditionCell = (label, value) => `
+    <span class="summary-condition"><span class="summary-condition-label"><small>${label}</small></span><strong>${value}</strong></span>`;
   
   // The colours are F1's timing colours over the whole session (purple session best, green personal best); they do not say
   // which compared lap was quicker. The quickest of the compared laps in each sector is marked separately.
@@ -487,10 +488,10 @@ function renderSectors() {
     const conditions = lap.conditions || {};
     const direction = windCardinal(conditions.wind_direction);
     const conditionValues = [
-      conditionCell('🌤️', 'Air', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
-      conditionCell('🌧️', 'Rain', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'Yes' : 'No')),
-      conditionCell('🌡️', 'Track', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
-      conditionCell('💨', 'Wind', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
+      conditionCell('Air', Number.isFinite(conditions.air_temperature) ? `${conditions.air_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('Track', Number.isFinite(conditions.track_temperature) ? `${conditions.track_temperature.toFixed(1)}°C` : '—'),
+      conditionCell('Wind', Number.isFinite(conditions.wind_speed) ? `${conditions.wind_speed.toFixed(1)} m/s${direction ? ` ${direction}` : ''}` : '—'),
+      conditionCell('Rain', conditions.rainfall === null || conditions.rainfall === undefined ? '—' : (conditions.rainfall ? 'Yes' : 'No')),
     ];
     const conditionsHtml = `<div class="summary-conditions">${conditionValues.join('')}</div>`;
     const compound = getCompoundCode(lap.compound || 'UNKNOWN', nominatedCompounds);

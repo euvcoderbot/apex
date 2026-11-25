@@ -710,6 +710,7 @@ function resolveCornerMarkers(samples, totalDistance, suppliedMarkers = null) {
 // Draw chart grid axes
 function drawGridAxes(ctx, width, height, bounds, unit) {
   const { left, right, top, bottom, min, max, tickStep } = bounds;
+  const seconds = /seconds/i.test(unit);
   const theme = canvasTheme();
   ctx.font = canvasFont(10);   // value axis: 11 px 450, every chart's axis size
   const ticks = [];
@@ -736,7 +737,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     ctx.beginPath();
     ctx.moveTo(left, y);
     ctx.lineTo(width - right, y);
-    if (unit.includes('SECONDS') && Math.abs(value) < 1e-5) {
+    if (seconds && Math.abs(value) < 1e-5) {
       ctx.strokeStyle = theme.gridStrong;
       ctx.lineWidth = 1.2;
     } else {
@@ -745,9 +746,9 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
     }
     ctx.stroke();
     let displayVal = Math.round(value);
-    if (unit.includes('SECONDS')) {
+    if (seconds) {
       const decimals = Number.isFinite(tickStep) && tickStep > 0
-        ? Math.max(1, Math.min(3, Math.ceil(-Math.log10(tickStep)) + 1))
+        ? Math.max(1, Math.min(3, (String(+tickStep.toPrecision(6)).split('.')[1] || '').length))
         : (Math.abs(max - min) <= 0.4 ? 2 : 1);
       displayVal = Math.abs(value) < 1e-8
         ? '0'
@@ -759,23 +760,12 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
       else return;
       if (unit === 'on / off') displayVal = tick === 0 ? 'On' : 'Off';
     }
-    ctx.fillStyle = unit.includes('SECONDS') && Math.abs(value) < 1e-5
+    ctx.fillStyle = seconds && Math.abs(value) < 1e-5
       ? theme.textStrong
       : theme.text;
     ctx.textAlign = 'right';
     ctx.fillText(displayVal, left - 8, y + 3);
   });
-  if (unit === 'km/h') {
-    // Axis title, rotated beside the tick labels: "Speed [km/h]".
-    ctx.save();
-    ctx.translate(11, top + (height - top - bottom) / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = 'center';
-    ctx.font = canvasFont(10, 500);
-    ctx.fillStyle = theme.text;
-    ctx.fillText('Speed [km/h]', 0, 0);
-    ctx.restore();
-  }
   ctx.textAlign = 'left';
 }
 
@@ -1193,7 +1183,7 @@ function renderedTraceValue(points, fraction, stepped = false) {
   return before.y + (after.y - before.y) * ratio;
 }
 
-const TRACE_PLOT_LEFT = 58;
+const TRACE_PLOT_LEFT = 46;
 const TRACE_PLOT_RIGHT = 7;
 // Draw a single canvas chart
 function drawRealChart(name) {
@@ -1325,10 +1315,13 @@ function drawRealChart(name) {
   const axisLeft = TRACE_PLOT_LEFT;
   const speedCornerMarkers = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
   // The speed trace gets up to two rows of turn tags (one when narrow); the shorter channels one row.
-  const maxTagLanes = name === 'Speed trace' ? (rect.width < 560 ? 1 : 2) : 1;
-  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, 7, viewStart, viewEnd, maxTagLanes);
-  const cornerAxisInset = showCornerNumbers && speedCornerMarkers.length
-    ? 8 + cornerCalloutLayout.lanes * 20
+  // Turn numbers as one quiet row under each chart (two under the speed trace when wide); labels that do not fit are left
+  // out and keep their tick.
+  const showCornerTags = showCornerNumbers;
+  const maxTagLanes = name === 'Speed trace' && rect.width >= 560 ? 2 : 1;
+  const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, TRACE_PLOT_RIGHT, viewStart, viewEnd, maxTagLanes);
+  const cornerAxisInset = showCornerTags && speedCornerMarkers.length
+    ? 4 + cornerCalloutLayout.lanes * 16
     : 0;
   const bounds = {
     left: axisLeft,
@@ -1351,10 +1344,14 @@ function drawRealChart(name) {
   drawGridAxes(ctx, rect.width, rect.height, bounds, unit);
 
   // Shared distance axis. Every telemetry chart uses the same visible range.
-  const distanceTickCount = Math.max(2, Math.min(6, Math.floor(plotWidth / 100)));
-  for (let tick = 0; tick <= distanceTickCount; tick++) {
-    const fraction = viewStart + viewSpan * tick / distanceTickCount;
-    const x = xForFraction(fraction);
+  // Round distances (every 250 m, 500 m, 1 km or 2 km), at most one label per ~90 px.
+  const visibleMetres = viewSpan * totalDist, maxTicks = Math.max(2, Math.floor(plotWidth / 90));
+  const distanceStep = [100, 250, 500, 1000, 2000].find(step => visibleMetres / step <= maxTicks) || 5000;
+  const distanceLabel = metres => metres === 0 ? '0' : metres % 1000 === 0 ? `${metres / 1000} km` : metres > 1000 ? `${(metres / 1000).toFixed(metres % 500 === 0 ? 1 : 2)} km` : `${metres} m`;
+  ctx.font = canvasFont(10);   // distance axis: 11 px 450
+  ctx.textAlign = 'center';
+  for (let metres = Math.ceil(viewStart * totalDist / distanceStep) * distanceStep; metres <= viewEnd * totalDist + .5; metres += distanceStep) {
+    const x = xForFraction(metres / totalDist);
     ctx.beginPath();
     ctx.moveTo(x, bounds.top);
     ctx.lineTo(x, rect.height - bounds.bottom);
@@ -1362,9 +1359,7 @@ function drawRealChart(name) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = theme.text;
-    ctx.font = canvasFont(10);   // distance axis: 11 px 450
-    ctx.textAlign = tick === 0 ? 'left' : tick === distanceTickCount ? 'right' : 'center';
-    if (showDistanceNumbers) ctx.fillText(`${Math.round(fraction * totalDist)} m`, x, rect.height - bounds.bottom + 18);
+    if (showDistanceNumbers && x > bounds.left + 8 && x < rect.width - bounds.right - 14) ctx.fillText(distanceLabel(metres), x, rect.height - bounds.bottom + 16);
   }
   ctx.textAlign = 'left';
   
@@ -1425,9 +1420,9 @@ function drawRealChart(name) {
       if (Number.isFinite(fraction) && fractionInView(fraction)) {
         const x = xForFraction(fraction);
         
-        ctx.strokeStyle = theme.gridStrong;
-        ctx.lineWidth = 0.8;
-        ctx.setLineDash([2, 3]);
+        ctx.strokeStyle = theme.grid;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 4]);
         
         ctx.beginPath();
         ctx.moveTo(x, bounds.top);
@@ -1558,8 +1553,8 @@ function drawRealChart(name) {
   
   // Draw collision-free corner labels in a reserved band below the axis. Corner
   // speeds live in the dedicated analysis panel below the track map.
-  if (showCornerNumbers) {
-    const rowHeight = 20;
+  if (showCornerTags) {
+    const rowHeight = 16;
     const calloutHeight = 16;
     cornerCalloutLayout.items.forEach(({ corner, x, anchorX, lane, width }) => {
       if (!Number.isFinite(corner.fraction)) return;
@@ -1568,27 +1563,18 @@ function drawRealChart(name) {
         ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke();
         return;
       }
-      const labelY = rect.height - cornerAxisInset + 4 + lane * rowHeight;
+      const labelY = rect.height - cornerAxisInset + 3 + lane * rowHeight;
       const left = x - width / 2;
-      // Tick from the exact corner position on the axis to its tag.
-      ctx.beginPath(); ctx.moveTo(anchorX, rect.height - bounds.bottom); ctx.lineTo(anchorX, rect.height - bounds.bottom + 3); ctx.lineTo(x, labelY + 1.5);
+      // A short tick on the axis marks the exact corner; the label below may sit a few pixels aside (no slanted leader through
+      // the distance numbers).
+      ctx.beginPath(); ctx.moveTo(anchorX, rect.height - bounds.bottom); ctx.lineTo(anchorX, rect.height - bounds.bottom + 4);
       ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1; ctx.stroke();
 
-      // Small grey boxed turn tags, like broadcast speed-trace graphics.
-      const label = cornerLabel(corner);
+      // Turn numbers as quiet axis labels (500 11 px secondary), no boxes: they are reference marks, not controls.
       ctx.font = canvasFont(10, 500);
-      const tagWidth = width;
-      const tagLeft = left;
-      ctx.fillStyle = lightThemeActive() ? 'rgba(20,25,32,.08)' : 'rgba(255,255,255,.1)';
-      ctx.strokeStyle = theme.outline;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      if (typeof ctx.roundRect === 'function') ctx.roundRect(tagLeft + .5, labelY + 1.5, tagWidth - 1, calloutHeight - 1, 3);
-      else ctx.rect(tagLeft + .5, labelY + 1.5, tagWidth - 1, calloutHeight - 1);
-      ctx.fill(); ctx.stroke();
       ctx.fillStyle = theme.textStrong;
       ctx.textAlign = 'center';
-      ctx.fillText(label, tagLeft + tagWidth / 2, labelY + 12.5);
+      ctx.fillText(cornerLabel(corner), left + width / 2, labelY + 12.5);
       ctx.textAlign = 'left';
     });
   }

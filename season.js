@@ -850,9 +850,10 @@
       if (race.length >= 2) action(`${driverCode(data, race[0].driver)} vs ${driverCode(data, race[1].driver)} · season`, () => show('h2h', {a: race[0].driver, b: race[1].driver, part: 'overview'}));
       action('Circuit guide', () => openTrack(r.name));
       action('Standings after this race', () => show('standings', {round: r.round, part: 'drivers'}));
-      const side = el('section', 'weekend-order'); side.append(el('h3', null, 'Weekend'), facts, links);
+      // The links follow all three columns on their own row, so the Weekend facts stay as short as the top-three lists.
+      const side = el('section', 'weekend-order'); side.append(el('h3', null, 'Weekend'), facts);
       body.replaceChildren(top3('Race', race.map(x => [x.position, x.driver, x.gap || x.status || '—'])),
-        top3('Qualifying', quali.map(q => [q.position, q.driver, best(q)])), side);
+        top3('Qualifying', quali.map(q => [q.position, q.driver, best(q)])), side, links);
     };
     draw(rounds.find(r => r.round === homeRoundByYear.get(data.year)) || rounds.at(-1));
     picker.addEventListener('change', () => {
@@ -2937,6 +2938,11 @@
     const named = endLabels && series.length > 1, dense = series.length > 8;
     const W = width, H = named ? Math.max(height, series.length * 19 + 60) : height, R = series.length === 1 ? 44 : named ? 52 : 12, T = 12, B = 48;
     const dashed = teammateDashes(series);
+    // A crowded chart (the whole grid) colours the six leaders at the last round; the rest stay as faint context lines that
+    // light up on hover or when picked, so the chart reads as a story rather than a tangle.
+    const lastOf = s => s.values.filter(v => v != null).at(-1);
+    const leaders = dense ? new Set([...series].filter(s => lastOf(s) != null).sort((a, b) => invert ? lastOf(a) - lastOf(b) : lastOf(b) - lastOf(a)).slice(0, 6)) : null;
+    const faint = s => leaders && !leaders.has(s);
     const values = series.flatMap(s => s.values.filter(v => v != null));
     // Values (not positions) get round outer ticks that enclose the data; the scale then runs to those ticks.
     const dataLo = min ?? Math.min(0, ...values), dataHi = max ?? Math.max(1, ...values);
@@ -2977,9 +2983,9 @@
       const pts = s.values.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
       if (!pts.length) continue;
       const d = roundPath(s.values, x, y);
-      svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:var(--series-stroke, ${esc(s.colour)})" d="${d}"/>`;
-      // A dot on every round of every series, as Car performance's trend chart.
-      svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
+      svg += `<path data-id="${esc(s.id)}" class="line${dashed.has(s) ? ' is-dashed' : ''}${faint(s) ? ' is-faint' : ''}" style="stroke:var(--series-stroke, ${esc(s.colour)})" d="${d}"/>`;
+      // A dot on every round, as Car performance's trend chart; a crowded chart keeps only its lines.
+      if (!dense) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" data-id="${esc(s.id)}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       if (series.length === 1) {
         const [ex, ey] = pts.at(-1), last = s.values.filter(v => v != null).at(-1);
         svg += `<circle class="end" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="3" style="fill:${esc(s.colour)}"/><text class="label is-value" x="${(ex + 8).toFixed(1)}" y="${(ey + 3.5).toFixed(1)}">${esc(invert ? 'P' + last : format(last))}</text>`;
@@ -2988,7 +2994,7 @@
     if (named) {
       const ends = series.map(s => {
         const i = s.values.findLastIndex(v => v != null);
-        return i < 0 ? null : {id: s.id, colour: s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i])};
+        return i < 0 ? null : {id: s.id, colour: faint(s) ? 'var(--ui-tertiary)' : s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i]), minor: faint(s), quiet: faint(s)};
       }).filter(Boolean);
       svg += endKey(ends, W - R + 4, dense ? 19 : 14, H - B);   // 19 units: about 14 px apart at a half-width desktop card
     }
@@ -3011,7 +3017,7 @@
     for (let i = list.length - 1; i >= 0; i--) list[i].ly = Math.min(list[i].ly, i === list.length - 1 ? bottom : list[i + 1].ly - gap);
     // On a phone a dense chart labels its first ten lines only (season.css .end-key.is-minor); every line stays in the tips.
     return list.map((e, rank) => {
-      const leader = Math.abs(e.ly - e.y) > 3 && e.x != null
+      const leader = Math.abs(e.ly - e.y) > 3 && e.x != null && !e.quiet
         ? `<path class="end-leader" d="M${(e.x + 4).toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 2).toFixed(1)} ${e.y.toFixed(1)}L${(labelX + 2).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
       return `<g class="end-key${rank >= 10 || e.minor ? ' is-minor' : ''}" data-id="${esc(e.id)}">${leader}<text class="label is-value selected-end" x="${(labelX + 4).toFixed(1)}" y="${(e.y + 3.5).toFixed(1)}">${esc(e.name)}</text><text class="label packed-end" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
     }).join('');
@@ -3041,10 +3047,11 @@
       if (!pts.length) continue;
       const lastIndex = s.values.findLastIndex(value => value != null);
       const lastValue = s.values[lastIndex];
-      ends.push({id: s.id, colour: s.colour, name: s.label, x: x(lastIndex), y: y(lastValue), minor: lastValue > 10});
-      // A slightly stronger stroke gives the front of the field a readable outline.
-      svg += `<g class="bump-series${lastValue <= 5 ? ' is-front' : ''}" data-id="${esc(s.id)}"><path class="line is-bump${dashed.has(s) ? ' is-dashed' : ''}" style="stroke:var(--series-stroke, ${esc(s.colour)})" d="${roundPath(s.values, x, y)}"/>`;
-      svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
+      // The front of the field (top six at the last round) in colour; the rest faint until hovered or picked.
+      const front = n <= 8 || lastValue <= 6;
+      ends.push({id: s.id, colour: front ? s.colour : 'var(--ui-tertiary)', name: s.label, x: x(lastIndex), y: y(lastValue), minor: lastValue > 10, quiet: !front});
+      svg += `<g class="bump-series${front ? ' is-front' : ' is-faint-group'}" data-id="${esc(s.id)}"><path class="line is-bump${dashed.has(s) ? ' is-dashed' : ''}${front ? '' : ' is-faint'}" style="stroke:var(--series-stroke, ${esc(s.colour)})" d="${roundPath(s.values, x, y)}"/>`;
+      if (n <= 8) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       svg += '</g>';
     }
     svg += endKey(ends, W - R + 4, row, H - B);

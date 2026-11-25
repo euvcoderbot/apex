@@ -1053,10 +1053,11 @@ function tradeOffPlot(model) {
     placed.push({from,width,y:ly});return {p,lx,ly,left};
   });
   const unit=model.several?'% of lap':'s';
-  const ticks=(a,b)=>{const step=[.001,.002,.005,.01,.02,.05,.1,.2,.5,1].find(st=>(b-a)/st<=5)||1;const out=[];for(let v=Math.ceil(a/step)*step;v<=b+1e-12;v+=step)out.push(+v.toFixed(4));return out;};
+  // Four to seven round ticks on each axis, labelled with the step's decimals so 0.25 and 0.5 read alike.
+  const ticks=(a,b,most=7)=>{const step=[.001,.002,.0025,.005,.01,.02,.025,.05,.1,.2,.25,.5,1,2].find(st=>(b-a)/st<=most)||5;const digits=(String(step).split('.')[1]||'').length;const out=[];for(let v=Math.ceil(a/step-1e-9)*step;v<=b+1e-12;v+=step)out.push((+v.toFixed(4)).toFixed(digits));return out;};
   let svg=`<svg class="trade-off-plot" viewBox="0 0 ${W} ${H}" role="group" aria-label="Time lost on the straights against time lost in corners, per team; use arrow keys to inspect values">`;
-  for(const v of ticks(x0,x1))svg+=`<line class="grid" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}" y1="${T}" y2="${H-B}"/><text class="axis" x="${X(v).toFixed(1)}" y="${H-B+14}" text-anchor="middle">${v}</text>`;
-  for(const v of ticks(y0,y1))svg+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="axis" x="${L-6}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
+  for(const v of ticks(x0,x1,W<500?4:7))svg+=`<line class="grid" x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}" y1="${T}" y2="${H-B}"/><text class="axis" x="${X(v).toFixed(1)}" y="${H-B+14}" text-anchor="middle">${v}</text>`;
+  for(const v of ticks(y0,y1,5))svg+=`<line class="grid" x1="${L}" x2="${W-R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="axis" x="${L-6}" y="${(Y(v)+3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
   svg+=`<text class="axis-title" x="${(L+W-R)/2}" y="${H-6}" text-anchor="middle">Time lost on the straights (${unit}) → slower</text><text class="axis-title" transform="translate(12 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">Time lost in corners (${unit}) ↑ slower</text>`;
   for(const [index,{p,lx,ly,left}] of labels.entries()){
     const label=`${p.team.displayName||p.team.team}: straights ${p.x.toFixed(3)}, corners ${p.y.toFixed(3)} ${unit}`;

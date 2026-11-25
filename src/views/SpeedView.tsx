@@ -28,9 +28,18 @@ export type SpeedViewProps = {
 function Chart({chart}: {chart: SpeedChart}) {
   // While GPs are still loading an empty chart is pending, not a missing measurement.
   if ('empty' in chart) return (
-    <div className="performance-chart-card"><h4 className="perf-chart-heading">{chart.title}</h4><p className="performance-quality-status">{chart.empty}</p></div>
+    <div className="performance-chart-card is-empty"><h4 className="perf-chart-heading">{chart.title}</h4><p className="performance-quality-status">{chart.empty}</p></div>
   );
   return <BarChart rows={chart.rows} options={chart.options} />;
+}
+
+/** One row of bands (low, medium, high speed). A row with nothing measured is one quiet line, not three empty cards. */
+function Bands({charts, subject}: {charts: SpeedChart[]; subject: string}) {
+  const notes = charts.flatMap(c => ('empty' in c ? [c.empty] : []));
+  if (notes.length === charts.length) {
+    return <p className="performance-quality-status subject-band-empty"><strong>{subject}</strong> · {[...new Set(notes)].join(' ')}</p>;
+  }
+  return <div className="subject-bands">{charts.map((c, i) => <Chart key={i} chart={c} />)}</div>;
 }
 
 /** The same measurement for teams and for drivers, side by side. */
@@ -147,8 +156,8 @@ export function SpeedView(p: SpeedViewProps) {
       <Card title="Cornering" note={p.note}>
         <GapBasis basis={p.basis} section="corners" />
         {p.driverCharts
-          ? <><div className="subject-bands">{p.charts.map((c, i) => <Chart key={i} chart={c} />)}</div>
-              <div className="subject-bands">{p.driverCharts.map((c, i) => <Chart key={i} chart={c} />)}</div></>
+          ? <><Bands charts={p.charts} subject="Teams" />
+              <Bands charts={p.driverCharts} subject="Drivers" /></>
           : p.charts.map((c, i) => <Chart key={i} chart={c} />)}
         {p.phases ? <PhaseSplit phases={p.phases} /> : null}
         {p.corners ? <CornerByCorner corners={p.corners} /> : null}

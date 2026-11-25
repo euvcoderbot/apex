@@ -110,10 +110,10 @@ test('lap cards share aligned sector bars at desktop widths',async({page},info)=
     expect(rows[1]).toEqual(rows[0]);
     expect(Math.max(...rows[0].map(bar=>bar.width))-Math.min(...rows[0].map(bar=>bar.width))).toBeLessThan(1);
     const weatherGap=await cards.first().locator('.summary-conditions').evaluate(node=>{
-      const [air,rain]=node.querySelectorAll('.summary-condition');
-      return rain.getBoundingClientRect().left-air.getBoundingClientRect().right;
+      const [air,track]=node.querySelectorAll('.summary-condition');
+      return track.getBoundingClientRect().left-air.getBoundingClientRect().right;
     });
-    expect(weatherGap).toBeCloseTo(8);
+    expect(weatherGap).toBeCloseTo(12);
     const timingRows=await cards.nth(1).locator('.sector-cell-value').evaluateAll(nodes=>nodes.map(node=>{
       const label=node.querySelector('small').getBoundingClientRect();
       const pair=node.querySelector('.sector-time-pair').getBoundingClientRect();
@@ -142,7 +142,7 @@ for (const width of [1440,390]) {
     const lapCards=page.locator('#sectorRows');
     await expect(lapCards.locator('.summary-condition').getByText('Rain',{exact:true})).toHaveCount(2);
     await expect(lapCards.locator('.summary-condition').getByText('18.8 m/s NW',{exact:true})).toHaveCount(2);
-    await expect(lapCards.locator('.summary-condition-label i[aria-hidden="true"]')).toHaveText(['🌤️','🌧️','🌡️','💨','🌤️','🌧️','🌡️','💨']);
+    await expect(lapCards.locator('.summary-condition-label small')).toHaveText(['Air','Track','Wind','Rain','Air','Track','Wind','Rain']);
     for (const panel of [tray,lapCards,page.locator('#charts .speed-chart'),page.locator('#sessionOverview .overview-chart')]) {
       await expect.poll(()=>panel.evaluate(node=>node.scrollWidth-node.clientWidth)).toBeLessThanOrEqual(1);
     }

@@ -1795,6 +1795,10 @@
 :root[data-skin="linear"] .app-sidebar .track-tray-actions { display: flex; gap: 4px; }
 :root[data-skin="linear"] .app-sidebar .btn-track-action[data-ui-kind] { width: auto; height: 24px; min-height: 24px; padding-inline: 8px; font-size: 12px; }
 :root[data-skin="linear"] .app-sidebar .performance-track-pills { display: flex; flex-wrap: wrap; gap: 4px; max-height: 150px; overflow: auto; }
+/* Races in even columns (round, flag, name), so the list reads down as well as across instead of a ragged run of pills. */
+:root[data-skin="linear"] #performanceTrackPills { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 4px; max-height: none; }
+:root[data-skin="linear"] #performanceTrackPills > .track-pill { justify-content: flex-start; min-width: 0; width: 100%; }
+:root[data-skin="linear"] #performanceTrackPills > .track-pill .track-round { min-width: 24px; }
 :root[data-skin="linear"] .app-sidebar .performance-track-filter:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; }
 :root[data-skin="linear"] .app-sidebar #performanceTrackSearch { box-sizing: border-box; width: min(100%, 220px); min-width: 0; height: 28px; padding-inline: 8px; font: 450 13px/1 var(--ui-font); }
 :root[data-skin="linear"] .app-sidebar #performanceSelectedOnly[aria-pressed="true"] { background: var(--lin-pill-on); color: var(--ui-label); }
@@ -2687,6 +2691,12 @@
   :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long :is(.performance-bar-row, .performance-tyre-age-row) { display: grid; grid-column: auto; grid-template-columns: minmax(40px, max-content) minmax(36px, 1fr) max-content; align-items: center; gap: 10px; min-height: 30px; padding-block: 0; break-inside: avoid; }
 }
 :root[data-skin="linear"] #performanceMetricPanel .subject-pair { align-items: start; }
+/* An empty chart is an outline card (spec: empty / add): it reads as a note, not as a chart that failed to draw. */
+:root[data-skin="linear"] #performanceMetricPanel .subject-bands { align-items: start; }
+:root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty { background: none; box-shadow: inset 0 0 0 1px var(--lin-outline-border); }
+:root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty .performance-quality-status { color: var(--ui-tertiary); }
+:root[data-skin="linear"] #performanceMetricPanel .subject-band-empty { margin: 4px 0 12px; color: var(--ui-tertiary); font: 450 13px/18px var(--ui-font); }
+:root[data-skin="linear"] #performanceMetricPanel .subject-band-empty > strong { color: var(--ui-secondary); font-weight: 500; }
 :root[data-skin="linear"] #performanceMetricPanel .performance-scope-toggle + .performance-scope-toggle { margin-left: 6px; padding-left: 12px; box-shadow: inset 1px 0 0 var(--ui-border); }
 /* The coverage line (timings measured, what is untimed): a quiet line of text, its action beside it, no banner frame. */
 :root[data-skin="linear"] #performanceMetricPanel p.performance-quality-status { display: block; margin: 0 0 12px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
@@ -2764,16 +2774,14 @@
   display: block; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions {
-  grid-area: conditions; display: grid; grid-template-columns: max-content max-content; align-content: start;
-  align-items: baseline; justify-content: start; gap: 1px 8px;
+  grid-area: conditions; display: grid; grid-template-columns: repeat(2, max-content); align-content: center;
+  align-items: baseline; justify-content: start; gap: 2px 12px;
   margin: 0; padding: 0; border: 0;
 }
-:root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: 1 / -1; }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition {
   display: flex; flex-wrap: nowrap; align-items: baseline; gap: 4px; justify-content: flex-start; padding: 0; white-space: nowrap;
 }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition-label { display: inline-flex; align-items: baseline; gap: 4px; }
-:root[data-skin="linear"] .summary-condition-label i { font: 450 11px/1 var(--ui-font); }
 :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition :is(small, strong) {
   width: auto; color: var(--ui-tertiary); line-height: 1.2; white-space: nowrap; text-align: left; overflow: visible;
 }
@@ -2792,7 +2800,7 @@
   :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-tyre { min-height: 16px; }
 }
 @container sectorcards (min-width: 900px) {
-  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-condition:nth-child(n + 3) { grid-column: auto; }
+  :root[data-skin="linear"] .sector-cards .lap-summary-card .summary-conditions { grid-template-columns: repeat(2, max-content); }
 }
 @container lap-timing (min-width: 1100px) {
   :root[data-skin="linear"] .sector-cards {
