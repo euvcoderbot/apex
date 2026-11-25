@@ -137,4 +137,21 @@ class MethodologyTests(unittest.TestCase):
         sparse=qualifying_conditions(rows[:10],selections)
         self.assertEqual(sparse['status'],'unsupported');self.assertEqual(sparse['estimates'],{})
 
+    def test_timestamp_condition_diagnostic_breaks_compound_count_ties_by_name(self):
+        rows, selections = [], {}
+        for driver in range(10):
+            for compound in ('SOFT', 'MEDIUM'):
+                for offset in (0, 600, 1200):
+                    end = 1000 + driver * 2 + offset
+                    lap = dict(driver=f'D{driver}', time=90 + driver * .1 - .0003 * offset,
+                               end=end, fresh=True, age=2, pit=False, rain=False, accurate=True,
+                               track='1', deleted=False, compound=compound)
+                    rows.append(lap)
+                    if compound == 'MEDIUM':
+                        selections[f'T{driver}'] = lap
+        for candidate_rows in (rows, list(reversed(rows))):
+            fit = qualifying_conditions(candidate_rows, selections)
+            self.assertEqual(fit['status'], 'estimated')
+            self.assertEqual(fit['compound'], 'MEDIUM')
+
 if __name__=='__main__':unittest.main()
