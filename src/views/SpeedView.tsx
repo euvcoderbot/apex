@@ -49,6 +49,13 @@ function ChartPair({chart, driverChart}: {chart: SpeedChart; driverChart?: Speed
   if ('empty' in chart && 'empty' in driverChart) {
     return <p className="subject-band-empty" role="status"><strong>Teams and drivers</strong> · {[...new Set([chart.empty, driverChart.empty])].join(' ')}</p>;
   }
+  // One side measured: its chart keeps its card and the other side is a plain note beside it, not an empty card.
+  const lone = 'empty' in chart ? chart : 'empty' in driverChart ? driverChart : null;
+  if (lone && 'empty' in lone) {
+    const filled = lone === chart ? driverChart : chart;
+    const note = <p className="subject-pair-note" role="status"><strong>{lone.title}</strong><span>{lone.empty}</span></p>;
+    return <div className="subject-pair">{lone === chart ? <>{note}<Chart chart={filled} /></> : <><Chart chart={filled} />{note}</>}</div>;
+  }
   return <div className="subject-pair"><Chart chart={chart} /><Chart chart={driverChart} /></div>;
 }
 

@@ -1014,8 +1014,11 @@ function teamProfileModel(paceTeams) {
 function teamProfileCard(paceTeams) {
   if(!paceTeams.length)return '';
   const model=teamProfileModel(paceTeams),{measures,rows}=model;
-  const head=`<tr><th scope="col">Team</th>${measures.map(m=>`<th scope="col">${escape(m.label)}</th>`).join('')}<th scope="col">Strongest at</th></tr>`;
-  const body=rows.sort((a,b)=>(a.ranks[0]??99)-(b.ranks[0]??99)).map(r=>`<tr style="--team:${escape(color(r.team.color))}"><th scope="row">${teamLabel(r.team)}</th>${r.ranks.map((rank,i)=>{
+  // A measurement no team has on these weekends is a column of dashes: name it once under the table instead.
+  const shown=measures.map((m,i)=>i).filter(i=>measures[i].count>0);
+  const missing=measures.filter(m=>!m.count).map(m=>m.label);
+  const head=`<tr><th scope="col">Team</th>${shown.map(i=>`<th scope="col">${escape(measures[i].label)}</th>`).join('')}<th scope="col">Strongest at</th></tr>`;
+  const body=rows.sort((a,b)=>(a.ranks[0]??99)-(b.ranks[0]??99)).map(r=>`<tr style="--team:${escape(color(r.team.color))}"><th scope="row">${teamLabel(r.team)}</th>${shown.map(i=>[r.ranks[i],i]).map(([rank,i])=>{
     const m=measures[i],v=m.values.get(r.team.team);
     const heat=rank!=null&&m.count>1?(m.count-rank)/(m.count-1):0;
     const reading=escape(`${m.label}: ${rank==null?'not measured':`rank ${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`);
@@ -1024,6 +1027,7 @@ function teamProfileCard(paceTeams) {
   return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Car strengths and weaknesses</h2></div>
     <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. Deeper shading is a better rank; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
     ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Car strengths and weaknesses"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    ${missing.length&&model.speedLoaded?`<p class="team-profile-missing">Not measured on these weekends: ${escape(missing.join(', ').toLowerCase().replace(/^./,c=>c.toUpperCase()))}.</p>`:''}
     ${model.speedLoaded?tradeOffPlot(model):''}</section>`;
 }
 // Plot both measured deficits on the same set of qualifying weekends.

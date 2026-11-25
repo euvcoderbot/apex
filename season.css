@@ -408,7 +408,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin="linear"] #seasonHub .season-body { gap: 24px; }
 :root[data-skin="linear"] #seasonHub :is(.season-two, .season-stack, .season-columns, .season-column) { gap: 16px; }
 :root[data-skin="linear"] #seasonHub .season-title h1 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; }
-:root[data-skin="linear"] #seasonHub :is(.season-card:not(.season-data-section, .season-stats > *), .season-round, .season-h2h-hero) { border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
+:root[data-skin="linear"] #seasonHub :is(.season-card:not(.season-data-section, .season-stats > *), .season-rounds, .season-h2h-hero) { border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
 :root[data-skin="linear"] #seasonHub .season-data-section { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] #seasonHub .season-data-section > h3 { padding-block: 4px 12px; margin: 0; }
 :root[data-skin="linear"] #seasonHub .season-data-section > :is(.season-table-wrap, .season-table-frame) { border-block: 1px solid var(--lin-hairline); }
@@ -1263,6 +1263,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-lap-copy small { flex-basis: 100%; }
 #seasonHub .season-track-lap-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 #seasonHub .season-track-head .season-track-tiles { grid-column: 1 / -1; }
+/* One card level: the circuit numbers are the card's lower band, split by hairlines, not a boxed grid inside the card. */
+:root #seasonHub .season-track-head .season-track-tiles { margin: 2px -16px -16px; border-radius: 0; background: transparent; box-shadow: inset 0 1px var(--lin-hairline); }
+:root #seasonHub .season-track-head .season-track-tiles > div { border-color: var(--lin-hairline); }
 #seasonHub .season-track-two { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; }
 #seasonHub .season-track-map { width: 100%; height: auto; }
 #seasonHub .season-track-map .track-base { fill: none; stroke: var(--ui-well, #1c1c1e); stroke-width: 11; stroke-linejoin: round; }
@@ -1415,6 +1418,23 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   column-gap: 16px; align-items: center;
 }
 #seasonHub .season-round .season-round-head { grid-area: meta; margin: 0; justify-content: flex-end; }
+/* The calendar is one list in one card: rows split by hairlines, the next race marked by an accent edge, and fixed
+   columns so every outline, winner, round number and status lines up down the season. */
+#seasonHub .season-rounds { gap: 0; overflow: hidden; }
+#seasonHub .season-rounds > .season-round { border-radius: 0; background: transparent; box-shadow: none; padding: 12px 16px; }
+#seasonHub .season-rounds > .season-round + .season-round { box-shadow: inset 0 1px var(--lin-hairline); }
+#seasonHub .season-rounds > .season-round[data-status="next"] { background: color-mix(in oklch, var(--ui-accent) 7%, transparent); box-shadow: inset 2px 0 var(--ui-accent); }
+#seasonHub .season-rounds > .season-round.is-open { background: var(--lin-nav-hover); }
+#seasonHub .season-rounds > .season-round[data-status="upcoming"] .season-round-name h3 { color: var(--ui-secondary); }
+@media (min-width: 761px) {
+  #seasonHub .season-round-circuit { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; }
+  #seasonHub .season-round-circuit > .season-track-link { order: -1; width: 44px; height: 40px; }
+  #seasonHub .season-round-winner { min-width: 72px; }
+  #seasonHub .season-round .season-round-head { display: grid; grid-template-columns: 30px 54px 132px; align-items: center; justify-items: start; height: auto; }
+  #seasonHub .season-round-head > .season-round-no { grid-column: 1; }
+  #seasonHub .season-round-head > .season-chip { grid-column: 2; margin: 0; }
+  #seasonHub .season-round-head > .season-status { grid-column: 3; }
+}
 #seasonHub .season-round-title { grid-area: title; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 40px; }
 #seasonHub .season-round-circuit { display: flex; align-items: center; gap: 12px; min-width: 0; }
 #seasonHub .season-round-copy { min-width: 0; }
@@ -1588,10 +1608,11 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
    value with a quiet note under it. */
 #seasonHub .season-stat-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: stretch; }
 @media (max-width: 900px) { #seasonHub .season-stat-groups { grid-template-columns: minmax(0, 1fr); } }
-#seasonHub .season-stat-list { display: grid; margin: 0; }
+#seasonHub .season-stat-list { display: grid; align-content: start; margin: 0; }  /* rows keep their height; the card's spare room stays below */
 #seasonHub .season-stat-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid var(--lin-hairline, var(--ui-separator)); }
 #seasonHub .season-stat-list > div:first-child { border-top: 0; }
-#seasonHub .season-stat-list dt { color: var(--ui-secondary); font-size: 13px; }
+#seasonHub .season-stat-list dt { flex: none; color: var(--ui-secondary); font-size: 13px; white-space: nowrap; }
+#seasonHub .season-stat-list dd small { max-width: 18ch; }
 #seasonHub .season-stat-list dd { display: grid; justify-items: end; margin: 0; text-align: right; }
 #seasonHub .season-stat-list dd b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 #seasonHub .season-stat-list dd small { font-size: 11px; }
@@ -1605,10 +1626,10 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 /* Head-to-head Points: the two cards share the row evenly and stretch to one height (the single-chart views draw taller). */
 #seasonHub .season-h2h-extras { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
 @media (max-width: 1100px) { #seasonHub .season-h2h-extras { grid-template-columns: minmax(0, 1fr); } }
-/* Drivers' number lists share a row of cards: each list fills its card, its rows spread evenly, so a shorter list does
-   not leave a gap under it. */
+/* Drivers' number lists share a row of cards: rows keep their natural 40 px height (spreading them made 100 px gaps
+   between three values); a shorter list simply ends earlier in its card. */
 #seasonHub .season-stat-groups > .season-card { display: flex; flex-direction: column; }
-#seasonHub .season-stat-groups .season-stat-list { flex: 1 1 auto; grid-auto-rows: 1fr; }
+#seasonHub .season-stat-groups .season-stat-list { flex: 1 1 auto; grid-auto-rows: auto; }
 /* On a very wide screen the record cards beside Best average finish sit shorter (driver and constructor side by side): the
    chase list would leave them a gap, so it shows up to 1600 px only. */
 @media (min-width: 1600px) { #seasonHub .season-stat-chase { display: none; } }

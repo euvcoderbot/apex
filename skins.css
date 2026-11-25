@@ -1950,6 +1950,7 @@
 :root[data-skin="linear"] .telemetry-empty strong { font: 600 15px/1.4 var(--ui-font); }
 :root[data-skin="linear"] .telemetry-empty > span { font-size: 12px; color: var(--ui-tertiary); text-transform: none; letter-spacing: 0; }
 :root[data-skin="linear"] .telemetry-empty p { max-width: 360px; margin-inline: auto; color: var(--ui-tertiary); font-size: 13px; }
+:root[data-skin="linear"] .telemetry-empty .telemetry-empty-load { margin-top: 16px; }
 :root[data-skin="linear"] :is(.session-load-state i, .rank-loading),
 :root[data-skin="linear"] .session-load-state:not([hidden])::after { display: block; background: var(--lin-band); border-radius: 6px; }
 :root[data-skin="linear"] .session-load-state:not([hidden]) { display: grid; gap: 12px; }
@@ -2183,7 +2184,7 @@
 /* ---- Lap cards, inspector, frame edge, sidebar toggle, status and menus ---- */
 :root[data-skin="linear"] body > main#top > .app-inspector .corner-analysis { padding: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { background: transparent; border: 0; border-radius: var(--lin-card-radius); box-shadow: inset 0 0 0 1px var(--lin-card-border); }
-:root[data-skin="linear"] .app-inspector .corner-selection-empty { box-shadow: inset 0 0 0 1px var(--lin-outline-border); }
+:root[data-skin="linear"] .app-inspector .corner-selection-empty { display: none; }  /* the picker's own "choose one or more" says it; no empty card */
 :root[data-skin="linear"] .app-inspector :is(.dominance-map, .corner-picker-row, .corner-selection-empty) { padding: 12px; }
 
 /* Inspector: track map and corners, a further sixth wider. */
@@ -2619,6 +2620,8 @@
 :root[data-skin="linear"] #sessionOverview .session-summary-table .session-best-lap[data-ui-kind][aria-pressed="true"]:not(#loadSession):not(#performanceLoad) { background: var(--lin-pill-on); color: var(--ui-label); font-weight: 600; }
 :root[data-skin="linear"] #sessionOverview .session-summary-table th[aria-sort] .session-summary-sort { color: var(--ui-label); }
 :root[data-skin="linear"] #sessionOverview .session-summary-table td.is-best .session-best-lap[data-ui-kind]:not(#loadSession):not(#performanceLoad) { background: transparent; }
+/* Inside the filled best cell the comparison mark is a ring, so the fastest lap shows its selected state like every other row. */
+:root[data-skin="linear"] #sessionOverview .session-summary-table td.is-best .session-best-lap[data-ui-kind][aria-pressed="true"]:not(#loadSession):not(#performanceLoad) { background: color-mix(in oklch, var(--ui-accent) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ui-accent) 75%, transparent); }
 :root[data-skin="linear"] .session-summary-driver { display: inline-flex; align-items: center; gap: 8px; }
 :root[data-skin="linear"] .session-summary-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
 /* Head-to-head: the pair being compared, marked in the list of every teammate battle. */
@@ -2687,7 +2690,8 @@
 :root[data-skin="linear"] .performance-table .perf-heat-value { display: block; box-sizing: border-box; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--ui-accent) calc(var(--heat, 0) * 42%), transparent); color: var(--ui-label); font: 600 12px/32px var(--ui-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 :root[data-skin="linear"][data-theme="light"] .performance-table .perf-heat-value { background: color-mix(in oklch, #14b8a6 calc(var(--heat, 0) * 68%), transparent); }
 :root[data-skin="linear"] .team-profile-table td.profile-rank.is-top::before { display: none; }
-:root[data-skin="linear"] .team-profile-table tbody td.profile-rank { padding: 2px; }
+:root[data-skin="linear"] .team-profile-table tbody td.profile-rank { padding: 2px; width: 11%; }
+:root[data-skin="linear"] .team-profile-table tbody :is(th, td) { vertical-align: middle; }
 :root[data-skin="linear"] .team-profile-table tbody th[scope="row"] { background: transparent; }
 @media (max-width: 1100px) {
   :root[data-skin="linear"] #carPerformance .team-profile-table :is(thead, tbody) th:first-child {

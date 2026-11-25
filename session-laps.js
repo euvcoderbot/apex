@@ -457,6 +457,8 @@ function renderSectors() {
     if (!Number.isFinite(value) || !Number.isFinite(reference)) return '';
     const delta = value - reference;
     const className = basis && Math.abs(delta).toFixed(3) === '0.000' ? 'is-even' : delta >= 0 ? 'is-slower' : 'is-faster';
+    // The fastest compared lap is named rather than given a +0.000 s gap to itself.
+    if (className === 'is-even') return `<em class="summary-delta is-even" title="${basis}">Fastest</em>`;
     return `<em class="summary-delta ${className}"${basis ? ' title="' + basis + '"' : ''}>${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s${basis ? '<span class="visually-hidden"> to fastest compared lap</span>' : ''}</em>`;
   };
 

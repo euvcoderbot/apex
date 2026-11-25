@@ -59,6 +59,8 @@
       return {...base, bestLap: bestLap?.lap, median: q(.5), spread: rep.length >= 4 ? q(.75) - q(.25) : null, clean: laps.length ? rep.length / laps.length : null, laps: laps.length, stints};
     }).filter(r => Number.isFinite(r.best)).sort((a, b) => a.best - b.best);
     if (rows.length < 2) return '';
+    // A session without speed-trap readings drops the column rather than showing a column of dashes.
+    const hasTrap = rows.some(r => Number.isFinite(r.trap));
     const lead = rows[0].best, best = key => Math.min(...rows.map(r => r[key]).filter(Number.isFinite));
     const top = {ideal: best('ideal'), median: best('median'), spread: best('spread')}, trapTop = Math.max(...rows.map(r => r.trap).filter(Number.isFinite));
     const ranked = rows.map((row, i) => ({...row, rank: i + 1})).sort((a, b) => {
@@ -83,13 +85,13 @@
       + `<td class="num${r.rank === 1 ? ' is-best' : ''}">${compareBest(r)}</td><td class="num">${r.rank === 1 ? '—' : signedS(r.best - lead).replace(' s', '')}</td>`
       + mark(r.ideal, top.ideal, fmtLap) + mark(r.median, top.median, fmtLap) + mark(r.spread, top.spread)
       + `<td class="num">${Number.isFinite(r.clean) ? Math.round(r.clean * 100) + '%' : '—'}</td>`
-      + mark(r.trap, trapTop, v => String(Math.round(v))) + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
+      + (hasTrap ? mark(r.trap, trapTop, v => String(Math.round(v))) : '') + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
     return `<details class="session-summary" ${summaryOpen ? 'open' : ''}><summary>Best lap, ultimate lap and consistency</summary>
       <div class="session-summary-wrap" tabindex="0" role="region" aria-label="Session summary"><table class="session-summary-table">
       <thead><tr><th scope="col" class="num" aria-label="Fastest lap rank">#</th><th scope="col">Driver</th>${sortable('best')}<th scope="col" class="num">Gap</th>
       ${sortable('ideal', 'Sum of the driver’s best sectors')}<th scope="col" class="num" title="Median representative lap">Median</th>
       ${sortable('spread', 'Spread of the middle half of representative laps, in seconds')}
-      <th scope="col" class="num" title="Share of laps that were representative">Clean</th>${sortable('trap')}<th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
+      <th scope="col" class="num" title="Share of laps that were representative">Clean</th>${hasTrap ? sortable('trap') : ''}<th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
       <tbody>${body}</tbody></table></div>
       <p class="session-summary-note">Select a best time to add or remove that lap from your comparison. Representative laps are timed, within 107% of the driver’s best, and exclude in- and out-laps. Consistency is the spread of the middle half of them (seconds).</p></details>`;
   }

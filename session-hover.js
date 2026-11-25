@@ -319,3 +319,4 @@ function updateTelemetryVisibility() {
   const emptyState = $('#telemetryEmpty');
   if (emptyState) emptyState.hidden = !empty || genericMap;
 }
+document.addEventListener('click', event => { if (event.target.closest?.('#telemetryEmptyLoad')) $('#loadSession')?.click(); });

@@ -947,3 +947,8 @@ body.performance-view #sidebarToggle {
 .performance-tyre-age-bar.is-capped::after { content: ""; position: absolute; top: -1px; bottom: -1px; right: 6px; width: 2px; background: var(--lin-card, var(--ui-panel)); }
 .performance-tyre-age-bar.is-capped.is-low::after { right: auto; left: 6px; }
 :root[data-skin="linear"] #carPerformance .performance-empty { border-radius: 10px; }   /* one card corner across the site */
+
+/* Measurements with no data on the chosen weekends, named once under the strengths table. */
+.team-profile-card .team-profile-missing { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
+.subject-pair > .subject-pair-note { display: grid; align-content: start; gap: 4px; margin: 0; padding: 16px; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
+.subject-pair > .subject-pair-note strong { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }

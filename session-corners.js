@@ -255,7 +255,7 @@ function renderCornerAnalysis() {
       </tr>`;
   }).join('');
 
-  updateCornerPicker(pickerRoot, `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section>`, selectedCornerIndices, automaticStraightIndices);
+  updateCornerPicker(pickerRoot, `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more to compare</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section>`, selectedCornerIndices, automaticStraightIndices);
   const pickedCorners=pickedZones.filter(z=>z.kind==='corner').map(cornerLabel);
   const pickedStraights=pickedZones.filter(z=>z.kind!=='corner');
   const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} link${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);

@@ -174,7 +174,7 @@ for (const width of [1440,390]) {
     expect(sectorLayout.fits).toBe(true);
     expect(sectorLayout.matchingColour && sectorLayout.equalMarks).toBe(true);
     await expect(page.getByRole('button',{name:'Saved comparisons'})).toHaveCount(0);
-    await expect(lapCards.locator('.summary-lap-time .summary-delta')).toHaveText([/^\+0\.000s/, /^\+0\.179s/]);
+    await expect(lapCards.locator('.summary-lap-time .summary-delta')).toHaveText([/^Fastest$/, /^\+0\.179s/]);
     await expect(lapCards.locator('.summary-lap-time > .is-even')).toHaveCount(1);
     await expect(lapCards.locator('.summary-lap-time > .is-slower')).toHaveCount(1);
     {
