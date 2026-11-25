@@ -295,7 +295,20 @@ function renderCharts() {
   const activeDefs = season >= 2026
     ? defs.filter(([name]) => name !== 'DRS')
     : defs;
-  root.innerHTML = activeDefs.map(([name, unit, compact]) => {
+  // Throttle, brake, gear (and DRS) share one card: stacked rows on one distance axis, labelled once under the last row.
+  const INPUT_LABELS = {'Throttle application': 'Throttle', 'Brake application': 'Brake', Gear: 'Gear', DRS: 'DRS'};
+  const inputDefs = activeDefs.filter(([name]) => INPUT_LABELS[name]);
+  const inputRow = ([name, unit], index) => `
+      <div class="chart-row${index === inputDefs.length - 1 ? ' is-axis-row' : ''}" data-row="${name}">
+        <h3 class="chart-row-label">${INPUT_LABELS[name]} <small>${unit}</small></h3>
+        <canvas data-chart="${name}" data-axis="${index === inputDefs.length - 1 ? 'shown' : 'hidden'}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
+      </div>`;
+  const inputStack = inputDefs.length ? `
+    <section class="chart chart-stack" aria-label="Driver inputs">
+      <div class="chart-heading"><h2>Driver inputs <small>${inputDefs.map(([name]) => INPUT_LABELS[name].toLowerCase()).join(', ')}</small></h2></div>
+      <div class="chart-rows">${inputDefs.map(inputRow).join('')}</div>
+    </section>` : '';
+  root.innerHTML = activeDefs.filter(([name]) => !INPUT_LABELS[name]).map(([name, unit, compact]) => {
     return `
     <section class="chart ${compact ? 'compact' : ''} ${name === 'Speed trace' ? 'speed-chart' : ''}">
       <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
@@ -337,7 +350,7 @@ function renderCharts() {
       <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
     </section>
   `;
-  }).join('') + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
+  }).join('') + inputStack + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
     <p id="telemetryDataHelp">Read every visible trace at a chosen lap distance. Use the distance slider or its arrow keys; Home and End go to the start and finish. Values use the same display calculations as the charts. Dashed segments bridge unusually long source-packet gaps; values inside are interpolated. The optional alignment estimate assumes equal distance between shared sector lines and linearly changing speed between packets; it is not measured position or guaranteed more accurate. ~ indicates an estimated repair; — means unavailable.</p>
     <div class="chart-sample-controls"><label for="telemetrySample">Lap distance</label><input id="telemetrySample" type="range" min="0" max="1000" step="1" value="0" aria-describedby="telemetryDataHelp"><output for="telemetrySample" id="telemetrySampleDistance">0.000 km</output></div>
     <output class="chart-sample-status" id="telemetrySampleStatus" aria-live="polite"></output>
@@ -1317,7 +1330,9 @@ function drawRealChart(name) {
   // The speed trace gets up to two rows of turn tags (one when narrow); the shorter channels one row.
   // Turn numbers as one quiet row under each chart (two under the speed trace when wide); labels that do not fit are left
   // out and keep their tick.
-  const showCornerTags = showCornerNumbers;
+  // Stacked input rows above the last one keep the guide lines but leave turn numbers and distances to the axis row.
+  const axisHidden = canvas.dataset.axis === 'hidden';
+  const showCornerTags = showCornerNumbers && !axisHidden;
   const maxTagLanes = name === 'Speed trace' && rect.width >= 560 ? 2 : 1;
   const cornerCalloutLayout = layoutSpeedCornerCallouts(speedCornerMarkers, rect.width, axisLeft, TRACE_PLOT_RIGHT, viewStart, viewEnd, maxTagLanes);
   const cornerAxisInset = showCornerTags && speedCornerMarkers.length
@@ -1327,7 +1342,7 @@ function drawRealChart(name) {
     left: axisLeft,
     right: TRACE_PLOT_RIGHT,
     top: name === 'Speed trace' ? 30 : 8,
-    bottom: 21 + cornerAxisInset,
+    bottom: axisHidden ? 4 : 21 + cornerAxisInset,
     min,
     max,
     tickStep: niceBounds.tickStep
@@ -1359,7 +1374,7 @@ function drawRealChart(name) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = theme.text;
-    if (showDistanceNumbers && x > bounds.left + 8 && x < rect.width - bounds.right - 14) ctx.fillText(distanceLabel(metres), x, rect.height - bounds.bottom + 16);
+    if (showDistanceNumbers && !axisHidden && x > bounds.left + 8 && x < rect.width - bounds.right - 14) ctx.fillText(distanceLabel(metres), x, rect.height - bounds.bottom + 16);
   }
   ctx.textAlign = 'left';
   
@@ -1511,6 +1526,21 @@ function drawRealChart(name) {
       gradient.addColorStop(0, hexToRgba(teamColor, tintAlpha));
       gradient.addColorStop(1, hexToRgba(teamColor, 0));
       ctx.fillStyle = gradient;
+      ctx.fill();
+    });
+  }
+
+  // Timing delta: a flat wash between each lap's line and zero, so time lost and gained reads as area at a glance.
+  if (name === 'Timing delta' && traceEntries.length && bounds.max > bounds.min) {
+    const plotBottom = rect.height - bounds.bottom;
+    const zeroY = Math.min(plotBottom, Math.max(bounds.top, bounds.top + (bounds.max / (bounds.max - bounds.min)) * (plotBottom - bounds.top)));
+    traceEntries.forEach(({ points, teamColor }) => {
+      if (points.length < 2 || points.some(point => point.y === null)) return;
+      tracePath(points);
+      ctx.lineTo(points[points.length - 1].x, zeroY);
+      ctx.lineTo(points[0].x, zeroY);
+      ctx.closePath();
+      ctx.fillStyle = hexToRgba(teamColor, .1);
       ctx.fill();
     });
   }

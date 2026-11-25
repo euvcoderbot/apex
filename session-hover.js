@@ -9,10 +9,12 @@ function drawChartHover(name) {
   if(hoverFraction===null||hoverFraction<viewStart||hoverFraction>viewEnd)return;
   const x=bounds.left+(hoverFraction-viewStart)/(viewEnd-viewStart)*(rect.width-bounds.left-bounds.right);
   // A crisp, clearly visible line (snapped to the pixel grid), with the lap distance in a chip where it meets the axis.
+  // In the stacked input card the rows above the axis row carry the line edge to edge, so it reads as one line through the card.
+  const stacked=canvas.dataset.axis==='hidden',inStack=canvas.dataset.axis!==undefined;
   const lineX=Math.round(x)+.5,axisY=rect.height-bounds.bottom;
-  ctx.strokeStyle=theme.crosshair;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(lineX,bounds.top);ctx.lineTo(lineX,axisY);ctx.stroke();
+  ctx.strokeStyle=theme.crosshair;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(lineX,inStack?0:bounds.top);ctx.lineTo(lineX,stacked?rect.height:axisY);ctx.stroke();
   const metres=typeof referenceDistance==='function'?hoverFraction*referenceDistance():NaN;
-  if(Number.isFinite(metres)&&metres>0){
+  if(!stacked&&Number.isFinite(metres)&&metres>0){
     const label=metres>=1000?`${(metres/1000).toFixed(2)} km`:`${Math.round(metres)} m`;
     ctx.font=canvasFont(10,500);const w=ctx.measureText(label).width+10,h=16;
     const left=Math.max(bounds.left,Math.min(rect.width-bounds.right-w,lineX-w/2)),top=axisY+3;

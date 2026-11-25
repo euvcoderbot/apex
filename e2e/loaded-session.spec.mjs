@@ -261,8 +261,10 @@ test('telemetry display controls apply to every graph and retain independent ann
   // The heading shows the event's country flag before its name (as on the Grand Prix chip).
   await expect(page.locator('#loadedSessionContext')).toContainText('United States Grand Prix');
   await expect(page.locator('#loadedSessionContext img.title-flag')).toHaveAttribute('src',/flags\/us\.svg$/);
-  const painted=()=>canvases.evaluateAll(nodes=>nodes.map(c=>({name:c.dataset.chart,labels:c.paintedLabels||[]})));
-  await expect.poll(async()=> (await painted()).every(c=>c.labels.some(t=>/^T\d/.test(t)))).toBe(true);
+  // Driver inputs share one card and one axis: only its last row is labelled; the rows above it carry no turn numbers.
+  const painted=()=>canvases.evaluateAll(nodes=>nodes.map(c=>({name:c.dataset.chart,axis:c.dataset.axis!=='hidden',labels:c.paintedLabels||[]})));
+  await expect.poll(async()=> (await painted()).every(c=>c.axis===c.labels.some(t=>/^T\d/.test(t)))).toBe(true);
+  await expect(page.locator('.chart-stack canvas[data-axis="shown"]')).toHaveCount(1);
   // The styled switch's label covers its input, as for a person: click the label, then check the state.
   const toggle=async(id,on)=>{
     const input=page.locator('#'+id);

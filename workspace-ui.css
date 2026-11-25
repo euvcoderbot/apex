@@ -32,10 +32,12 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
 /* The legacy channel heights are important; use the existing first layer,
    scoped outside focus mode, so these do not fight the full-screen sizing. */
 @layer focus {
-  body:not(.trace-focus) .chart:has(canvas[data-chart="Throttle application"]) canvas,
-  body:not(.trace-focus) .chart:has(canvas[data-chart="Brake application"]) canvas,
-  body:not(.trace-focus) .chart:has(canvas[data-chart="Engine speed"]) canvas,
-  body:not(.trace-focus) .chart:has(canvas[data-chart="Gear"]) canvas { height: 132px !important; min-height: 0 !important; }
+  body:not(.trace-focus) .chart:has(canvas[data-chart="Engine speed"]) canvas { height: 132px !important; min-height: 0 !important; }
+  /* Driver inputs: proportional rows; on/off channels are thin strips, the axis row adds room for turns and distances. */
+  body:not(.trace-focus) .chart-row canvas { height: 92px !important; min-height: 0 !important; }
+  body:not(.trace-focus) .chart-row:is([data-row="Brake application"], [data-row="DRS"]) canvas { height: 40px !important; }
+  body:not(.trace-focus) .chart-row.is-axis-row canvas { height: 133px !important; }
+  body:not(.trace-focus) .chart-row.is-axis-row:is([data-row="Brake application"], [data-row="DRS"]) canvas { height: 81px !important; }
 }
 .track-pill { justify-content: flex-start; padding: 8px 10px; white-space: normal; }
 #performanceResults > .performance-toolbar { position: sticky; top: 76px; z-index: 24; padding: 8px 0; }
