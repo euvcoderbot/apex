@@ -2735,17 +2735,32 @@
   }
 
   // Hover or focus previews an entrant. Leaving the layout restores the explicit selection.
+  // Clicking a table row pins that entrant, so several lines can be compared; clicking it again unpins it.
   function linkHover(scope, picker) {
     const entries = [...scope.querySelectorAll('[data-id]')];
+    const pinned = new Set();
     let current;
     const idOf = target => target?.closest?.('[data-id]')?.dataset.id;
     const highlight = (preview = '') => {
-      const id = preview || picker.value;
-      if (id === current) return;
-      current = id;
-      scope.classList.toggle('has-entrant', Boolean(id));
-      for (const node of entries) node.classList.toggle('is-entrant', node.dataset.id === id);
+      const ids = new Set(pinned);
+      if (preview) ids.add(preview);
+      if (!ids.size && picker.value) ids.add(picker.value);
+      const key = [...ids].sort().join('|');
+      if (key === current) return;
+      current = key;
+      scope.classList.toggle('has-entrant', ids.size > 0);
+      for (const node of entries) {
+        node.classList.toggle('is-entrant', ids.has(node.dataset.id));
+        if (node.tagName === 'TR') { node.classList.toggle('is-pinned', pinned.has(node.dataset.id)); node.setAttribute('aria-selected', String(pinned.has(node.dataset.id))); }
+      }
     };
+    scope.addEventListener('click', event => {
+      const row = event.target.closest?.('tr[data-id]');
+      if (!row || event.target.closest('a, button, select, input')) return;
+      const id = row.dataset.id;
+      if (pinned.has(id)) pinned.delete(id); else pinned.add(id);
+      current = null; highlight(id);
+    });
     scope.addEventListener('pointerover', event => highlight(idOf(event.target)));
     scope.addEventListener('pointerleave', () => highlight(scope.contains(document.activeElement) ? idOf(document.activeElement) : ''));
     scope.addEventListener('focusin', event => highlight(idOf(event.target)));
@@ -2837,7 +2852,10 @@
       }));
       tipCard.hidden = false;
       const w = tipCard.offsetWidth, h = tipCard.offsetHeight;
-      tipCard.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x + 14))}px`;
+      // Right of the pointer, unless that would cover a chart's end labels (pointer in the right part of the chart).
+      const chartBox = mark.closest?.('svg')?.getBoundingClientRect();
+      const leftSide = chartBox && x > chartBox.left + chartBox.width * .6;
+      tipCard.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, leftSide ? x - w - 14 : x + 14))}px`;
       // Above the pointer when it fits, otherwise below it: the card stays next to what it describes.
       const above = y - h - 12, below = y + 18;
       tipCard.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, above >= 8 ? above : below))}px`;
@@ -3000,7 +3018,7 @@
     const slot = rounds.length > 1 ? (W - L - R) / (rounds.length - 1) : 40;
     rounds.forEach((r, i) => {
       const at = series.map(s => [s, s.values[i]]).filter(([, v]) => v != null).sort((p, q) => (invert ? p[1] - q[1] : q[1] - p[1]));
-      const lines = at.slice(0, 5).map(([s, v]) => `${s.label}  ${invert ? 'P' + v : format(v)}`).join('\n');
+      const lines = at.slice(0, 8).map(([s, v]) => `${s.label}  ${invert ? 'P' + v : format(v)}`).join('\n');
       svg += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${roundTip(r)}\n${lines}`)}"/>`;
     });
     // Close each measured run against zero. Closing a compound path draws a diagonal across gaps.
@@ -3059,8 +3077,9 @@
     for (let i = list.length - 1; i >= 0; i--) list[i].ly = Math.min(list[i].ly, i === list.length - 1 ? bottom : list[i + 1].ly - gap);
     // On a phone a dense chart labels its first ten lines only (season.css .end-key.is-minor); every line stays in the tips.
     return list.map((e, rank) => {
-      const leader = Math.abs(e.ly - e.y) > 3 && e.x != null && !e.quiet
-        ? `<path class="end-leader" d="M${(e.x + 4).toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 2).toFixed(1)} ${e.y.toFixed(1)}L${(labelX + 2).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
+      // Every moved label is tied to its line's end, the quiet ones by a fainter leader, so no name floats unattached.
+      const leader = Math.abs(e.ly - e.y) > 3 && e.x != null
+        ? `<path class="end-leader${e.quiet ? ' is-quiet' : ''}" d="M${(e.x + 4).toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 2).toFixed(1)} ${e.y.toFixed(1)}L${(labelX + 2).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
       return `<g class="end-key${rank >= 10 || e.minor ? ' is-minor' : ''}" data-id="${esc(e.id)}">${leader}<text class="label is-value selected-end" x="${(labelX + 4).toFixed(1)}" y="${(e.y + 3.5).toFixed(1)}">${esc(e.name)}</text><text class="label packed-end" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
     }).join('');
   }

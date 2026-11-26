@@ -2346,10 +2346,10 @@
 :root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger:focus-visible) { border-radius: 9999px; }
 :root[data-skin="linear"] .app-sidebar :is(#loadSession, .performance-actions button) { border-radius: 9999px; padding-inline: 14px; }
 :root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools :is(button, summary), .performance-explain-toggle) { border-radius: 9999px; font: 500 12px/1 var(--ui-font); }
-:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) {
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#compareAllFastest:not(.selected)):not(.linear-lap-header > button):not(#linearWorkspace *) {
   background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring);
 }
-:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover:not(:disabled) { background: var(--lin-pill-hover); }
+:root[data-skin="linear"] :is(button[data-ui-kind="push"], .comparison-choose, .trace-tools summary, .performance-explain-toggle):not(#loadSession):not(#performanceLoad):not(#compareAllFastest:not(.selected)):not(.linear-lap-header > button):not(#linearWorkspace *):hover:not(:disabled) { background: var(--lin-pill-hover); }
 
 /* ---- Header icon buttons: 28 px circles, transparent until hovered (spec §6) ---- */
 :root[data-skin="linear"] .site-header .workspace-tools > button, :root[data-skin="linear"] .site-header #windowSidebarToggle {

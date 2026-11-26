@@ -136,10 +136,14 @@ export function TyresView(p: TyresViewProps) {
           {p.driverChart ? <DivergingBarChart title={`${p.driverChart.title} · Drivers`} subtitle="Seconds per additional tyre-age lap · left of zero improves, right of zero worsens" rows={p.driverChart.rows} unit=" s/lap" extent={p.driverChart.extent} /> : null}
         </div>
           : <p className="section-empty">{p.emptyMessage}</p>}
-        <DataTable evidenceFrom={2} headers={[p.sort.name, p.sort.value, p.sort.events, p.sort.stints, p.sort.laps, 'Outlier laps removed', 'Coverage']}
-          rows={p.rows.map(r => [<TeamLabel team={r.team} />,
-            finite(r.value) ? signed(r.value, 3, ' s/lap') : r.shortfall ? <>—<small className="explanation-only">P75 needs {r.shortfall}</small></> : '—',
-            r.events, r.stints, r.laps, r.outliers, r.coverage])} />
+        {/* The bars above show these values; the table is for exact numbers and evidence, folded unless nothing was charted. */}
+        <details className="performance-table-fold" open={!p.chart || undefined}>
+          <summary>Values table</summary>
+          <DataTable evidenceFrom={2} headers={[p.sort.name, p.sort.value, p.sort.events, p.sort.stints, p.sort.laps, 'Outlier laps removed', 'Coverage']}
+            rows={p.rows.map(r => [<TeamLabel team={r.team} />,
+              finite(r.value) ? signed(r.value, 3, ' s/lap') : r.shortfall ? <>—<small className="explanation-only">P75 needs {r.shortfall}</small></> : '—',
+              r.events, r.stints, r.laps, r.outliers, r.coverage])} />
+        </details>
         </>}
         <details className="dashboard-card performance-methods" open={p.auditOpen || undefined}>
           <summary>Stint evidence and early/late trends</summary>

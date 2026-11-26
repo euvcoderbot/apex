@@ -221,14 +221,31 @@
       }
     }
     // Each driver's personal best is ringed and labelled with its time (three drivers or fewer, so labels stay legible).
-    if (series.length <= 3) for (const s of series) {
-      const onScale = s.laps.filter(l => l.time <= yHi + 1e-9);
-      if (!onScale.length) continue;
-      const pb = onScale.reduce((a, b) => (b.time < a.time ? b : a));
-      const px = x(pb.lap), py = y(pb.time), above = py > T + 18;
-      const anchor = px > W - R - 40 ? 'end' : px < L + 40 ? 'start' : 'middle';
-      svg += `<circle class="pb-ring" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="8" style="stroke:${esc(s.colour)}" aria-hidden="true"/>`
-        + `<text class="pb-label" x="${px.toFixed(1)}" y="${(above ? py - 13 : py + 21).toFixed(1)}" text-anchor="${anchor}" style="fill:${esc(s.colour)}" aria-hidden="true">${esc(fmtLap(pb.time))}</text>`;
+    // Labels never overlap each other: each takes the first free spot of above, below, left and right of its ring.
+    if (series.length <= 3) {
+      const placed = [], overlaps = box => placed.some(o => box.x0 < o.x1 && box.x1 > o.x0 && box.y0 < o.y1 && box.y1 > o.y0);
+      for (const s of series) {
+        const onScale = s.laps.filter(l => l.time <= yHi + 1e-9);
+        if (!onScale.length) continue;
+        const pb = onScale.reduce((a, b) => (b.time < a.time ? b : a));
+        const px = x(pb.lap), py = y(pb.time), text = fmtLap(pb.time), w = text.length * 6.4, h = 12;
+        placed.push({x0: px - 9, x1: px + 9, y0: py - 9, y1: py + 9});   // the ring itself
+        const spots = [
+          {x: px, y: py - 13, anchor: 'middle'}, {x: px, y: py + 21, anchor: 'middle'},
+          {x: px - 12, y: py + 4, anchor: 'end'}, {x: px + 12, y: py + 4, anchor: 'start'},
+          {x: px - 12, y: py - 12, anchor: 'end'}, {x: px - 12, y: py + 20, anchor: 'end'},
+        ].map(spot => {
+          let ax = spot.x;
+          if (spot.anchor === 'middle') ax = Math.min(W - R - w / 2, Math.max(L + w / 2, ax));
+          const x0 = spot.anchor === 'end' ? ax - w : spot.anchor === 'start' ? ax : ax - w / 2;
+          return {...spot, x: ax, box: {x0, x1: x0 + w, y0: spot.y - h + 2, y1: spot.y + 2}};
+        }).filter(spot => spot.box.x0 >= L - 2 && spot.box.x1 <= W && spot.box.y0 >= 0 && spot.box.y1 <= H - B);
+        const spot = spots.find(c => !overlaps(c.box)) || spots[0];
+        if (!spot) continue;
+        placed.push(spot.box);
+        svg += `<circle class="pb-ring" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="8" style="stroke:${esc(s.colour)}" aria-hidden="true"/>`
+          + `<text class="pb-label" x="${spot.x.toFixed(1)}" y="${spot.y.toFixed(1)}" text-anchor="${spot.anchor}" style="fill:${esc(s.colour)}" aria-hidden="true">${esc(text)}</text>`;
+      }
     }
     svg += '</svg>';
     const legend = series.map(s => legendItem(s.code, styles.get(s.code))).join('');

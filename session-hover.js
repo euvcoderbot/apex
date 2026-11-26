@@ -26,7 +26,15 @@ function drawChartHover(name) {
     const entry=traceEntries.find(item=>item.index===index),stepped=['Brake application','Gear','DRS'].includes(name);
     const value=entry?renderedTraceValue(entry.domainPoints,hoverFraction,stepped):null;
     if(!Number.isFinite(value))continue;
-    const y=bounds.top+(bounds.max-value)/(bounds.max-bounds.min||1)*(rect.height-bounds.top-bounds.bottom);
+    let y=bounds.top+(bounds.max-value)/(bounds.max-bounds.min||1)*(rect.height-bounds.top-bounds.bottom);
+    if(name==='Brake application'){
+      // Brake is drawn as one lane per lap: the dot sits in that lap's lane, filled when braking, hollow when not.
+      const n=traceEntries.length,lane=traceEntries.indexOf(entry),gap=n>1?3:0,plotH=rect.height-bounds.top-bounds.bottom,laneH=(plotH-gap*(n-1))/n;
+      y=bounds.top+lane*(laneH+gap)+laneH/2;
+      ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);
+      if(value>=50){ctx.fillStyle=getLapColor(lap);ctx.strokeStyle='#fff';ctx.fill();ctx.stroke();}else{ctx.fillStyle=lightThemeActive()?'#fff':'#121213';ctx.strokeStyle=getLapColor(lap);ctx.fill();ctx.stroke();}
+      continue;
+    }
     ctx.fillStyle=getLapColor(lap);ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);ctx.fill();ctx.stroke();
   }
 }

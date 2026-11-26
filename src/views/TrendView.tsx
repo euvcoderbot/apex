@@ -66,7 +66,9 @@ export function TrendView(props: TrendViewProps) {
         </div> : <DivergingBarChart title={fitted ? 'Fitted change' : 'Change, opening to latest'} subtitle="Left of zero closed the gap, right of zero lost ground" unit="%"
           extent={Math.max(0, ...ranked.map(r => Math.abs(r.value)))} rows={ranked} seriesKey={r => r.team || ''} />}
       </div>
-      <div className="performance-trend-table" data-fit-sensitivity={showSensitivity ? 'true' : 'false'}>
+      {/* The chart and bars above already show these values: the table is there to read exact numbers, folded by default. */}
+      <details className="performance-trend-table performance-table-fold" data-fit-sensitivity={showSensitivity ? 'true' : 'false'}>
+        <summary>Values table</summary>
         <DataTable evidenceFrom={4} headers={[sort.team, sort.last,
           fitted ? 'Observed change' : {...sort.change,label:'Observed change'},
           fitted ? {...sort.change,label:'Fitted change'} : 'Fitted change',
@@ -87,7 +89,7 @@ export function TrendView(props: TrendViewProps) {
               <span className="trend-coverage" title={r.sampleTier}>{r.count}</span>,
             ];
           })} />
-      </div>
+      </details>
       <Card title="FIA event documents" note="Reference documents, not an ingested upgrade database. Relative pace changes do not establish an upgrade effect.">
         <p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" className="perf-link">Open FIA event documents ↗</a></p>
         <p className="performance-note">Component counts from Car Presentation Submissions are not weighted by competitive impact, and public lap times cannot isolate aerodynamic package gains from setup or driver variation. No synthetic upgrade gains are inferred.</p>

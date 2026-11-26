@@ -605,7 +605,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-chart .hit:hover + .bar, .season-chart .hit:hover + .bar + .bar { opacity: 1; }
 .season-chart .zero { display: none; }
 /* the surface is skins.css's floating primitive */
-.season-tip { position: fixed; z-index: 1000; display: grid; gap: 2px; max-width: min(260px, calc(100vw - 36px)); padding: 8px 10px; pointer-events: none;   /* text only: never under the pointer, never swallowing a click */
+.season-tip { position: fixed; z-index: 1000; display: grid; gap: 2px; max-width: min(300px, calc(100vw - 36px)); padding: 8px 10px; pointer-events: none;   /* text only: never under the pointer, never swallowing a click */
   color: var(--ui-secondary); font: 500 12px/1.4 var(--ui-font, inherit); font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
 .season-tip[hidden] { display: none; }
 .season-tip b { color: var(--ui-label); font-weight: 600; }
@@ -1654,8 +1654,8 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 :root[data-skin] #seasonHub .season-h2h-grid thead th { padding-block: 6px; }
 /* Head-to-head race-by-race: Qualifying and Race as their own header rows, a quiet label over each group of three. */
 /* Section labels (Qualifying, Race) are short label rows, not 44 px data rows: they sit just above their rows. */
-:root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row > :is(th, td) { height: 24px; padding: 10px 0 2px; line-height: 1; }
-:root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row:first-child > :is(th, td) { height: 16px; padding-top: 2px; }
+:root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row > :is(th, td) { height: 24px; padding: 10px 0 2px 6px; line-height: 1; }
+:root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row:first-child > :is(th, td) { height: 16px; padding-top: 2px; padding-left: 6px; }
 #seasonHub .season-h2h-grid tr.season-section-row > th { color: var(--ui-secondary); font: 600 12px/1 var(--ui-font); vertical-align: bottom; }
 /* Only results that mean something are filled (pole or win, podium, retirement, who was ahead); an ordinary place is a plain
    number, bright in Q3 or the points, quiet otherwise. */
@@ -1764,3 +1764,16 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 /* The weekend's sessions on one row (five equal columns) wherever there is room, instead of four and a lone race. */
 @media (min-width: 1180px) { #seasonHub .season-sessions { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-columns: none; } }
 @media (min-width: 761px) and (max-width: 1179px) { #seasonHub .season-sessions { grid-template-columns: repeat(3, minmax(0, 1fr)); } }  /* three and two, never four and one */
+
+/* Tracks: beside the map, Sectors, DRS zones and Full-throttle sections are each their own card, like the map. */
+:root[data-skin="linear"] #seasonHub .season-track-two > .season-stack > :is(.season-card, .season-data-section) { padding: 16px; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
+:root[data-skin="linear"] #seasonHub .season-track-two > .season-stack > .season-data-section > h3 { padding-block: 0 8px; }
+:root[data-skin="linear"] #seasonHub .season-track-two > .season-stack > .season-data-section > :is(.season-table-wrap, .season-table-frame) { border-block: 0; margin-inline: -16px; }
+:root[data-skin="linear"] #seasonHub .season-track-two > .season-stack > * > .season-footnote { margin-bottom: 0; }
+
+/* Standings: the highlighted entrants' lines in full colour, whatever their default faint styling; pinned rows marked. */
+:root[data-skin] #seasonHub .has-entrant .season-chart :is(.line.is-entrant, .is-entrant > .line) { opacity: 1; stroke-width: 2.25; --series-stroke: initial; }
+#seasonHub .season-standings-layout tr[data-id] { cursor: pointer; }
+#seasonHub .season-standings tr.is-pinned > td { background: var(--lin-nav-active); }
+#seasonHub .season-standings tr.is-pinned > td:first-child { box-shadow: inset 2px 0 var(--ui-accent); }
+#seasonHub .season-chart .end-leader.is-quiet { opacity: .45; }

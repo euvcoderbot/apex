@@ -2019,6 +2019,10 @@ function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
   const ranked=season.rows.filter(r=>finite(r.value));
   const bestByMean=Math.min(...ranked.map(r=>r.value));
+  // Until both subjects have finished measuring, a short or empty chart is still loading: the first visit used to say
+  // "insufficient" or "no measurement" for the GPs and subject not fetched yet.
+  const pending=running||speedDomainRunning.team||speedDomainRunning.driver;
+  if(pending&&!ranked.length)return {title:title||meta.label,empty:'Loading qualifying telemetry…'};
   if(season.gps&&!ranked.length)return {title:title||meta.label,empty:`Insufficient shared weekends for a ranking. ${season.sharedEvents.length} of ${season.gps} supported GPs overlap. Individual measurements are under Values by GP.`};
   const medians=ranked.map(r=>median(r.perEvent.filter(e=>season.sharedEvents.includes(e.event)).map(e=>e.value)));
   const bestByMedian=Math.min(...medians);
@@ -2032,7 +2036,7 @@ function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,
     evidenceLabel:season.rivalOverlap?`${r.gps} measured GPs · ${evidence}`:`${season.sharedEvents.length} shared GPs`,evidenceBadge:season.rivalOverlap?'':undefined}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
-  if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
+  if(!rows.length)return {title:title||meta.label,empty:pending?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,matchedRivals:Boolean(season.rivalOverlap),options:{title:title||meta.label,evidenceSummary,
     subtitle:`${subtitle?subtitle+' · ':''}${season.rivalOverlap?'':evidence+' · '}0 = best${sensitive?' · Leader changes when GPs are summarized by median':''}${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
 }
