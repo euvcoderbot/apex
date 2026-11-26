@@ -958,3 +958,5 @@ body.performance-view #sidebarToggle {
 /* With explanations off a measurement table can shrink to a name and a value: it keeps a readable width beside the chart
    above it instead of stretching two columns 1100 px apart. */
 .is-descriptions-hidden .performance-table-wrap:has(thead th:nth-child(3).explanation-only) { width: min(100%, 520px); }
+/* Beside the long launch table the speed profile stays in view while the table scrolls. */
+@media (min-width: 1400px) { .start-comparison > .start-profile { position: sticky; top: 16px; align-self: start; } }

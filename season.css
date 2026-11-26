@@ -1754,3 +1754,6 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 
 /* A finished session without an observed reading says so in the quietest text, so the five columns don't read as an error. */
 #seasonHub .season-session-weather.is-missing { color: var(--ui-quaternary); font-weight: 450; }
+
+/* Head-to-head grid: the gap row's three-decimal values in 11 px so the whole calendar fits beside the pinned count. */
+#seasonHub .season-h2h-grid .season-gap-row td:not(:first-child) { font-size: 11px; letter-spacing: -.01em; }
