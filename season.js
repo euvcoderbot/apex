@@ -1793,8 +1793,9 @@
           const reading = el('a', 'season-link is-wet', 'Observed wet track');
           reading.href = vegasWetTrack; reading.target = '_blank'; reading.rel = 'noopener';
           w.append(icon, reading);
-        } else { w.textContent = 'No weather reading'; w.classList.add('is-missing'); }  // quiet: repeated on every finished session
-        li.append(w);
+        }
+        // No reading is the usual case for a finished session: say nothing rather than repeat it under every session.
+        if (w.childNodes.length) li.append(w);
       } else if (at > currentTime && forecastOk) {
         const own = x.weather?.temp != null ? x.weather : null;
         const day = !own && data.next_weather?.find(d => d.date === (offset == null ? x.start : trackClock(at)).slice(0, 10));
@@ -3470,6 +3471,8 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       cell.append(head, el('b', null, '—'), el('span', 'season-strip-status', 'Scheduled'));
       strip.append(cell);
     }
+    // Two even rows on a wide card (12 + 11 rather than 13 + 10); a phone keeps its own wrap.
+    strip.style.setProperty('--strip-cols', String(Math.ceil(strip.children.length / 2)));
     const counts = s.finish_counts, maxCount = Math.max(1, ...Object.values(counts));
     const dist = el('div', 'season-dist'); dist.style.setProperty('--team', teamColour(data.drivers[id]?.team));
     dist.setAttribute('aria-label', 'Race finishing positions');
@@ -4297,8 +4300,16 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         const src = el('a', 'season-link', 'FIA document'); src.href = i.document; src.target = '_blank'; src.rel = 'noopener'; row.append(src);
         section.append(row);
       }
+      // A long season opens with its six latest Grands Prix; the rest wait behind one button.
+      if (k >= 6 && byRound.length > 8 && !byRound.slice(6).includes(state.expandedUpdate)) section.hidden = true;
       list.append(section);
     });
+    const hiddenRounds = [...list.children].filter(x => x.hidden);
+    if (hiddenRounds.length) {
+      const more = el('button', 'season-link season-updates-more', `Show ${hiddenRounds.length} earlier Grands Prix`); more.type = 'button';
+      more.addEventListener('click', () => { for (const x of hiddenRounds) x.hidden = false; more.remove(); });
+      list.append(more);
+    }
     const busiest = roundsWith.map(r => [r, items.filter(i => i.round === r).length]).sort((x, y) => y[1] - x[1])[0];
     const perf = items.filter(i => i.reason_type === 'Performance').length;
     const total = el('div', 'season-numbers');

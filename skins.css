@@ -2735,6 +2735,12 @@
 
 /* Car performance in the Season look: shaded values as filled, centred chips (deeper = better), no shaded first column. */
 :root[data-skin="linear"] .performance-table td.perf-heat-cell { padding: 2px; text-align: center; vertical-align: middle; }
+/* Heat tables centre every value under its heading (the spread column included), not only the shaded ones. */
+:root[data-skin="linear"] .performance-table:has(th.perf-heat-head) :is(th, td):not(:first-child):not(:has(> .performance-team)) { text-align: center; }
+:root[data-skin="linear"] .performance-table:has(th.perf-heat-head) td small { display: block; }
+/* The pit-timing refresh ends the controls row instead of sitting alone on a line. */
+:root[data-skin="linear"] :is(.performance-pit-controls, .performance-card-controls) > .performance-pit-retry { margin-left: auto; }
+:root[data-skin="linear"] .performance-source-line { margin: 12px 0 0; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
 :root[data-skin="linear"] .performance-table .perf-heat-value { display: block; box-sizing: border-box; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--ui-accent) calc(var(--heat, 0) * 42%), transparent); color: var(--ui-label); font: 600 12px/32px var(--ui-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 :root[data-skin="linear"][data-theme="light"] .performance-table .perf-heat-value { background: color-mix(in oklch, #14b8a6 calc(var(--heat, 0) * 68%), transparent); }
 :root[data-skin="linear"] .team-profile-table td.profile-rank.is-top::before { display: none; }
@@ -2765,14 +2771,16 @@
   :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long :is(.performance-bar-row, .performance-tyre-age-row) { display: grid; grid-column: auto; grid-template-columns: minmax(40px, max-content) minmax(36px, 1fr) max-content; align-items: center; gap: 10px; min-height: 30px; padding-block: 0; break-inside: avoid; }
 }
 :root[data-skin="linear"] #performanceMetricPanel .subject-pair { align-items: start; }
+:root[data-skin="linear"] #performanceMetricPanel .subject-pair:has(> .subject-pair-note) { align-items: stretch; }
 /* Charts start below a floated action (Refresh missing timing): beside the float a grid is squeezed to the space left,
    which on a phone was half the card. */
 :root[data-skin="linear"] #performanceMetricPanel :is(.subject-pair, .subject-bands, .performance-card-body > .performance-chart-card) { clear: both; }
 /* An empty chart is an outline card (spec: empty / add): it reads as a note, not as a chart that failed to draw. */
 :root[data-skin="linear"] #performanceMetricPanel .subject-bands { align-items: start; }
+:root[data-skin="linear"] #performanceMetricPanel .subject-bands:has(> .subject-pair-note) { align-items: stretch; }
 :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty { background: none; box-shadow: inset 0 0 0 1px var(--lin-outline-border); }
 :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty .performance-quality-status { color: var(--ui-tertiary); }
-:root[data-skin="linear"] #performanceMetricPanel .subject-band-empty { margin: 4px 0 12px; color: var(--ui-tertiary); font: 450 13px/18px var(--ui-font); }
+:root[data-skin="linear"] #performanceMetricPanel .subject-band-empty { margin: 4px 0 12px; padding: 14px 16px; border: 1px dashed var(--lin-card-border, var(--ui-border)); border-radius: 10px; color: var(--ui-tertiary); font: 450 13px/18px var(--ui-font); }  /* the same quiet outline as an empty side of a pair */
 :root[data-skin="linear"] #performanceMetricPanel .subject-band-empty > strong { color: var(--ui-secondary); font-weight: 500; }
 :root[data-skin="linear"] #performanceMetricPanel .performance-scope-toggle + .performance-scope-toggle { margin-left: 12px; }
 /* Wrapped onto its own line a group starts at the card's edge, not 18 px in behind a divider. */

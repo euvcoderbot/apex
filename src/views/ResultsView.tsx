@@ -72,7 +72,7 @@ export function ResultsView({rows, chartMetric, chart, sort}: ResultsViewProps) 
         <DataTable evidenceFrom={5} headers={['Team', 'Event', 'Driver', 'Category', 'Reported cause', 'Source']}
           rows={rows.flatMap(t => t.retirements.map(r => [
             <TeamLabel team={t} />, <EventLabel event={r.event} />, r.driver, <RetirementBadge category={r.category} />,
-            <span style={{fontWeight: 600}}>{r.cause || 'Unclassified retirement'}</span>,
+            <span className="retirement-cause">{r.cause || 'Unclassified retirement'}</span>,
             r.source_url
               ? <a className="perf-link" href={r.source_url} target="_blank" rel="noopener noreferrer" title="The Wikipedia revision this cause was read from">{r.source || 'Wikipedia'} ↗</a>
               : <small className="perf-tercile-badge is-mid">{r.source || 'Official Timing'}</small>,

@@ -90,10 +90,11 @@ export function TrendView(props: TrendViewProps) {
             ];
           })} />
       </details>
-      <Card title="FIA event documents" note="Reference documents, not an ingested upgrade database. Relative pace changes do not establish an upgrade effect.">
-        <p><a href="https://www.fia.com/documents" target="_blank" rel="noopener" className="perf-link">Open FIA event documents ↗</a></p>
-        <p className="performance-note">Component counts from Car Presentation Submissions are not weighted by competitive impact, and public lap times cannot isolate aerodynamic package gains from setup or driver variation. No synthetic upgrade gains are inferred.</p>
-      </Card>
+      {/* A source line, not a card of its own: one link does not need a box. */}
+      <p className="performance-source-line" title="Reference documents, not an ingested upgrade database. Relative pace changes do not establish an upgrade effect.">
+        Sources: <a href="https://www.fia.com/documents" target="_blank" rel="noopener" className="perf-link">FIA event documents ↗</a>
+        <span className="explanation-only"> · Component counts from Car Presentation Submissions are not weighted by competitive impact, and public lap times cannot isolate aerodynamic package gains from setup or driver variation. No synthetic upgrade gains are inferred.</span>
+      </p>
     </Card>
   );
 }

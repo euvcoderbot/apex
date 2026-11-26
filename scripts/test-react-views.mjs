@@ -102,7 +102,7 @@ test('pit stops view draws the measured sample, never a zero for a missing stop'
   assert.match(html, /<button type="button" data-pit-chart="median" aria-pressed="true">Median<\/button>/);
   assert.match(html, /0\.500 s<small>2\.000–2\.500 s<\/small>/);
   assert.match(html, /—<small class="explanation-only">No timed samples<\/small>/);
-  assert.match(html, /<button type="button" data-pit-retry="">Refresh missing timing<\/button>/);
+  assert.match(html, /<button type="button" class="performance-pit-retry" data-pit-retry="">Refresh missing timing<\/button>/);
   assert.match(html, />2\.1 s</, 'exact seconds as published');
   assert.match(html, /is-unranked/);
 });

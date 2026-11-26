@@ -800,6 +800,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 }
 /* Weekend cells without colours: flag and code, the place, then a classification line (DNF, DNS…) kept at a fixed height. */
 #seasonHub .season-strip { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); }
+@media (min-width: 1100px) { #seasonHub .season-strip[style*="--strip-cols"] { grid-template-columns: repeat(var(--strip-cols), minmax(0, 1fr)); } }
 #seasonHub .season-strip-cell { gap: 5px; padding: 8px 0 7px; }
 #seasonHub .season-strip-cell small { gap: 5px; }
 #seasonHub .season-strip-cell small::before { content: none; }
@@ -1418,7 +1419,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-toolbar:has(> .season-view-pills) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 /* Calendar rows use the same summary and disclosure on every viewport. */
 #seasonHub .season-round {
-  grid-template-columns: minmax(0, 1fr) minmax(108px, auto) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(108px, auto) minmax(64px, auto);
   grid-template-areas: "title meta toggle";
   column-gap: 16px; align-items: center;
 }
@@ -1442,6 +1443,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   #seasonHub .season-round-head > .season-status { grid-column: 3; }
   /* An opened round's results sit under its name, not under the outline column. */
   #seasonHub .season-rounds > .season-round > .season-round-detail { margin-left: 58px; }
+  /* An upcoming round's race time sits under its name too, and its round number keeps the finished rows' column. */
+  #seasonHub .season-rounds > .season-round > .season-round-when { margin-left: 82px; }  /* under the location line */
 }
 #seasonHub .season-round-title { grid-area: title; display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 40px; }
 #seasonHub .season-round-circuit { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -1554,6 +1557,9 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-next-track { margin-left: 10px; font-size: 13px; }
 #seasonHub .season-table-wrap:has(> .season-gp-table) { container-type: inline-size; }
 #seasonHub .season-gp-table .season-detail > td { padding: 0; }
+/* Wide: the podium, fastest lap and margin take even columns, so they sit near the name instead of across a gap. */
+@container (min-width: 820px) { #seasonHub .season-gp-table thead th:nth-child(n+3) { width: 13%; } }
+#seasonHub .season-updates-more { justify-self: start; margin: 8px 0 4px; }
 #seasonHub .season-detail-body { position: sticky; inset-inline-start: 0; width: 100cqi; max-width: 100%; padding: 10px 6px 14px; box-sizing: border-box; }
 #seasonHub .season-detail-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 10px; font-size: 13px; }
 #seasonHub .season-detail-actions .season-row-toggle { padding-inline: 10px; border-radius: var(--radius-pill); background: var(--ui-control); }
@@ -1624,10 +1630,13 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 /* Four cards in a row, or two by two: never three and a lone fourth. */
 @media (min-width: 901px) and (max-width: 1149px) { #seasonHub .season-stat-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 #seasonHub .season-stat-list { display: grid; align-content: start; margin: 0; }  /* rows keep their height; the card's spare room stays below */
-#seasonHub .season-stat-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid var(--lin-hairline, var(--ui-separator)); }
+/* Every row is the same two lines (label and value, then its note under the label), so rows line up across the cards. */
+#seasonHub .season-stat-list > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; align-content: center; column-gap: 12px; row-gap: 2px; min-height: 52px; box-sizing: border-box; padding: 8px 0; border-top: 1px solid var(--lin-hairline, var(--ui-separator)); }
 #seasonHub .season-stat-list > div:first-child { border-top: 0; }
 #seasonHub .season-stat-list dt { flex: none; color: var(--ui-secondary); font-size: 13px; white-space: nowrap; }
-#seasonHub .season-stat-list dd { display: grid; justify-items: end; margin: 0; text-align: right; }
+#seasonHub .season-stat-list dd { display: contents; }
+#seasonHub .season-stat-list dd b { grid-column: 2; grid-row: 1; text-align: right; }
+#seasonHub .season-stat-list dd small { grid-column: 1 / -1; grid-row: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 #seasonHub .season-stat-list dd b { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 #seasonHub .season-stat-list dd small { font-size: 11px; }
 /* Home's three lists (Standings, Constructors, race pace): one row of three, one column on a phone. */

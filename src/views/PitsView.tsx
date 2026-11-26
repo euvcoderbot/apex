@@ -39,7 +39,6 @@ export function PitsView(p: PitsViewProps) {
           </> : null}
           {' '}Consistency (IQR) needs 4 samples. No recorded visit is not a zero-second stop.
           </span>
-          {p.quality.refresh ? <button type="button" data-pit-retry="">Refresh missing timing</button> : null}
         </p>
         <div className="performance-pit-controls">
           <div className="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
@@ -50,6 +49,8 @@ export function PitsView(p: PitsViewProps) {
           {p.isLane ? <SegmentedControl name="pit-lane-basis" label="Pit-lane comparison basis" value={p.relativeLane ? 'event' : 'raw'} options={[['raw', 'Raw seconds'], ['event', 'Vs GP median']]} /> : null}
           <SegmentedControl name="pit-chart" label="Pit timing chart statistic" value={p.chartMetric}
             options={[['mean', 'Mean'], ['median', 'Median'], ['fastest', 'Quickest'], ['spread', 'Consistency · IQR']]} />
+          {/* The refresh sits at the end of the controls row rather than alone on a line of its own. */}
+          {p.quality.refresh ? <button type="button" className="performance-pit-retry" data-pit-retry="">Refresh missing timing</button> : null}
         </div>
         <p className="performance-note">Median describes a typical stop; mean includes slow stops; quickest shows the best visit; IQR describes consistency. Only confirmed service visits are ranked. Pit-lane time is not inferred pit loss.</p>
         {/* Unranked rows still draw (missing is not zero); only no rows at all is empty. */}
