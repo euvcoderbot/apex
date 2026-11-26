@@ -1,11 +1,12 @@
 /* Session analysis: telemetry chart stack (speed trace, delta, inputs). */
 // Chart Constants and Configuration
+try { if (window.hoverAllChannels === undefined) window.hoverAllChannels = localStorage.getItem('apex-hover-all') !== '0'; } catch { window.hoverAllChannels = true; }
 const defs = [
   ['Speed trace', 'km/h', false],
   ['Timing delta', 'seconds vs reference', false],
   ['Throttle application', '%', true],
   ['Brake application', 'on / off', true],
-  ['Gear', '0–8', false],
+  ['Gear', '', false],
   ['DRS', 'open / closed', true]
 ];
 
@@ -267,6 +268,10 @@ function bindSpeedChartControls() {
     window.ApexAnalysis?.savePreference('speed-annotations',showSpeedAnnotations);
     if (loaded.length) drawRealChart('Speed trace');
   });
+  $('#hoverAllToggle')?.addEventListener('change', event => {
+    window.hoverAllChannels = event.target.checked;
+    try { localStorage.setItem('apex-hover-all', event.target.checked ? '1' : '0'); } catch { /* storage blocked */ }
+  });
   $('#traceTintToggle')?.addEventListener('change', event => {
     traceTintEnabled = event.target.checked;
     window.ApexAnalysis?.savePreference('trace-tint', traceTintEnabled);
@@ -324,9 +329,9 @@ function renderCharts() {
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
         </div>
-        <details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="A soft fill in each lap's colour under the speed, throttle, brake and engine-speed traces"><input type="checkbox" id="traceTintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint under traces</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details>
+        <details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="A soft fill in each lap's colour under the speed trace"><input type="checkbox" id="traceTintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint under traces</span></label><label class="trace-setting" title="On hover, show speed, time delta, throttle, brake and gear for every lap together, whichever chart the pointer is on"><input type="checkbox" id="hoverAllToggle" ${window.hoverAllChannels !== false ? 'checked' : ''}><i aria-hidden="true"></i><span>All channels on hover</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details>
         <button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button>
-        <details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>
+        <details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="cards">Lap cards, speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>
         </div>` : name === 'Timing delta' ? `
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
@@ -771,7 +776,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
       if (tick === 0) displayVal = 'Open';
       else if (tick === 4) displayVal = 'Closed';
       else return;
-      if (unit === 'on / off') displayVal = tick === 0 ? 'On' : 'Off';
+      if (unit === 'on / off') return;  // brake lanes carry each lap's code instead
     }
     ctx.fillStyle = seconds && Math.abs(value) < 1e-5
       ? theme.textStrong
@@ -1490,7 +1495,7 @@ function drawRealChart(name) {
       y: point.y===null?null:bounds.top + (bounds.max - point.y) / (bounds.max - bounds.min || 1)
         * (rect.height - bounds.top - bounds.bottom),
     }));
-    if (points.length) traceEntries.push({ points, domainPoints, teamColor, index,
+    if (points.length) traceEntries.push({ points, domainPoints, teamColor, index, lap,
       sourceGaps:telemetryTraceGapRanges(series,refSeries,name,index) });
   });
 
@@ -1511,7 +1516,8 @@ function drawRealChart(name) {
   // Give every visible loaded lap its own restrained tint. Tinting follows the
   // rendered trace entries, so hidden trace toggles also hide their tint and
   // each colour remains identifiable when several laps overlap.
-  const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
+  // Only the speed trace is tinted: on the stacked input rows a fill under two on/off traces read as broken blocks.
+  const shadedFields = ['Speed trace', 'Engine speed'];
   if (traceTintEnabled && traceEntries.length && shadedFields.includes(name)) {
     const bottomY = rect.height - bounds.bottom;
     const baseAlpha = name === 'Speed trace' ? .16 : .11;
@@ -1534,20 +1540,57 @@ function drawRealChart(name) {
   if (name === 'Timing delta' && traceEntries.length && bounds.max > bounds.min) {
     const plotBottom = rect.height - bounds.bottom;
     const zeroY = Math.min(plotBottom, Math.max(bounds.top, bounds.top + (bounds.max / (bounds.max - bounds.min)) * (plotBottom - bounds.top)));
-    traceEntries.forEach(({ points, teamColor }) => {
-      if (points.length < 2 || points.some(point => point.y === null)) return;
-      tracePath(points);
-      ctx.lineTo(points[points.length - 1].x, zeroY);
-      ctx.lineTo(points[0].x, zeroY);
-      ctx.closePath();
-      ctx.fillStyle = hexToRgba(teamColor, .1);
-      ctx.fill();
+    // Above zero the compared lap is behind, so the area takes the reference lap's colour (it is leading there);
+    // below zero the compared lap is ahead and the area takes its own colour.
+    const referenceColor = (traceEntries.find(entry => entry.index === 0) || traceEntries[0]).teamColor;
+    traceEntries.forEach(({ points, teamColor, index }) => {
+      if (index === 0 || points.length < 2 || points.some(point => point.y === null)) return;
+      for (const [top, height, colour] of [[0, zeroY, referenceColor], [zeroY, rect.height - zeroY, teamColor]]) {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0, top, rect.width, height); ctx.clip();
+        tracePath(points);
+        ctx.lineTo(points[points.length - 1].x, zeroY);
+        ctx.lineTo(points[0].x, zeroY);
+        ctx.closePath();
+        ctx.fillStyle = hexToRgba(colour, .14);
+        ctx.fill();
+        ctx.restore();
+      }
     });
   }
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+  // Brake: one lane per lap, each braking zone a solid block in the lap's colour, so overlapping on/off steps never
+  // hide each other and every zone's start and end reads at a glance.
+  if (name === 'Brake application' && traceEntries.length) {
+    const plotTop = bounds.top, plotH = rect.height - bounds.top - bounds.bottom, n = traceEntries.length;
+    const laneGap = n > 1 ? 3 : 0, laneH = (plotH - laneGap * (n - 1)) / n, mid = plotTop + plotH / 2;
+    traceEntries.forEach(({ points, teamColor, lap }, lane) => {
+      const top = plotTop + lane * (laneH + laneGap);
+      ctx.fillStyle = hexToRgba(teamColor, .1);
+      ctx.fillRect(bounds.left, top, rect.width - bounds.left - bounds.right, laneH);
+      ctx.fillStyle = teamColor;
+      // Braking zones as runs: each starts at its first "on" sample and ends at the first "off" one; runs a few pixels
+      // apart (a single dropped sample) join, so a zone is one block rather than a comb of slivers.
+      const runs = [];
+      for (let i = 0; i < points.length; i++) {
+        const point = points[i];
+        if (point.y == null || point.y >= mid) continue;
+        let j = i; while (j + 1 < points.length && points[j + 1].y != null && points[j + 1].y < mid) j++;
+        const end = points[j + 1]?.x ?? points[j].x;
+        const prev = runs.at(-1);
+        if (prev && point.x - prev[1] <= 6) prev[1] = end; else runs.push([point.x, end]);
+        i = j;
+      }
+      for (const [start, end] of runs) ctx.fillRect(start, top, Math.max(2, end - start), laneH);
+      ctx.fillStyle = teamColor; ctx.textAlign = 'right'; ctx.font = `600 10px ${typeof getComputedStyle === 'function' && document?.body ? getComputedStyle(document.body).fontFamily : 'sans-serif'}`;
+      ctx.fillText(lap?.code || '', bounds.left - 8, top + laneH / 2 + 3.5);
+    });
+    ctx.textAlign = 'left';
+  }
   traceEntries.forEach(({ points, teamColor, index, sourceGaps }) => {
+    if (name === 'Brake application') return;
     ctx.strokeStyle = teamColor;
     const speedWidthMultiplier = name === 'Speed trace' ? 1.15 : 1;
     ctx.lineWidth = (index === 0 ? 1.44 : 1.12) * speedWidthMultiplier;

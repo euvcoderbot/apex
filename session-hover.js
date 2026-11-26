@@ -80,18 +80,19 @@ function bindAllChartHover() {
         if(gap)sourceGapNotes.set(telemetryKey(lap),`${lap.code} L${lap.lap}: ${gap.interval.toFixed(3)} s`);
       };
       if(hoveredChartName==='Timing delta')noteSourceGap(loaded[0],refSamples);
-      const lines = visibleTraceLaps().map(({ lap, index }) => {
-        const series = telemetryCache.get(telemetryKey(lap));
-        if(['Speed trace','Throttle application','Timing delta'].includes(hoveredChartName))noteSourceGap(lap,series);
+      // One channel's reading for one lap, as shown in the tooltip.
+      const readingFor = (chartName, lap, index, series) => {
+        const field = chartField[chartName];
+        const unit = (defs.find(def => def[0] === chartName) || [])[1] || '';
         let val = null;
         const targetDist = fraction * maxDistance;
-        if (hoveredChartName === 'Timing delta' && !window.ApexTelemetryFrame?.partial() && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
+        if (chartName === 'Timing delta' && !window.ApexTelemetryFrame?.partial() && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
           val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
             ? displayDeltaAt(series, refSamples, fraction)
             : deltaAt(series, refSamples, targetDist));
-        } else if (hoveredChartName === 'Timing delta') {
+        } else if (chartName === 'Timing delta') {
           val = null;
-        } else if ((series?.alignmentMethod === 'live-distance' || hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
+        } else if ((series?.alignmentMethod === 'live-distance' || chartName === 'Speed trace' || chartName === 'Throttle application')
             && typeof smoothedTelemetryValue === 'function') {
           val = typeof traceTelemetryValue === 'function'
             ? traceTelemetryValue(series, fraction, field)
@@ -99,36 +100,42 @@ function bindAllChartHover() {
         } else {
           val = interpolate(series, targetDist, field);
         }
-        
-        let display = '—';
-        if (Number.isFinite(val)) {
-          if (hoveredChartName === 'Timing delta') {
-            display = `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
-          } else if (field === 'DRS') {
-            display = val >= 0.5 ? 'OPEN' : 'CLOSED';
-          } else if (hoveredChartName === 'Brake application') {
-            display = val >= 50 ? 'ON' : 'OFF';
-          } else {
-            const reconstructed = typeof isReconstructedTelemetry === 'function'
-              && isReconstructedTelemetry(series, fraction, field);
-            if (reconstructed) hasReconstructedValue = true;
-            if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
-            // Speed and throttle are interpolated between whole-number samples: one decimal, not three.
-            const precision = (hoveredChartName === 'Speed trace'
-              || hoveredChartName === 'Throttle application')
-              ? val.toFixed(1)
-              : Math.round(val);
-            display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
-          }
-        }
-        return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${display}</b>`;
+        if (!Number.isFinite(val)) return '—';
+        if (chartName === 'Timing delta') return `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
+        if (field === 'DRS') return val >= 0.5 ? 'open' : 'closed';
+        if (chartName === 'Brake application') return val >= 50 ? 'on' : 'off';
+        const reconstructed = typeof isReconstructedTelemetry === 'function' && isReconstructedTelemetry(series, fraction, field);
+        if (reconstructed) hasReconstructedValue = true;
+        if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
+        // Speed and throttle are interpolated between whole-number samples: one decimal, not three.
+        const precision = (chartName === 'Speed trace' || chartName === 'Throttle application') ? val.toFixed(1) : Math.round(val);
+        return `${reconstructed ? '~' : ''}${precision}${unit ? ' ' + unit : ''}`;
+      };
+      const entries = visibleTraceLaps().map(({ lap, index }) => {
+        const series = telemetryCache.get(telemetryKey(lap));
+        if(['Speed trace','Throttle application','Timing delta'].includes(hoveredChartName))noteSourceGap(lap,series);
+        return {lap, index, series};
       });
+      // Every channel at once: one row per lap, one column per chart, whichever chart is hovered.
+      const allChannels = window.hoverAllChannels !== false;
+      let body;
+      if (allChannels) {
+        const channels = [...document.querySelectorAll('#charts canvas[data-chart]')].map(c => c.dataset.chart).filter(name => chartField[name] || name === 'Timing delta');
+        const short = {'Speed trace': 'km/h', 'Timing delta': 'Δ', 'Throttle application': 'Thr %', 'Brake application': 'Brake', Gear: 'Gear', DRS: 'DRS', 'Engine speed': 'rpm'};
+        const head = `<tr><th></th>${channels.map(name => `<th${name === hoveredChartName ? ' class="is-hovered"' : ''}>${short[name] || name}</th>`).join('')}</tr>`;
+        const rows = entries.map(({lap, index, series}) => `<tr><th><span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap}</th>${channels.map(name => `<td${name === hoveredChartName ? ' class="is-hovered"' : ''}>${readingFor(name, lap, index, series).replace(/ (km\/h|%|rpm)$/, '')}</td>`).join('')}</tr>`).join('');
+        body = `<table class="hover-readout">${head}${rows}</table>`;
+      } else {
+        body = entries.map(({lap, index, series}) => `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${readingFor(hoveredChartName, lap, index, series)}</b>`).join('<br>');
+      }
+      const lines = [body];
       
       const reconstructionNote = hasReconstructedValue
         ? `<br><small>~ ${hasLowConfidenceValue ? 'Low-confidence gap estimate' : 'Estimated repair'}</small>`
         : '';
       const sourceGapNote=sourceGapNotes.size?`<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
       tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} km</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
+      tooltip.classList.toggle('has-readout', allChannels);
       tooltip.style.display = 'block';
       
       if (document.body.classList.contains('trace-focus')) {

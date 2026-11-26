@@ -48,9 +48,18 @@ function capturePaintBox(ctx, unsnapped, style) {
     ctx.shadowBlur = shadow.blur * box.zoom * box.scale;
     ctx.shadowOffsetX = shadow.x * box.zoom * box.scale;
     ctx.shadowOffsetY = shadow.y * box.zoom * box.scale;
-    ctx.fillStyle = shadow.blur ? '#000' : shadow.colour;
-    if (!shadow.blur) ctx.shadowColor = 'transparent';
-    captureBoxPath(ctx, box, style, shadow.spread * box.zoom);
+    // The shape is drawn far off the canvas and only its shadow is shifted back: no anti-aliased dark edge of the shape
+    // itself is left around the card (that edge read as a heavy black outline, most of all in light mode).
+    const away = 1e4;
+    if (shadow.blur) {
+      ctx.shadowOffsetX += away * box.scale;
+      ctx.fillStyle = '#000';
+      captureBoxPath(ctx, {...box, left: box.left - away}, style, shadow.spread * box.zoom);
+    } else {
+      ctx.shadowColor = 'transparent';
+      ctx.fillStyle = shadow.colour;
+      captureBoxPath(ctx, box, style, shadow.spread * box.zoom);
+    }
     ctx.fill();
     ctx.restore();
   }
@@ -192,26 +201,27 @@ function capturePaintHeader(ctx, width, zoom, family) {
   ctx.textAlign = 'left';
   ctx.fillStyle = label;
   ctx.font = `600 ${20 * zoom}px ${family}`;
-  ctx.fillText(sessionEventName || 'Lap telemetry', CAPTURE_PAD * zoom, 36 * zoom);
+  // The event's flag in front of its name, as in the page heading.
+  const flag = $('#loadedSessionContext .title-flag');
+  let titleX = CAPTURE_PAD * zoom;
+  if (flag?.complete && flag.naturalWidth) { ctx.drawImage(flag, titleX, 22 * zoom, 24 * zoom, 18 * zoom); titleX += 32 * zoom; }
+  ctx.fillText(sessionEventName || 'Lap telemetry', titleX, 36 * zoom);
   ctx.fillStyle = secondary;
   ctx.font = `400 ${13 * zoom}px ${family}`;
   ctx.fillText([loadedSessionName, sessionYear].filter(Boolean).join(' · '), CAPTURE_PAD * zoom, 56 * zoom);
+  // No site branding: the right side only says which part of the lap is shown.
   ctx.textAlign = 'right';
-  ctx.fillStyle = label;
-  ctx.font = `600 ${14 * zoom}px ${family}`;
-  ctx.fillText('F1 Apex Data', right, 36 * zoom);
-  const icon = $('.brand-icon');
-  if (icon?.naturalWidth) ctx.drawImage(icon, right - ctx.measureText('F1 Apex Data').width - 26 * zoom, 21 * zoom, 20 * zoom, 20 * zoom);
   ctx.fillStyle = secondary;
   ctx.font = `400 ${13 * zoom}px ${family}`;
-  ctx.fillText($('#traceZoomReadout')?.textContent || 'Full lap', right, 56 * zoom);
+  const view = ($('#traceZoomReadout')?.textContent || 'full lap').trim();
+  ctx.fillText(view === 'full lap' ? 'Full lap' : view, right, 36 * zoom);
   ctx.textAlign = 'left';
 }
 
 function captureFileName(kind) {
   const context = $('#loadedSessionContext')?.textContent || '';
   const laps = loaded.map(lap => `${lap.code}-L${lap.lap}`).join('-');
-  const name = [`apex ${context}`, laps, kind === 'all' ? 'all-charts' : 'speed-delta'].join(' ');
+  const name = [`apex ${context}`, laps, kind === 'all' ? 'all-charts' : kind === 'cards' ? 'laps-speed-delta' : 'speed-delta'].join(' ');
   return `${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.png`;
 }
 
@@ -274,13 +284,21 @@ async function buildChartCapture(kind) {
     await drawAll();
     await document.fonts.ready;
     const zoom = document.documentElement.getBoundingClientRect().width / document.documentElement.offsetWidth || 1;
-    const sources = kind === 'all' ? [content] : ['Speed trace', 'Timing delta'].map(name => $(`canvas[data-chart="${name}"]`).closest('.chart'));
+    const traces = ['Speed trace', 'Timing delta'].map(name => $(`canvas[data-chart="${name}"]`).closest('.chart'));
+    // 'cards': the lap cards over the speed trace and timing delta, without the time gained and lost summary between them.
+    const sources = kind === 'all' ? [content] : kind === 'cards' ? [$('.sector-cards'), ...traces].filter(Boolean) : traces;
     const first = sources[0].getBoundingClientRect();
-    const pad = CAPTURE_PAD * zoom;
+    const pad = CAPTURE_PAD * zoom, gap = 12 * zoom;
     const width = first.width + pad * 2;
-    // Ends just below the last chart, whatever spare height the window had.
-    const last = [...sources.at(-1).querySelectorAll('canvas')].at(-1).closest('.chart').getBoundingClientRect();
-    const height = CAPTURE_TITLE * zoom + last.bottom - first.top + pad;
+    // Each source is stacked under the previous one with a fixed gap (anything between them on the page is left out);
+    // the last ends just below its last chart, whatever spare height the window had.
+    const lastSource = sources.at(-1), lastChart = [...lastSource.querySelectorAll('canvas')].at(-1)?.closest('.chart');
+    const spans = sources.map(source => {
+      const box = source.getBoundingClientRect();
+      const bottom = source === lastSource && lastChart ? lastChart.getBoundingClientRect().bottom : box.bottom;
+      return {source, top: box.top, height: bottom - box.top};
+    });
+    const height = CAPTURE_TITLE * zoom + spans.reduce((sum, span) => sum + span.height, 0) + gap * (spans.length - 1) + pad;
     const canvas = document.createElement('canvas');
     canvas.width = Math.ceil(width * scale);
     canvas.height = Math.ceil(height * scale);
@@ -289,8 +307,11 @@ async function buildChartCapture(kind) {
     ctx.textRendering = 'geometricPrecision';
     await capturePaintBackdrop(ctx, width, height);
     capturePaintHeader(ctx, width, zoom, getComputedStyle(content).fontFamily);
-    const origin = {x: first.left - pad, y: first.top - CAPTURE_TITLE * zoom};
-    for (const source of sources) await capturePaint(ctx, source, origin, zoom, scale, true);
+    let y = CAPTURE_TITLE * zoom;
+    for (const span of spans) {
+      await capturePaint(ctx, span.source, {x: first.left - pad, y: span.top - y}, zoom, scale, true);
+      y += span.height + gap;
+    }
     return canvas;
   } finally {
     chartCaptureScale = null;

@@ -1144,7 +1144,7 @@
       grid.append(row);
     });
     const legend = el('div', 'live-sectors-legend');
-    [['#bf5af2', 'Session best'], ['#30d158', 'Personal best'], ['#ffd60a', 'Neither'], [null, 'Gaps against the first lap: − faster, + slower']].forEach(([tone, label]) => {
+    [['var(--f1-purple)', 'Session best'], ['var(--f1-green)', 'Personal best'], ['var(--f1-yellow)', 'Neither'], [null, 'Gaps against the first lap: − faster, + slower']].forEach(([tone, label]) => {
       const item = el('span'); if (tone) { const bar = el('i'); bar.style.setProperty('--tone', tone); item.append(bar); } item.append(label); legend.append(item);
     });
     box.replaceChildren(grid, legend);

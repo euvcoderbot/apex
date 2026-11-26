@@ -157,8 +157,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-strip-cell { --tone: var(--ui-border-strong, var(--ui-border)); display: grid; justify-items: center; gap: 2px; padding: 6px 0 7px; border-radius: 8px; background: var(--ui-well); box-shadow: inset 0 2px 0 var(--tone); }
 .season-strip-cell small { color: var(--ui-tertiary); font-size: 10px; }
 .season-strip-cell b { font-variant-numeric: tabular-nums; }
-.season-strip-cell[data-tone="win"], .season-legend [data-tone="win"] { --tone: #bf5af2; }
-.season-strip-cell[data-tone="podium"], .season-legend [data-tone="podium"] { --tone: #30d158; }
+.season-strip-cell[data-tone="win"], .season-legend [data-tone="win"] { --tone: var(--f1-purple); }
+.season-strip-cell[data-tone="podium"], .season-legend [data-tone="podium"] { --tone: var(--f1-green); }
 .season-strip-cell[data-tone="points"], .season-legend [data-tone="points"] { --tone: var(--ui-label); }
 .season-strip-cell[data-tone="none"], .season-legend [data-tone="none"] { --tone: var(--ui-tertiary); }
 .season-strip-cell[data-tone="out"], .season-legend [data-tone="out"] { --tone: #ff6961; }
@@ -314,8 +314,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* A driver's total in the first FIA table that lists them: an outlined pill, so it reads as a starting total, not new parts. */
 .season-grid td.is-first { color: var(--ui-secondary); font-weight: 500; background: color-mix(in oklch, var(--ui-label) 5%, transparent) content-box; border-radius: 6px; text-align: center; }
 .season-grid td[data-tone] { background: color-mix(in oklch, var(--tone) 22%, transparent) content-box; border-radius: 6px; line-height: 26px; font-weight: 600; }
-.season-grid td[data-tone="win"] { --tone: #bf5af2; }
-.season-grid td[data-tone="podium"] { --tone: #30d158; }
+.season-grid td[data-tone="win"] { --tone: var(--f1-purple); }
+.season-grid td[data-tone="podium"] { --tone: var(--f1-green); }
 .season-grid td[data-tone="points"] { background: color-mix(in oklch, var(--ui-label) 9%, transparent) content-box; }
 .season-grid td[data-tone="none"] { background: none; color: var(--ui-tertiary); font-weight: 500; }
 .season-grid td[data-tone="out"] { --tone: #ff6961; color: #ff8a84; font-size: 11px; }
@@ -531,7 +531,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-podium li:first-child { justify-content: flex-start; padding-left: 0; }
 #seasonHub .season-podium li:last-child { justify-content: flex-end; padding-right: 0; }
 .season-podium li small { order: 0; color: var(--ui-tertiary); font-size: 11px; font-variant-numeric: tabular-nums; }
-.season-podium li[data-pos="1"] small { color: #bf5af2; }
+.season-podium li[data-pos="1"] small { color: var(--f1-purple); }
 .season-round > .season-link { margin-top: auto; padding-top: 9px; box-shadow: inset 0 1px var(--line); }
 .season-round-when { box-shadow: inset 0 1px var(--line); }
 
@@ -1145,6 +1145,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .home-season-strip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(48px, 1fr); overflow-x: auto; gap: 6px; padding: 2px; scroll-snap-type: x mandatory; scroll-padding-inline: 2px; }
 /* Scrolled, a strip always starts on a whole round: no half-cut tile at its left edge. */
 #seasonHub .home-season-strip > * { scroll-snap-align: start; }
+#seasonHub .home-season-strip > :last-child { scroll-snap-align: end; }
 #seasonHub .home-timeline { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--lin-hairline); }
 #seasonHub .home-timeline > header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-bottom: 8px; }
 #seasonHub .home-timeline h3 { margin: 0; color: var(--ui-tertiary); font: 500 13px/1.4 var(--ui-font); }
@@ -1620,6 +1621,8 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
    value with a quiet note under it. */
 #seasonHub .season-stat-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; align-items: stretch; }
 @media (max-width: 900px) { #seasonHub .season-stat-groups { grid-template-columns: minmax(0, 1fr); } }
+/* Four cards in a row, or two by two: never three and a lone fourth. */
+@media (min-width: 901px) and (max-width: 1149px) { #seasonHub .season-stat-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 #seasonHub .season-stat-list { display: grid; align-content: start; margin: 0; }  /* rows keep their height; the card's spare room stays below */
 #seasonHub .season-stat-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 40px; padding: 8px 0; border-top: 1px solid var(--lin-hairline, var(--ui-separator)); }
 #seasonHub .season-stat-list > div:first-child { border-top: 0; }
@@ -1757,3 +1760,7 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 
 /* Head-to-head grid: the gap row's three-decimal values in 11 px so the whole calendar fits beside the pinned count. */
 #seasonHub .season-h2h-grid .season-gap-row td:not(:first-child) { font-size: 11px; letter-spacing: -.01em; }
+
+/* The weekend's sessions on one row (five equal columns) wherever there is room, instead of four and a lone race. */
+@media (min-width: 1180px) { #seasonHub .season-sessions { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); grid-template-columns: none; } }
+@media (min-width: 761px) and (max-width: 1179px) { #seasonHub .season-sessions { grid-template-columns: repeat(3, minmax(0, 1fr)); } }  /* three and two, never four and one */

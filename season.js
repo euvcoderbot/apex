@@ -788,8 +788,25 @@
 
   // Home keeps a completed weekend in context while the visitor explores its evidence.
   const homeRoundByYear = new Map();
+  // An overflowing strip sizes its tiles so a whole number fills the view: scrolled anywhere, even to the end, no tile is
+  // cut at either edge.
+  function fitStripTiles(strip) {
+    strip.style.gridAutoColumns = '';
+    const tiles = strip.children.length, gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
+    const pad = parseFloat(getComputedStyle(strip).paddingLeft || 0) * 2, view = strip.clientWidth - pad;
+    const min = strip.firstElementChild?.getBoundingClientRect().width || 0;
+    if (!tiles || !min || strip.scrollWidth <= strip.clientWidth + 1) return;
+    const fit = Math.max(1, Math.floor((view + gap) / (min + gap)));
+    strip.style.gridAutoColumns = `${((view - (fit - 1) * gap) / fit).toFixed(2)}px`;
+  }
   function revealSelectedRound(strip) {
+    if (!strip.dataset.fitted) {
+      strip.dataset.fitted = '1';
+      let last = 0;
+      new ResizeObserver(() => { if (Math.abs(strip.clientWidth - last) > 1) { last = strip.clientWidth; fitStripTiles(strip); } }).observe(strip);
+    }
     requestAnimationFrame(() => {
+      fitStripTiles(strip);
       const selected = strip.querySelector('[aria-pressed="true"]');
       if (!selected || !strip.isConnected || strip.scrollWidth <= strip.clientWidth) return;
       strip.scrollLeft += selected.getBoundingClientRect().left - strip.getBoundingClientRect().left -
@@ -798,7 +815,8 @@
       const edge = strip.getBoundingClientRect().left + parseFloat(getComputedStyle(strip).paddingLeft || 0);
       const first = [...strip.children].find(tile => tile.getBoundingClientRect().right > edge + 1);
       const cut = first ? first.getBoundingClientRect().left - edge : 0;
-      if (cut < -0.5) strip.scrollLeft += cut;
+      // At the end of the strip the last tile is whole already: stay there rather than cut it on the right.
+      if (cut < -0.5 && strip.scrollLeft < strip.scrollWidth - strip.clientWidth - 1) strip.scrollLeft += cut;
     });
   }
   function weekendReview(data, rounds) {

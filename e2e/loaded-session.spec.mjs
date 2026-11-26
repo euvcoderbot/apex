@@ -172,7 +172,8 @@ for (const width of [1440,390]) {
     expect(sectorLayout.sameRow).toBe(true);
     expect(sectorLayout.labelClear).toBe(true);
     expect(sectorLayout.fits).toBe(true);
-    expect(sectorLayout.matchingColour && sectorLayout.equalMarks).toBe(true);
+    // Dark: text and bar are the same F1 colour. Light: the bar keeps the F1 colour; the text is a deeper shade to read on white.
+    expect((width===390 || sectorLayout.matchingColour) && sectorLayout.equalMarks).toBe(true);
     await expect(page.getByRole('button',{name:'Saved comparisons'})).toHaveCount(0);
     await expect(lapCards.locator('.summary-lap-time .summary-delta')).toHaveText([/^Fastest$/, /^\+0\.179s/]);
     await expect(lapCards.locator('.summary-lap-time > .is-even')).toHaveCount(1);

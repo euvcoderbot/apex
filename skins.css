@@ -1868,6 +1868,30 @@
 :root[data-skin="linear"] :is(#cornerPickerRow, #sessionOverview .overview-chart) { border: 0; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
 /* One inset for every card in the session column (spec: card padding 12), so titles line up down the page. */
 :root[data-skin="linear"] #sessionOverview .overview-chart { padding: 12px; }
+/* Hover readout with every channel: a compact table, the hovered chart's column brightest. */
+:root[data-skin="linear"] #realTooltip .hover-readout { margin-top: 4px; border-collapse: collapse; font: 500 12px/1.4 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #realTooltip .hover-readout :is(th, td) { padding: 2px 6px; text-align: right; white-space: nowrap; }
+:root[data-skin="linear"] #realTooltip .hover-readout :is(th:first-child) { padding-left: 0; text-align: left; font-weight: 500; }
+:root[data-skin="linear"] #realTooltip .hover-readout tr:first-child th { color: var(--ui-tertiary); font-weight: 450; font-size: 11px; }
+:root[data-skin="linear"] #realTooltip .hover-readout td { color: var(--ui-secondary); }
+:root[data-skin="linear"] #realTooltip .hover-readout .is-hovered { color: var(--ui-label); font-weight: 600; }
+:root[data-skin="linear"] #realTooltip.has-readout { max-width: none; }
+/* Lap picker: one or two drivers share the panel's width instead of leaving an empty third column. */
+:root[data-skin="linear"] #lapSelectionBody > #stintPanels { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+/* Inspect telemetry values: the help reads as a caption, the slider row and status line share the card's inset, and the
+   value table is a plain Linear table (left caption, middle-aligned rows, numbers right) instead of the generic one. */
+:root[data-skin="linear"] #telemetryDataAccess[open] { display: grid; gap: 10px; }
+:root[data-skin="linear"] #telemetryDataAccess > p { margin: 0; color: var(--ui-tertiary); font: 450 12px/1.5 var(--ui-font); max-width: 92ch; }
+:root[data-skin="linear"] #telemetryDataAccess .chart-sample-controls { display: grid; grid-template-columns: auto minmax(0, 1fr) 76px; align-items: center; gap: 12px; }
+:root[data-skin="linear"] #telemetryDataAccess .chart-sample-controls label { color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); }
+:root[data-skin="linear"] #telemetryDataAccess .chart-sample-controls output { color: var(--ui-label); font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; text-align: right; }
+:root[data-skin="linear"] #telemetryDataAccess input[type="range"] { accent-color: var(--ui-accent); width: 100%; }
+:root[data-skin="linear"] #telemetryDataAccess .chart-sample-status { color: var(--ui-tertiary); font: 450 12px/1.4 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #telemetryDataAccess .performance-table-wrap { border: 0; box-shadow: none; background: transparent; padding: 0; }
+:root[data-skin="linear"] #telemetryDataAccess caption { caption-side: top; padding: 0 0 6px; text-align: left; color: var(--ui-label); font: 600 13px/1.4 var(--ui-font); }
+:root[data-skin="linear"] #telemetryDataAccess :is(th, td) { vertical-align: middle; }
+:root[data-skin="linear"] #telemetryDataAccess :is(thead th, tbody td):not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #telemetryDataAccess tbody :is(th, td):first-child { background: transparent; box-shadow: none; color: var(--ui-label); font: 500 13px/1.4 var(--ui-font); }
 :root[data-skin="linear"] .session-overview { container: overview / inline-size; }
 :root[data-skin="linear"] .overview-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0; }
 :root[data-skin="linear"] .overview-heading > .performance-scope-toggle { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
@@ -2578,6 +2602,10 @@
 :root[data-skin="linear"] #carPerformance .entrant-comparison .performance-actions { display: flex; flex-wrap: wrap; gap: 12px; }
 :root[data-skin="linear"] #carPerformance .entrant-comparison select { max-width: 100%; }
 :root[data-skin="linear"] #carPerformance .entrant-comparison tbody th { text-align: left; background: transparent; color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
+/* The two entrants' values sit in equal right-aligned columns under their names; labels sit above their pickers. */
+:root[data-skin="linear"] #carPerformance .entrant-comparison table :is(thead th, tbody td):not(:first-child) { width: 22%; text-align: right; font-variant-numeric: tabular-nums; }
+:root[data-skin="linear"] #carPerformance .entrant-comparison table :is(th, td):first-child { padding-inline-start: 12px; }
+:root[data-skin="linear"] #carPerformance .entrant-comparison .performance-actions label { display: grid; gap: 6px; color: var(--ui-tertiary); font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"] .car-category-picker { display: none; }
 @media (max-width: 760px) {
   :root[data-skin="linear"] #performanceResults > .performance-toolbar .car-category-picker { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; font: 500 12px/1.4 var(--ui-font); color: var(--ui-tertiary); }
@@ -2822,7 +2850,7 @@
   color: var(--sector-reading); font: 600 12px/16px var(--ui-font); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 :root[data-skin="linear"] .lap-summary-card .sector-status-line {
-  height: var(--sector-mark-height); border-radius: 2px; background: var(--sector-reading);
+  height: var(--sector-mark-height); border-radius: 2px; background: var(--sector-status, var(--ui-tertiary));  /* the F1 colour itself, in both themes */
 }
 :root[data-skin="linear"] .lap-summary-card .sector-cell.is-unset .sector-status-line { background: var(--lin-hairline); }
 :root[data-skin="linear"] .lap-summary-card .sector-delta-slot:not(:empty) {
@@ -2889,13 +2917,14 @@
 /* The mini-sector strip follows the F1 sector status line. Both retain their timing colours. */
 :root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; }
 :root[data-skin="linear"] .lap-summary-card .sector-minis i { flex: 1 1 0; min-width: 0; height: var(--sector-mark-height); border-radius: 1px; background: var(--lin-hairline); }
-:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-best { background: #bf5af2; }
-:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-near { background: #30d158; }
-:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-slow { background: #ffd60a; }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-best { background: var(--f1-purple); }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-near { background: var(--f1-green); }
+:root[data-skin="linear"] .lap-summary-card .sector-minis i.is-slow { background: var(--f1-yellow); }
 /* Use one legible timing colour for both the text and line in each theme. */
 :root[data-skin="linear"] .lap-summary-card .sector-cell-value > small { color: var(--sector-reading); }
-:root[data-skin="linear"][data-theme="light"] .lap-summary-card .sector-cell:not(.is-unset) { --sector-reading: color-mix(in srgb, var(--sector-status) 50%, #000); }
-:root[data-skin="linear"]:not([data-theme="light"]) .lap-summary-card .sector-cell.is-session-best { --sector-reading: color-mix(in srgb, var(--sector-status) 82%, #fff); }
+/* Light theme: the timing text keeps the F1 hue, only deepened enough to read on white (yellow needs the most). */
+:root[data-skin="linear"][data-theme="light"] .lap-summary-card .sector-cell:not(.is-unset) { --sector-reading: color-mix(in srgb, var(--sector-status) 82%, #000); }
+:root[data-skin="linear"][data-theme="light"] .lap-summary-card .sector-cell.is-complete { --sector-reading: color-mix(in srgb, var(--sector-status) 68%, #000); }
 /* Corner table headers in the narrow inspector: a sort button stays inside its cell (Firefox let "Min km/h" and its arrow
    run 4 px past it); the unit may drop to a second line. */
 :root[data-skin="linear"] .corner-measurement-table thead th > button[data-corner-sort] { max-width: 100%; min-width: 0; box-sizing: border-box; border: 0; }

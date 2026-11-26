@@ -6,8 +6,8 @@ import {isolate} from './helpers.mjs';
 // initialScriptKB: 190 since the shared driver-photo helper (team-colours.js) loads with the page; 196 since the Season pages' cross-links
 // (names, flags and records that open their pages), pinned totals and steppers (192 KB measured); 200 since the sprint
 // grids, power-unit grouping, the zones table and placed corner numbers (197 KB measured).
-// idleDomNodes: 640 since the rail lists every page in two sections (Analysis and Season), each row an icon and a name.
-const BUDGET = {initialScriptKB: 200, initialStyleKB: 82, idleDomNodes: 640, layoutShift: 0.02};
+// idleDomNodes: 650 since the rail lists every page in two sections (Analysis and Season), each row an icon and a name, and the empty state carries a load action.
+const BUDGET = {initialScriptKB: 200, initialStyleKB: 82, idleDomNodes: 650, layoutShift: 0.02};
 
 /** Records long tasks, layout shift and the moment of the load event from the very start of the page. */
 const observe = () => {
