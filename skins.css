@@ -1858,8 +1858,16 @@
   .performance-chart-card > h4, #cornerPickerRow header h3, main .panel-heading > h2, #carPerformance .panel-heading > h2) { font: 600 14px/1.3 var(--ui-font); letter-spacing: -.005em; color: var(--ui-label); }  /* a section title reads above its data (was the data-label grey) */
 /* Units in a card title read as part of it, quieter (sentence case: no capitals). */
 :root[data-skin="linear"] :is(.chart-heading h2, .dominance-map-header h2) small { font: 450 12px/1 var(--ui-font); color: var(--ui-tertiary); }
+/* The circuit guide's source note reads as a caption, not 10 px bold under the title. */
+:root[data-skin="linear"] .dominance-map-header .legend small { display: block; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
+:root[data-skin="linear"] .dominance-map-header .legend small a { color: var(--ui-accent); text-decoration: none; }
+:root[data-skin="linear"] .dominance-map-header .legend small a:hover { text-decoration: underline; }
+/* Before any lap is loaded the corner picker has nothing in it: no empty outlined strip under the map. */
+:root[data-skin="linear"] #cornerPickerRow:not(:has(*)) { display: none; }
 /* Cards that drew their own outline: the one card (spec §8). */
 :root[data-skin="linear"] :is(#cornerPickerRow, #sessionOverview .overview-chart) { border: 0; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
+/* One inset for every card in the session column (spec: card padding 12), so titles line up down the page. */
+:root[data-skin="linear"] #sessionOverview .overview-chart { padding: 12px; }
 :root[data-skin="linear"] .session-overview { container: overview / inline-size; }
 :root[data-skin="linear"] .overview-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0; }
 :root[data-skin="linear"] .overview-heading > .performance-scope-toggle { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
@@ -1967,7 +1975,7 @@
 :root[data-skin="linear"] .main-dashboard:has(.session-load-state:not([hidden])) #telemetryCard { display: none; }
 
 /* ---- Inspector: Linear's right-hand properties panel, inside the view, set off by a hairline ---- */
-:root[data-skin="linear"] body > main#top > .app-inspector { grid-column: 1; grid-row: 3; position: static; height: auto; margin: 0 var(--linear-content-pad) 24px; padding: 16px; border: 0; border-radius: 8px; background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-skin="linear"] body > main#top > .app-inspector { grid-column: 1; grid-row: 3; position: static; height: auto; margin: 0 var(--linear-content-pad) 24px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }  /* stacked under the page its cards stand alone, at the column's edges: one card level */
 :root[data-skin="linear"] body > main#top > .app-inspector:has(#cornerAnalysis[hidden]) { display: none; }
 :root[data-skin="linear"] .app-inspector :is(.corner-analysis, .dominance-map) { background: transparent; box-shadow: none; }
 @media (min-width: 1200px) {
@@ -2576,6 +2584,9 @@
   :root[data-skin="linear"] #performanceResults > .performance-toolbar .car-category-picker .select-shell { flex: 1 1 auto; max-width: 240px; }
   :root[data-skin="linear"] #carPerformance :is(.car-category-picker, .trend-round-tools) .select-trigger { min-height: 32px; }
   :root[data-skin="linear"] #performanceResults > .performance-toolbar > .performance-mode[role="tablist"] { display: none !important; }
+  /* The measurement picker fills the row; the reload action sits at its right edge rather than centred under it. */
+  :root[data-skin="linear"] #performanceResults > .performance-toolbar { flex-direction: row; align-items: center; }
+  :root[data-skin="linear"] #performanceResults > .performance-toolbar > [data-performance-refresh] { margin-inline-start: auto; }
 }
 :root[data-skin="linear"] #carPerformance .trend-round-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 4px 0 12px; }
 :root[data-skin="linear"] #carPerformance .trend-round-tools > label { display: inline-flex; white-space: nowrap; align-items: center; gap: 8px; color: var(--ui-tertiary); font: 500 12px/1.4 var(--ui-font); }
@@ -2735,7 +2746,9 @@
 :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty .performance-quality-status { color: var(--ui-tertiary); }
 :root[data-skin="linear"] #performanceMetricPanel .subject-band-empty { margin: 4px 0 12px; color: var(--ui-tertiary); font: 450 13px/18px var(--ui-font); }
 :root[data-skin="linear"] #performanceMetricPanel .subject-band-empty > strong { color: var(--ui-secondary); font-weight: 500; }
-:root[data-skin="linear"] #performanceMetricPanel .performance-scope-toggle + .performance-scope-toggle { margin-left: 6px; padding-left: 12px; box-shadow: inset 1px 0 0 var(--ui-border); }
+:root[data-skin="linear"] #performanceMetricPanel .performance-scope-toggle + .performance-scope-toggle { margin-left: 12px; }
+/* Wrapped onto its own line a group starts at the card's edge, not 18 px in behind a divider. */
+@media (max-width: 600px) { :root[data-skin="linear"] #performanceMetricPanel .performance-scope-toggle + .performance-scope-toggle { margin-left: 0; } }
 /* The coverage line (timings measured, what is untimed): a quiet line of text, its action beside it, no banner frame. */
 :root[data-skin="linear"] #performanceMetricPanel p.performance-quality-status { display: block; margin: 0 0 12px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
 :root[data-skin="linear"] #performanceMetricPanel p.performance-quality-status > button { float: right; margin: -2px 0 4px 16px; }

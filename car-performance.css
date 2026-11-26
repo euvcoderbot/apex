@@ -954,3 +954,7 @@ body.performance-view #sidebarToggle {
 /* Launch values sit centred under their distance; the quickest is marked by colour and weight only, no box. */
 .start-table .performance-table :is(th, td):not(:first-child) { text-align: center; }
 .start-table .start-best { color: var(--ui-accent); font-weight: 600; }
+
+/* With explanations off a measurement table can shrink to a name and a value: it keeps a readable width beside the chart
+   above it instead of stretching two columns 1100 px apart. */
+.is-descriptions-hidden .performance-table-wrap:has(thead th:nth-child(3).explanation-only) { width: min(100%, 520px); }

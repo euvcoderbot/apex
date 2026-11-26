@@ -794,6 +794,11 @@
       if (!selected || !strip.isConnected || strip.scrollWidth <= strip.clientWidth) return;
       strip.scrollLeft += selected.getBoundingClientRect().left - strip.getBoundingClientRect().left -
         (strip.clientWidth - selected.offsetWidth) / 2;
+      // Then settle on a whole tile: the first tile in view starts at the strip's edge, never cut in half.
+      const edge = strip.getBoundingClientRect().left + parseFloat(getComputedStyle(strip).paddingLeft || 0);
+      const first = [...strip.children].find(tile => tile.getBoundingClientRect().right > edge + 1);
+      const cut = first ? first.getBoundingClientRect().left - edge : 0;
+      if (cut < -0.5) strip.scrollLeft += cut;
     });
   }
   function weekendReview(data, rounds) {
@@ -832,7 +837,8 @@
     const draw = r => {
       picker.value = String(r.round);
       previous.disabled = r === rounds[0]; next.disabled = r === rounds.at(-1);
-      title.replaceChildren(...[flag(r), el('span', null, r.name)].filter(Boolean));
+      // The picker beside it names the race; the title says which one this is rather than repeating the name.
+      title.replaceChildren(...[flag(r), el('span', null, String(r.round) === String(rounds.at(-1)?.round) ? 'Latest Grand Prix' : 'Weekend review')].filter(Boolean));
       const race = r.race.filter(x => x.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
       const quali = (r.qualifying || []).filter(q => q.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
       const best = q => { const k = ['q3', 'q2', 'q1'].find(k => Number.isFinite(q[k]) && q[k] > 0); return k ? lapTime(q[k]) : '—'; };

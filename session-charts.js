@@ -42,7 +42,7 @@ function updateZoomReadout() {
   if (readout) {
     readout.textContent = distance
       ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} km`
-      : 'Full lap';
+      : 'full lap';
   }
   if (reset) reset.disabled = fullLap;
   if (zoomOut) zoomOut.disabled = fullLap;
@@ -314,7 +314,7 @@ function renderCharts() {
       <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
         <div class="trace-chart-actions">
         <div class="trace-zoom-cluster" aria-label="Trace zoom controls">
-          <span class="trace-zoom-readout">View <b id="traceZoomReadout">Full lap</b></span>
+          <span class="trace-zoom-readout">View <b id="traceZoomReadout">full lap</b></span>
           <div class="trace-tools">
             <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
             <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
