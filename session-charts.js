@@ -215,7 +215,7 @@ function renderTraceVisibilityControls() {
     const visible = !hiddenTraceKeys.has(key);
     const disableLast = visible && visibleCount === 1;
     const displayTime=Number.isFinite(lap.real?.display_time)?lap.real.display_time:lap.time;
-    const lapLabel=`${lap.real?.display_time_estimated?'~':''}${time(displayTime)}s`;
+    const lapLabel=`${lap.real?.display_time_estimated?'~':''}${time(displayTime)}${displayTime<60?'s':''}`;  // 1:35.130, as on the lap cards; a seconds-only lap keeps its unit
     // One chart-key pill (as the lap chart's legend): the colour dot opens a colour picker, the rest shows or hides the trace.
     return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-swatch"${window.apexDriverFaces?.img(realDrivers.get(lap.code)?.name) ? ' data-face' : ''} title="Change ${lap.code} lap ${lap.lap} colour">${(() => { const f = window.apexDriverFaces?.img(realDrivers.get(lap.code)?.name); return f ? f : ''; })()}<input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"></label><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
       <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>

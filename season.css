@@ -482,6 +482,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* the next race: one sectioned panel */
 .season-countdown { background: none; box-shadow: none; padding: 0; }
 :root[data-skin="linear"] #seasonHub .season-countdown { background: none; }
+@media (max-width: 760px) { #seasonHub .season-countdown { justify-items: start; } }  /* on a phone it sits under the title, so it reads from the left */
 .season-sessions { gap: 0; border-radius: 8px; overflow: hidden; }
 #seasonHub .season-sessions li { position: relative; padding: 10px 14px; border-radius: 0; background: none; box-shadow: inset 1px 0 var(--line); opacity: 1; }
 #seasonHub .season-sessions li:first-child { box-shadow: none; }
@@ -919,8 +920,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-strip-cell small { margin-bottom: 2px; }
 /* Rounds still to run: an empty box in every round-by-round grid, strip and dot row, so each shows the whole calendar. */
 :root #seasonHub .season-matrix td.is-upcoming { padding: 2px; background: none; }
-:root #seasonHub .season-matrix td.is-upcoming::before { content: ""; display: block; min-width: 30px; height: 26px; border-radius: 6px; box-shadow: inset 0 0 0 1px var(--line); }
-:root[data-skin] #seasonHub :is(.season-strip-cell, .season-h2h-weeks > div).is-upcoming { background: none; box-shadow: inset 0 0 0 1px var(--line); }
+/* A round not yet run is a dashed slot (the same mark as the calendar's "Upcoming"), not an empty filled-looking box. */
+:root #seasonHub .season-matrix td.is-upcoming::before { content: ""; display: block; box-sizing: border-box; min-width: 30px; height: 26px; border-radius: 6px; border: 1px dashed var(--ui-border-strong, var(--ui-border)); }
+:root[data-skin] #seasonHub :is(.season-strip-cell, .season-h2h-weeks > div).is-upcoming { background: none; box-shadow: none; outline: 1px dashed var(--ui-border-strong, var(--ui-border)); outline-offset: -1px; }
 :root[data-skin] #seasonHub .season-h2h-weeks > .is-upcoming i { background: none; box-shadow: inset 0 0 0 1px var(--line); }
 :root[data-skin] #seasonHub .season-strip-cell.is-upcoming small { color: var(--ui-tertiary); }  /* the ring marks it upcoming; the label stays readable */
 /* The key above the head-to-head weekend dots: each driver's dot colour, and the ring for a race the other car lost to a failure. */
@@ -1378,6 +1380,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-zones tr.is-point td { height: 32px; }
 #seasonHub .season-track-table th, #seasonHub .season-track-table td { padding-left: 8px; padding-right: 8px; }
 #seasonHub .season-track-barcell.is-stacked { min-width: 72px; }
+/* A phone drops the bars beside the track tables' numbers so every column fits without a sideways scroll. */
+@media (max-width: 600px) { #seasonHub .season-track-table .season-track-barcell { min-width: 0; } #seasonHub .season-track-table .season-track-bar { display: none; } #seasonHub .season-track-table .season-track-barcell > b { min-width: 0; } #seasonHub .season-track-table thead th { white-space: normal; vertical-align: bottom; } #seasonHub .season-track-table :is(th, td) { padding-inline: 6px; } }
 #seasonHub .season-track-barcell.is-stacked { display: table-cell; }
 #seasonHub .season-track-barcell.is-stacked > b { display: block; min-width: 0; text-align: left; margin-bottom: 5px; }
 #seasonHub .season-track-barcell.is-stacked > .season-track-bar { display: block; width: 100%; max-width: 88px; margin: 0; }
@@ -1412,6 +1416,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-update-round .season-flag { flex: none; }
 #seasonHub .season-update-teams { display: inline-flex; flex-wrap: wrap; gap: 3px; margin-left: auto; }
 #seasonHub .season-update-teams > i { width: 8px; height: 8px; border-radius: 50%; }
+@media (max-width: 600px) { #seasonHub .season-update-teams { display: none; } #seasonHub .season-update-round > .season-update-count { margin-left: auto; } }  /* a phone gives the name the room; the count stays */
 #seasonHub .season-update-count { flex: none; min-width: 78px; text-align: right; font: 600 12px/1 var(--ui-font); color: var(--ui-secondary); font-variant-numeric: tabular-nums; }
 #seasonHub details.season-update-group[open] { padding-bottom: 8px; }
 /* View pills at the top of a page split into views (Drivers, Head-to-head, Tracks). */

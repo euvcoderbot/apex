@@ -964,10 +964,7 @@ body.performance-view #sidebarToggle {
 @media (min-width: 1400px) { .start-comparison > .start-profile { position: sticky; top: 16px; align-self: start; } }
 /* Tables that repeat a chart's values fold under a quiet summary, like "Compare two entrants". */
 .performance-table-fold { margin-block: 8px; }
-.performance-table-fold > summary { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); cursor: pointer; list-style: none; }
-.performance-table-fold > summary::-webkit-details-marker { display: none; }
-.performance-table-fold > summary::before { content: ""; width: 6px; height: 6px; margin-inline: 2px 4px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; }
-.performance-table-fold[open] > summary::before { transform: rotate(45deg); }
+/* The fold's summary is drawn like the other disclosures on the page (skins.css), native marker included. */
 .performance-table-fold > summary:hover { color: var(--ui-label); }
 /* Header labels stay on one line. */
 #carPerformance .performance-table thead th { white-space: nowrap; }

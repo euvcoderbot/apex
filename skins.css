@@ -1557,7 +1557,7 @@
 /* Section containers (.dashboard-card) are layout, not cards: only the widgets inside them are drawn (spec §7; one card level).
    The same for the detail disclosures (.performance-evidence): their tables are the cards. */
 :root[data-skin="linear"] #carPerformance details:is(.performance-evidence, .performance-methods) { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-:root[data-skin="linear"] #carPerformance details:is(.performance-evidence, .performance-methods, .performance-run-inspector) > summary { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
+:root[data-skin="linear"] #carPerformance details:is(.performance-evidence, .performance-methods, .performance-run-inspector, .performance-table-fold) > summary { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
 :root[data-skin="linear"] .dashboard-card:not(.chart):not(.lap-summary-card) { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
 /* The sidebar is the frame, not a stack of cards: its groups sit on the canvas with no outline. */
 :root[data-skin="linear"] .app-sidebar :is(.dashboard-card, #driverSidebar, .performance-nav, .performance-controls) { border: 0; box-shadow: none; background: transparent; }
@@ -1813,6 +1813,8 @@
 :root[data-skin="linear"] body > #carPerformance > #performanceResults { padding-top: 24px; padding-bottom: 32px; }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) { margin: 0 0 16px; padding: 0 0 12px; }
 :root[data-skin="linear"] .start-performance .metric-heading { margin-block-end: 0; }
+/* A phone stacks the session picker under the title instead of squeezing the title into two lines. */
+@media (max-width: 600px) { :root[data-skin="linear"] .start-performance .metric-heading { flex-wrap: wrap; row-gap: 8px; } :root[data-skin="linear"] .start-performance .metric-heading > label { flex: 1 1 100%; } }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) h2 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; color: var(--ui-label); }
 :root[data-skin="linear"] :is(.analysis-heading, .metric-heading) :is(p, small, .metric-subtitle) { font-size: 13px; color: var(--ui-tertiary); }
 :root[data-skin="linear"] .performance-round-coverage { min-width: 0; max-width: 100%; }
@@ -2740,6 +2742,8 @@
 :root[data-skin="linear"] .performance-table:has(th.perf-heat-head) td small { display: block; }
 /* The pit-timing refresh ends the controls row instead of sitting alone on a line. */
 :root[data-skin="linear"] :is(.performance-pit-controls, .performance-card-controls) > .performance-pit-retry { margin-left: auto; }
+:root[data-skin="linear"] .performance-tyre-toolbar { flex-wrap: wrap; }
+:root[data-skin="linear"] .performance-tyre-toolbar > .performance-quality-status { flex: 1 1 100%; margin: 0; }  /* the fuel note reads as a line under the pills */
 :root[data-skin="linear"] .performance-source-line { margin: 12px 0 0; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
 :root[data-skin="linear"] .performance-table .perf-heat-value { display: block; box-sizing: border-box; min-width: 44px; height: 32px; padding: 0 8px; border-radius: 6px; background: color-mix(in oklch, var(--ui-accent) calc(var(--heat, 0) * 42%), transparent); color: var(--ui-label); font: 600 12px/32px var(--ui-font); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 :root[data-skin="linear"][data-theme="light"] .performance-table .perf-heat-value { background: color-mix(in oklch, #14b8a6 calc(var(--heat, 0) * 68%), transparent); }

@@ -351,7 +351,7 @@ function renderLoaded() {
   const pitNotice = $('#pitLapNotice');
   if (pitNotice) pitNotice.hidden = !loaded.some(item => item.real?.in_lap || item.real?.out_lap);
   if (!loaded.length) {
-    root.innerHTML = '<span class="section-empty">No laps loaded. Click laps in the panel to compare.</span>';
+    root.innerHTML = '<span class="section-empty">No laps loaded yet. Choose laps, or select a best time in Driver summary, to compare them here.</span>';
     return;
   }
   

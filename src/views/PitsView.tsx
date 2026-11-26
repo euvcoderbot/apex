@@ -62,6 +62,9 @@ export function PitsView(p: PitsViewProps) {
               </div>
             : <BarChart rows={p.chartRows} options={p.chart} />
           : <p className="section-empty" role="status">{p.emptyMessage}</p>}
+        {/* Mean, median, quickest and spread for every entrant: the chart above shows one of them, so the table folds. */}
+        <details className="performance-table-fold" open={!p.chartRows.length || undefined}>
+        <summary>Values table</summary>
         <DataTable
           evidenceFrom={p.isDriver ? 6 : 5}
           headers={[p.sort.pitName, ...(p.isDriver ? [p.sort.pitTeam] : []), p.sort.pitMean, p.sort.pitMedian, p.sort.pitFastest, p.sort.pitSpread, p.sort.pitCount, p.sort.pitEvents]}
@@ -74,6 +77,7 @@ export function PitsView(p: PitsViewProps) {
               : <>—<small className="explanation-only">{r.sample.count ? `Needs 4 ${unit} · ${r.sample.count} measured` : 'No timed samples'}</small></>,
             r.sample.count, r.eventCount,
           ])} />
+        </details>
       </Card>
       <details className="dashboard-card performance-methods">
         <summary>Exact times for individual pit visits and timing sources</summary>
