@@ -850,6 +850,7 @@ class LiveSource(Source):
         except Exception as exc:
             self.error = f'FastF1 live client unavailable: {exc}'
             return
+        allow_unauthenticated_connection()
         state = self.state
         self.detail['restored'] = restore_recordings(state, self.recording.parent, exclude=self.recording)
 
@@ -913,6 +914,30 @@ class LiveSource(Source):
             attempt += 1
             self.auth_changed.wait(30)
         self.detail.pop('waiting', None)
+
+
+def allow_unauthenticated_connection() -> None:
+    """FastF1 3.9.2 passes `access_token_factory=None` to signalrcore when it connects without a sign-in, and signalrcore
+    refuses that option unless it is a function ("access_token_factory is not function"), so live timing could not connect
+    before the person signed in (FastF1 issue #991, fixed after 3.9.2). Leave the option out when it is empty, as the fix
+    does; with a fixed FastF1 the option is never None and this changes nothing."""
+    try:
+        import fastf1.livetiming.client as client
+    except Exception:
+        return
+    builder = getattr(client, 'HubConnectionBuilder', None)
+    if builder is None or getattr(builder, '_apex_drops_empty_token', False):
+        return
+
+    class Builder(builder):
+        _apex_drops_empty_token = True
+
+        def with_url(self, hub_url, options=None):
+            if isinstance(options, dict) and 'access_token_factory' in options and options['access_token_factory'] is None:
+                options = {k: v for k, v in options.items() if k != 'access_token_factory'}
+            return super().with_url(hub_url, options=options)
+
+    client.HubConnectionBuilder = Builder
 
 
 def restore_recordings(state: LiveState, folder: Path, exclude: Path | None = None, hours: float = 4.0) -> int:

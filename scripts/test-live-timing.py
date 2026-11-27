@@ -132,6 +132,35 @@ class LiveAuthentication(unittest.TestCase):
         self.assertEqual(manager.state.laps['1'][2]['seconds'], 90.0)
 
 
+    def test_connecting_without_a_sign_in_leaves_out_the_empty_token_factory(self):
+        """FastF1 3.9.2 passes access_token_factory=None when not signed in; signalrcore then refuses to connect."""
+        import types
+        from unittest.mock import patch
+
+        class HubConnectionBuilder:   # signalrcore's check, as it raises
+            def with_url(self, hub_url, options=None):
+                if options and 'access_token_factory' in options and not callable(options['access_token_factory']):
+                    raise TypeError('access_token_factory is not function')
+                self.options = options
+                return self
+
+        client = types.ModuleType('fastf1.livetiming.client')
+        client.HubConnectionBuilder = HubConnectionBuilder
+        livetiming = types.ModuleType('fastf1.livetiming'); livetiming.client = client
+        fastf1 = types.ModuleType('fastf1'); fastf1.livetiming = livetiming
+        with patch.dict(sys.modules, {'fastf1': fastf1, 'fastf1.livetiming': livetiming, 'fastf1.livetiming.client': client}):
+            with self.assertRaisesRegex(TypeError, 'not function'):
+                client.HubConnectionBuilder().with_url('u', options={'access_token_factory': None})
+            lt.allow_unauthenticated_connection()
+            lt.allow_unauthenticated_connection()   # once only: no wrapper around the wrapper
+            self.assertIs(client.HubConnectionBuilder.__mro__[1], HubConnectionBuilder)
+            built = client.HubConnectionBuilder().with_url('u', options={'verify_ssl': True, 'access_token_factory': None})
+            self.assertEqual(built.options, {'verify_ssl': True})
+            token = lambda: 'abc'
+            built = client.HubConnectionBuilder().with_url('u', options={'access_token_factory': token})
+            self.assertIs(built.options['access_token_factory'], token)
+
+
 class CompletedLaps(unittest.TestCase):
     def test_timed_lap_is_available_while_telemetry_is_missing(self):
         state = lt.LiveState()
