@@ -275,12 +275,16 @@ function renderCornerAnalysis() {
   const everyCorner=cornerOrder.filter(([,i])=>allMetrics[i]?.length);
   if(everyCorner.length&&loaded.length){
     const lapHead=loaded.map(lap=>`<th scope="col" class="num"><span class="corner-every-lap" style="--team:${escapeUI(getLapColor(lap))}">${escapeUI(lap.code)} <small>L${lap.lap}</small></span></th>`).join('');
+    const diffScale=Math.max(1,...everyCorner.map(([,i])=>{const v=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);return loaded.length===2&&v.every(Number.isFinite)?Math.abs(v[1]-v[0]):0;}));
     const body=everyCorner.map(([z,i])=>{
       const speeds=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);
       const finite=speeds.filter(Number.isFinite), top=finite.length>1?Math.max(...finite):null;
       const cells=speeds.map((v,k)=>{const metric=allMetrics[i].find(m=>m.lap===loaded[k])?.metric;const tip=metric?`${loaded[k].code}: ${v.toFixed(1)} km/h at ${Math.round(metric.apexFraction*totalDistance)} m${metric.minimumAtBoundary?' · turn boundary; not a local speed dip':''}. Select this corner to mark it on the speed trace.`:'Insufficient speed samples inside the turn';return `<td class="num${Number.isFinite(v)&&top!=null&&Math.abs(v-top)<.05?' is-best':''}" title="${escapeUI(tip)}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}</td>`;}).join('');
       const diff=loaded.length===2&&speeds.every(Number.isFinite)?speeds[1]-speeds[0]:null;
-      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</td>`:'';
+      // A diverging bar beside the number: it grows toward the lap that carried more speed, in that lap's colour, scaled to
+      // the largest difference on the lap, so the corners where one car is stronger stand out down the column.
+      const bar=diff==null||Math.abs(diff)<0.5?'':`<span class="corner-every-bar" data-side="${diff>0?'right':'left'}" style="--w:${Math.min(100,Math.abs(diff)/diffScale*100).toFixed(1)}%;--team:${escapeUI(getLapColor(loaded[diff>0?1:0]))}" aria-hidden="true"></span>`;
+      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}"><span class="corner-every-track">${bar}</span><span class="corner-every-value">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</span></td>`:'';
       return `<tr><th scope="row"><button type="button" class="corner-every-pick" data-corner-every="${i}" aria-pressed="${selectedCornerIndices.has(i)}">${escapeUI(z.label||cornerLabel(z))}</button></th>${cells}${diffCell}</tr>`;
     }).join('');
     root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum corner speeds</summary>

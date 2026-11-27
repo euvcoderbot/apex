@@ -2153,6 +2153,19 @@ function hydratePerformanceEvidence(detail) {
   window.ApexPresentation?.arrangePerformance(host,activeMetric);
 }
 root.addEventListener('toggle',event=>{if(event.target.matches('details')&&event.target.open)hydratePerformanceEvidence(event.target);},true);
+// Pointing at an entrant in one ranking marks the same entrant in every other ranking on the view (qualifying beside race
+// pace, teams beside a band), so one team can be followed across the cards without reading each list again.
+let linkedEntrant='';
+const linkEntrant=name=>{
+  if(name===linkedEntrant)return;linkedEntrant=name;
+  const panel=root.querySelector('#performanceMetricPanel');if(!panel)return;
+  panel.classList.toggle('has-linked-entrant',!!name);
+  panel.querySelectorAll('.performance-bar-row.is-linked').forEach(row=>row.classList.remove('is-linked'));
+  if(name)panel.querySelectorAll('.performance-bar-row[data-entrant]').forEach(row=>{if(row.dataset.entrant===name)row.classList.add('is-linked');});
+};
+root.addEventListener('pointerover',event=>{const row=event.target.closest?.('#performanceMetricPanel .performance-bar-row[data-entrant]');linkEntrant(row?row.dataset.entrant:'');});
+root.addEventListener('pointerleave',()=>linkEntrant(''));
+root.addEventListener('focusin',event=>{const row=event.target.closest?.('#performanceMetricPanel .performance-bar-row[data-entrant]');linkEntrant(row?row.dataset.entrant:'');});
 root.addEventListener('input',event=>{
   if(!event.target.matches('[data-evidence-search]'))return;
   const query=event.target.value.trim().toLowerCase();

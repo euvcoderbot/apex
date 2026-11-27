@@ -1837,6 +1837,8 @@
   border: 0; border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow);
 }
 :root[data-skin="linear"] #charts .chart { margin-bottom: 12px; padding: 12px; }
+:root[data-skin="linear"] #charts .speed-chart.shares-axis { margin-bottom: 0; padding-bottom: 4px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: inset 1px 0 0 var(--lin-card-border), inset -1px 0 0 var(--lin-card-border), inset 0 1px 0 var(--lin-card-border); }
+:root[data-skin="linear"] #charts .speed-chart.shares-axis + .chart { border-top-left-radius: 0; border-top-right-radius: 0; padding-top: 10px; box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
 :root[data-skin="linear"] #charts .chart-heading { gap: 8px 12px; margin: 0 0 10px; }
 :root[data-skin="linear"] #charts .chart-heading h2 { display: flex; align-items: baseline; justify-content: flex-start; gap: 6px; margin: 0; }
 :root[data-skin="linear"] #charts .chart-heading h2 small { margin: 0; }
@@ -2587,8 +2589,15 @@
 :root[data-skin="linear"] .corner-every-lap { display: inline-flex; align-items: center; gap: 6px; color: var(--ui-label); font-weight: 500; }
 :root[data-skin="linear"] .corner-every-lap::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--team); }
 :root[data-skin="linear"] .corner-every-lap small { color: var(--ui-tertiary); font-size: 11px; }
-:root[data-skin="linear"] .corner-every-diff.is-faster { color: var(--ui-positive, #30d158); }
-:root[data-skin="linear"] .corner-every-diff.is-slower { color: var(--ui-negative, #ff6961); }
+:root[data-skin="linear"] .corner-every-table td.corner-every-diff { width: 42%; }
+:root[data-skin="linear"] .corner-every-diff { white-space: nowrap; color: var(--ui-label); }
+/* The bar carries the direction in the lap colours; green and red numbers would clash with the teams' own colours. */
+:root[data-skin="linear"] .corner-every-track { position: relative; display: inline-block; vertical-align: middle; width: calc(100% - 30px); height: 8px; border-radius: 2px; }
+:root[data-skin="linear"] .corner-every-track::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--lin-card-border); }
+:root[data-skin="linear"] .corner-every-bar { position: absolute; top: 1px; bottom: 1px; width: calc(var(--w) / 2); border-radius: 2px; background: var(--team); }
+:root[data-skin="linear"] .corner-every-bar[data-side="right"] { left: 50%; }
+:root[data-skin="linear"] .corner-every-bar[data-side="left"] { right: 50%; }
+:root[data-skin="linear"] .corner-every-value { display: inline-block; vertical-align: middle; width: 28px; text-align: right; }
 :root[data-skin="linear"] .corner-every-pick { min-height: 24px; padding: 0 6px; margin-left: -6px; border: 0; border-radius: 6px; background: none; color: var(--ui-label); font: 500 12px/1 var(--ui-font); cursor: pointer; }
 :root[data-skin="linear"] .corner-every-pick:hover, :root[data-skin="linear"] .corner-every-pick[aria-pressed="true"] { background: var(--lin-nav-hover); }
 :root[data-skin="linear"] .corner-every-note { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 11px/1.4 var(--ui-font); }
@@ -2775,13 +2784,19 @@
   :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-long :is(.performance-bar-row, .performance-tyre-age-row) { display: grid; grid-column: auto; grid-template-columns: minmax(40px, max-content) minmax(36px, 1fr) max-content; align-items: center; gap: 10px; min-height: 30px; padding-block: 0; break-inside: avoid; }
 }
 :root[data-skin="linear"] #performanceMetricPanel .subject-pair { align-items: start; }
-:root[data-skin="linear"] #performanceMetricPanel .subject-pair:has(> .subject-pair-note) { align-items: stretch; }
 /* Charts start below a floated action (Refresh missing timing): beside the float a grid is squeezed to the space left,
    which on a phone was half the card. */
 :root[data-skin="linear"] #performanceMetricPanel :is(.subject-pair, .subject-bands, .performance-card-body > .performance-chart-card) { clear: both; }
 /* An empty chart is an outline card (spec: empty / add): it reads as a note, not as a chart that failed to draw. */
 :root[data-skin="linear"] #performanceMetricPanel .subject-bands { align-items: start; }
-:root[data-skin="linear"] #performanceMetricPanel .subject-bands:has(> .subject-pair-note) { align-items: stretch; }
+:root[data-skin="linear"] #performanceMetricPanel.has-linked-entrant .performance-bar-row:not(.is-linked) { opacity: .45; transition: opacity var(--lin-hover-out) ease; }
+:root[data-skin="linear"] #performanceMetricPanel .performance-bar-row.is-linked { border-radius: 6px; background: var(--lin-nav-hover); }
+/* Only measured bands and sides take columns; the unmeasured ones are a note line under the row. */
+@media (min-width: 1181px) {
+  :root[data-skin="linear"] #performanceMetricPanel .subject-bands[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root[data-skin="linear"] #performanceMetricPanel :is(.subject-bands[data-count="1"], .subject-pair.is-single) { grid-template-columns: minmax(0, 1fr); }
+}
+:root[data-skin="linear"] #performanceMetricPanel .subject-bands[data-count="0"] { display: none; }
 :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty { background: none; box-shadow: inset 0 0 0 1px var(--lin-outline-border); }
 :root[data-skin="linear"] #performanceMetricPanel .performance-chart-card.is-empty .performance-quality-status { color: var(--ui-tertiary); }
 :root[data-skin="linear"] #performanceMetricPanel .subject-band-empty { margin: 4px 0 12px; padding: 14px 16px; border: 1px dashed var(--lin-card-border, var(--ui-border)); border-radius: 10px; color: var(--ui-tertiary); font: 450 13px/18px var(--ui-font); }  /* the same quiet outline as an empty side of a pair */

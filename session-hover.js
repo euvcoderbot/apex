@@ -78,7 +78,6 @@ function bindAllChartHover() {
       
       const refSamples = telemetryCache.get(telemetryKey(loaded[0]));
       const maxDistance = refSamples?.length ? referenceDistance() : 5891;
-      const distanceKM = (fraction * maxDistance) / 1000;
       
       let hasReconstructedValue = false;
       let hasLowConfidenceValue = false;
@@ -142,7 +141,8 @@ function bindAllChartHover() {
         ? `<br><small>~ ${hasLowConfidenceValue ? 'Low-confidence gap estimate' : 'Estimated repair'}</small>`
         : '';
       const sourceGapNote=sourceGapNotes.size?`<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
-      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} km</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
+      // The distance is already on the x-axis cursor label, so the card carries only the readings.
+      tooltip.innerHTML = `${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
       tooltip.classList.toggle('has-readout', allChannels);
       tooltip.style.display = 'block';
       

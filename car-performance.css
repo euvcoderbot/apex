@@ -951,8 +951,6 @@ body.performance-view #sidebarToggle {
 /* Measurements with no data on the chosen weekends, named once under the strengths table. */
 .team-profile-card .team-profile-missing { margin: 8px 0 0; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); }
 /* A side with nothing measured keeps its slot as a quiet outline the height of its neighbour, so the row stays a row. */
-:is(.subject-pair, .subject-bands) > .subject-pair-note { display: grid; align-content: center; justify-items: center; gap: 4px; box-sizing: border-box; min-height: 120px; margin: 0; padding: 16px 24px; border: 1px dashed var(--lin-card-border, var(--ui-border)); border-radius: 10px; color: var(--ui-tertiary); font: 450 12px/1.45 var(--ui-font); text-align: center; text-wrap: balance; }
-:is(.subject-pair, .subject-bands) > .subject-pair-note strong { color: var(--ui-secondary); font: 500 13px/1.4 var(--ui-font); }
 /* Launch values sit centred under their distance; the quickest is marked by colour and weight only, no box. */
 .start-table .performance-table :is(th, td):not(:first-child) { text-align: center; }
 .start-table .start-best { color: var(--ui-accent); font-weight: 600; }

@@ -352,7 +352,7 @@ function renderCharts() {
           <p class="pit-lap-notice" id="alignmentCorrectionNotice" hidden aria-live="polite"></p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
-      <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
+      <canvas data-chart="${name}"${name === 'Timing delta' ? ' data-axis="shown"' : ''} role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
     </section>
   `;
   }).join('') + inputStack + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
@@ -1336,6 +1336,14 @@ function drawRealChart(name) {
   // Turn numbers as one quiet row under each chart (two under the speed trace when wide); labels that do not fit are left
   // out and keep their tick.
   // Stacked input rows above the last one keep the guide lines but leave turn numbers and distances to the axis row.
+  // The speed trace sits directly on the timing delta (one card edge, one distance axis): when the delta below draws its
+  // axis, the speed trace leaves distances and turn numbers to it instead of repeating them.
+  if (name === 'Speed trace') {
+    const deltaAxis = !window.ApexTelemetryFrame?.partial() && !loaded[0]?.real?.out_lap
+      && telemetryCache.get(telemetryKey(loaded[0]))?.length && document.querySelector('canvas[data-chart="Timing delta"]');
+    if (canvas.dataset) { if (deltaAxis) canvas.dataset.axis = 'hidden'; else delete canvas.dataset.axis; }
+    canvas.closest?.('.chart')?.classList?.toggle('shares-axis', !!deltaAxis);
+  }
   const axisHidden = canvas.dataset.axis === 'hidden';
   const showCornerTags = showCornerNumbers && !axisHidden;
   const maxTagLanes = name === 'Speed trace' && rect.width >= 560 ? 2 : 1;
@@ -1552,7 +1560,8 @@ function drawRealChart(name) {
         ctx.lineTo(points[points.length - 1].x, zeroY);
         ctx.lineTo(points[0].x, zeroY);
         ctx.closePath();
-        ctx.fillStyle = hexToRgba(colour, .14);
+        // Warm colours (orange, yellow) wash out on white at a low alpha, so a thin wedge near zero read as unshaded.
+        ctx.fillStyle = hexToRgba(colour, .2);
         ctx.fill();
         ctx.restore();
       }
@@ -1593,7 +1602,8 @@ function drawRealChart(name) {
     if (name === 'Brake application') return;
     ctx.strokeStyle = teamColor;
     const speedWidthMultiplier = name === 'Speed trace' ? 1.15 : 1;
-    ctx.lineWidth = (index === 0 ? 1.44 : 1.12) * speedWidthMultiplier;
+    // On the delta chart the reference lap is the flat zero line: kept thin so it does not cover the wash beside it.
+    ctx.lineWidth = (index === 0 ? (name === 'Timing delta' ? 1 : 1.44) : 1.12) * speedWidthMultiplier;
     ctx.shadowColor = teamColor;
     ctx.shadowBlur = 0;
     const gaps=sourceGaps.map(gap=>({start:Math.max(viewStart,gap.start),end:Math.min(viewEnd,gap.end)})).filter(gap=>gap.end>gap.start);

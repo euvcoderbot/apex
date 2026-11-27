@@ -39,10 +39,14 @@ function Bands({charts, subject}: {charts: SpeedChart[]; subject: string}) {
   if (notes.length === charts.length) {
     return <p className="subject-band-empty" role="status"><strong>{subject}</strong> · {[...new Set(notes)].join(' ')}</p>;
   }
-  // A band with nothing measured beside measured ones is a plain note in its column, not an empty card.
-  return <div className="subject-bands">{charts.map((c, i) => 'empty' in c
-    ? <p key={i} className="subject-pair-note" role="status"><strong>{c.title}</strong><span>{c.empty}</span></p>
-    : <Chart key={i} chart={c} />)}</div>;
+  // Measured bands share the row between them; a band with nothing measured is a one-line note under the row, so an
+  // empty band never takes a chart's space.
+  const filled = charts.filter(c => !('empty' in c));
+  const empty = charts.filter((c): c is Extract<SpeedChart, {empty: string}> => 'empty' in c);
+  return <>
+    <div className="subject-bands" data-count={filled.length}>{filled.map((c, i) => <Chart key={i} chart={c} />)}</div>
+    {empty.map((c, i) => <p key={i} className="subject-band-empty" role="status"><strong>{c.title}</strong> · {c.empty}</p>)}
+  </>;
 }
 
 /** The same measurement for teams and for drivers, side by side. */
@@ -52,12 +56,12 @@ function ChartPair({chart, driverChart}: {chart: SpeedChart; driverChart?: Speed
   if ('empty' in chart && 'empty' in driverChart) {
     return <p className="subject-band-empty" role="status"><strong>Teams and drivers</strong> · {[...new Set([chart.empty, driverChart.empty])].join(' ')}</p>;
   }
-  // One side measured: its chart keeps its card and the other side is a plain note beside it, not an empty card.
+  // One side measured: its chart takes the full row and the other side is a one-line note under it, not an empty card.
   const lone = 'empty' in chart ? chart : 'empty' in driverChart ? driverChart : null;
   if (lone && 'empty' in lone) {
     const filled = lone === chart ? driverChart : chart;
-    const note = <p className="subject-pair-note" role="status"><strong>{lone.title}</strong><span>{lone.empty}</span></p>;
-    return <div className="subject-pair">{lone === chart ? <>{note}<Chart chart={filled} /></> : <><Chart chart={filled} />{note}</>}</div>;
+    return <><div className="subject-pair is-single"><Chart chart={filled} /></div>
+      <p className="subject-band-empty" role="status"><strong>{lone.title}</strong> · {lone.empty}</p></>;
   }
   return <div className="subject-pair"><Chart chart={chart} /><Chart chart={driverChart} /></div>;
 }
