@@ -921,8 +921,6 @@ body.performance-view #sidebarToggle {
 .performance-bar-range::after { right: 0; }
 /* Seconds per lap on the same line as the % gap, fainter and first, so every row keeps the bar's height. */
 .performance-bar-val:has(.performance-bar-seconds) { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 6px; }
-.performance-bar-seconds { order: -1; }
-.performance-level { text-decoration: none; cursor: help; }
 
 /* Folded race picker: just the heading with its count and a Change button. */
 #performanceTrackTray.is-collapsed .track-tray-actions, #performanceTrackTray.is-collapsed #performanceTrackChoices { display: none; }

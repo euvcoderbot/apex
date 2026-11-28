@@ -14,7 +14,6 @@ main > .sidebar, main > .analysis-column { grid-row: 3; }
 .team-logo { width: 22px; height: 22px; flex-basis: 22px; }
 .tire-option { display: flex; flex-direction: column; padding: 8px 4px; gap: 4px; text-align: center; min-height: 64px; }
 .tire-option .tyre-image { width: 26px; height: 26px; }
-.workspace-heading { justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; gap: 4px 12px; }
 .lap-workspace #stintPanels { grid-template-columns: repeat(auto-fit,minmax(min(100%,380px),1fr)); gap: 10px; align-items: start; }
 .lap-chip .lap-clock { text-align: right; white-space: nowrap; }
 .loaded-lap-main { padding: 8px 10px; gap: 8px; }

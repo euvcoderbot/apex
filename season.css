@@ -1196,8 +1196,6 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .home-glance-list { display: grid; margin: 0; padding: 0; list-style: none; }
 #seasonHub .home-glance-list > li { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
 #seasonHub .home-glance-list b { font: 600 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-label); white-space: nowrap; }
-#seasonHub .home-pair { display: inline-flex; align-items: center; gap: 6px; }
-#seasonHub .home-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
 #seasonHub .home-tile { display: grid; gap: 4px; justify-items: start; min-height: 0; padding: 12px 14px; border: 0; border-radius: 8px; background: none; box-shadow: inset 0 0 0 1px var(--lin-card-border, var(--line)); text-align: left; cursor: pointer; }
 #seasonHub .home-tile:hover { background: var(--lin-nav-hover); }
 #seasonHub .home-tile b { font: 600 13px/1.2 var(--ui-font); color: var(--ui-label); }

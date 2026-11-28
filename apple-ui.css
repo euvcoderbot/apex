@@ -42,7 +42,7 @@ main {
 main.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); column-gap: 0; }
 main.sidebar-collapsed .sidebar { display: flex; opacity: 0; visibility: hidden; pointer-events: none; }
 .sidebar { transition: opacity var(--motion-fast) var(--ease-standard), visibility var(--motion-fast) var(--ease-standard); }
-.panel-heading, .workspace-heading {
+.panel-heading {
   display: flex; align-items: center; gap: 12px;
   margin: 0 0 18px; padding: 0;
 }
@@ -188,7 +188,7 @@ footer { padding: 0 24px 32px; }
 }
 
 /* Compact content, elevated surfaces, and platform-owned scrolling. */
-.panel-heading, .workspace-heading { margin-bottom: 12px; }
+.panel-heading { margin-bottom: 12px; }
 .compound-badge { display: inline-block; flex: 0 0 26px; vertical-align: middle; }
 .summary-sectors > .sector-cell { min-height: 60px; padding: 8px 10px; gap: 3px; align-content: center; }
 .corner-analysis, .dominance-map, .chart, .corner-analysis.is-collapsed { padding: 16px; }
@@ -271,7 +271,8 @@ footer { padding: 0 24px 32px; }
 .select-trigger > span { flex: 1; overflow: hidden; }
 .select-trigger > i { flex: 0 0 7px; }
 .dashboard-card, .telemetry-card, .chart, .corner-analysis { min-width: 0; }
-.panel-heading h2, .workspace-heading h2, .chart-heading h2 { margin: 0; }
+.panel-heading h2,
+.chart-heading h2 { margin: 0; }
 .panel-heading { flex-wrap: wrap; }
 .loaded-lap-pill { align-items: center; max-width: 100%; }
 .loaded-lap-main { min-width: 0; gap: 6px; }

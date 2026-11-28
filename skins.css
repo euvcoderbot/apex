@@ -1751,8 +1751,6 @@
 :root[data-skin="linear"] #linearWorkspace #driverPills .section-empty { padding: 4px 6px; font-size: 12px; color: var(--ui-quaternary); }
 :root[data-skin="linear"] #linearWorkspace #tireCard .panel-heading h2 { margin: 6px 0 4px; padding-left: 6px; font: 500 12px/14px var(--ui-font); color: var(--lin-nav-text); }
 :root[data-skin="linear"] #linearWorkspace #tireCard .tire-nomination-container { display: grid; gap: 2px; padding-left: 6px; font-size: 12px; color: var(--ui-secondary); }
-:root[data-skin="linear"] .linear-rail-footer { margin-top: auto; padding: 16px 0 0; display: grid; gap: 2px; }
-:root[data-skin="linear"] .linear-rail-footer button { justify-self: stretch; height: 28px; padding: 0 7px; border-radius: 8px; text-align: left; color: var(--ui-tertiary); background: none; }
 
 /* ---- Location header: 52 px (spec §6), a hairline below, breadcrumbs left, view actions right ---- */
 :root[data-skin="linear"] .site-header.window-toolbar {
@@ -2013,7 +2011,6 @@
   :root[data-skin="linear"] #carPerformance .pace-compare-val { display: none; }
 }
 :root[data-skin="linear"] .performance-bar-val, :root[data-skin="linear"] .performance-tyre-age-value { font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-secondary); }
-:root[data-skin="linear"] .performance-bar-val .performance-bar-seconds { font: 450 11px/1 var(--ui-font); color: var(--ui-tertiary); }
 
 /* Tables (spec §8): a 32 px header in 450 12 tertiary with no band or line; 44 px rows without separators; a wash on hover. */
 :root[data-skin="linear"] .performance-table { border-color: transparent; }
@@ -2143,7 +2140,6 @@
 :root[data-skin="linear"] .app-sidebar .session-controls { width: 100%; min-width: 0; max-width: 100%; margin: 0; }
 :root[data-skin="linear"] #linearWorkspace #tireCard { display: block; margin-top: 8px; }
 :root[data-skin="linear"] #linearWorkspace #tireCard .panel-heading { display: block; padding: 0; margin: 0; }
-:root[data-skin="linear"] .linear-rail-footer button { display: flex; align-items: center; justify-content: flex-start; }
 
 /* ---- Rail behaviour and segmented controls ---- */
 /* Motion (spec §9) and the segmented-control washes. */
@@ -2324,7 +2320,6 @@
 :root[data-skin="linear"] .app-sidebar .control-field:has(.select-trigger) > label { cursor: pointer; }
 
 /* The rail has no footer. */
-:root[data-skin="linear"] .linear-rail-footer { display: none; }
 
 :root[data-skin="linear"] #carPerformance .results-overview .perf-chart-header { min-height: 0; }
 /* Tyre trend and Development lists: the same 2 px row spacing as Pace, starting right under the header. */
@@ -2336,7 +2331,6 @@
 :root[data-skin="linear"] .performance-bar-label { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
 :root[data-skin="linear"] #carPerformance .rank-label { display: flex; align-items: center; gap: 6px; min-width: 0; }
 :root[data-skin="linear"] #carPerformance :is(.rank-basis, .rank-evidence) { color: var(--ui-tertiary); font: 450 11px/1.3 var(--ui-font); font-variant-numeric: tabular-nums; }
-:root[data-skin="linear"] #carPerformance .rank-basis { margin: 0 0 4px; }
 :root[data-skin="linear"] #carPerformance .rank-evidence { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- Paired chart and table ---- */

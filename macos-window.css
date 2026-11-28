@@ -139,8 +139,6 @@ body > footer { box-sizing: border-box; max-width: none; margin: 0; padding: 10p
 .panel-heading h2,.section-heading h2,.analysis-heading h2 { margin: 0; }
 
 /* Session analysis content */
-#lapWorkspace .workspace-heading { display: flex; align-items: center; gap: 8px; min-height: 26px; margin: 0; }
-#lapWorkspace .workspace-heading h2 { flex: 1 1 auto; }
 .workspace-disclosure,.corner-analysis-toggle { display: inline-flex; align-items: center; gap: 6px; }
 .workspace-disclosure > i,.corner-analysis-toggle > i { width: 10px; height: 10px; transform: rotate(90deg); transition: transform var(--ui-motion) var(--ui-ease); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m3.5 1.8 3.2 3.2-3.2 3.2' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='m3.5 1.8 3.2 3.2-3.2 3.2' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat; }
 :is(.workspace-disclosure,.corner-analysis-toggle)[aria-expanded="false"] > i { transform: none; }
@@ -249,7 +247,6 @@ body.trace-focus .chart-heading .trace-focus-button:not(.trace-focus-close) { di
 :is(.trace-setting,.trace-driver-chip) input:checked::after,:is(.trace-setting,.trace-driver-chip) input::before { content: none; display: none; }
 :is(.trace-setting,.trace-driver-chip) input:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 1px; }
 /* Fit pass: nothing overflows its container; rows wrap instead of clipping. */
-#lapWorkspace .workspace-heading { flex-wrap: wrap; row-gap: 6px; }
 #lapWorkspace .workspace-heading-actions { display: flex; justify-content: flex-end; flex: 1 1 auto; min-width: 0; }
 #lapWorkspace .run-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; min-width: 0; max-width: 100%; }
 #lapWorkspace .run-toolbar > * { flex: 0 0 auto; }
@@ -439,8 +436,8 @@ body.performance-view > #carPerformance:not([hidden]),body:not(.performance-view
   .app-sidebar .session-controls > .control-field:has(#session) { grid-area: session; }
   .app-sidebar .session-controls:not(.performance-controls) > #loadSession { grid-area: load; width: 100%; }
   .site-header .performance-tabs > button { padding: 0 4px; }
-  .lap-workspace .workspace-heading,.telemetry-card .analysis-heading,.panel-heading { text-align: left; justify-content: space-between; }
-  .lap-workspace .workspace-heading { flex-wrap: wrap; }
+  .telemetry-card .analysis-heading,
+.panel-heading { text-align: left; justify-content: space-between; }
   .telemetry-card .analysis-heading { flex-direction: row; align-items: center; }
   .corner-analysis-header,.corner-analysis-header h2 { display: flex; justify-content: flex-start; text-align: left; }
   .lap-workspace .run-toolbar { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
