@@ -2531,9 +2531,9 @@
     controls.append(entrantShell);
 
     const points = lineChart(history.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: label(id), short: drivers ? driverCode(data, id) : teamName(data, id),
-      values: history.map(s => s.table.find(x => x.id === id)?.points ?? null)})), {title: 'Points after each round', format: value => `${value} pts`, endLabels: drivers ? 6 : 5, height: 300, width: 460});   // drawn near the column's width (about 410 px), so names read at full size
+      values: history.map(s => s.table.find(x => x.id === id)?.points ?? null)})), {title: 'Points after each round', format: value => `${value} pts`, endLabels: drivers ? 6 : 5, height: 310, width: 680});
     const ranks = bumpChart(history.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: drivers ? driverCode(data, id) : teamName(data, id),
-      values: history.map(s => s.table.find(x => x.id === id)?.position ?? null)})), {width: 460, row: 16});   // 16 units: names at least 14 px apart at that width
+      values: history.map(s => s.table.find(x => x.id === id)?.position ?? null)})), {width: 680, row: 15});
     const layout = el('div', 'season-two season-standings-layout');
     const standingsColumn = el('div', 'season-stack'); standingsColumn.append(card('Championship standings', wrap(table)));
     if (index === evo.length - 1) { const fight = titleFight(data, drivers); if (fight) standingsColumn.append(fight); }
@@ -2998,7 +2998,7 @@
     // the names, 13 px apart, never collide, and the points shrink so the lines stay readable.
     const named = endLabels && series.length > 1, dense = series.length > 8;
     // Named lines leave a short run beyond the last round for the leaders to their names (endKey).
-    const W = width, H = named ? Math.max(height, series.length * 19 + 60) : height, R = series.length === 1 ? 44 : named ? 64 : 12, T = 12, B = 48;
+    const W = width, H = named ? Math.max(height, Math.min(series.length, 10) * 20 + 50) : height, R = series.length === 1 ? 44 : named ? 52 : 12, T = 12, B = 48;
     const dashed = teammateDashes(series);
     // A crowded chart (the whole grid) colours the six leaders at the last round; the rest stay as faint context lines that
     // light up on hover or when picked, so the chart reads as a story rather than a tangle.
@@ -3054,11 +3054,20 @@
       }
     }
     if (named) {
-      const ends = series.map(s => {
-        const i = s.values.findLastIndex(v => v != null);
-        return i < 0 ? null : {id: s.id, colour: faint(s) ? 'var(--ui-tertiary)' : s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i]), minor: faint(s), quiet: faint(s)};
-      }).filter(Boolean);
-      svg += endKey(ends, W - R + 16, dense ? 19 : 14, H - B);   // 19 units: about 14 px apart at a half-width desktop card
+      const sorted = [...series]
+        .map(s => {
+          const i = s.values.findLastIndex(v => v != null);
+          return i < 0 ? null : {id: s.id, colour: faint(s) ? 'var(--ui-tertiary)' : s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i]), minor: dense ? faint(s) : false, quiet: faint(s)};
+        })
+        .filter(Boolean);
+      // Only visible contenders (leaders in dense view) pack via endKey so labels stay cleanly inside [T, H - B];
+      // remaining drivers still carry .selected-end at their exact line end for hover/selection.
+      const shown = dense ? sorted.filter(e => !e.minor) : sorted;
+      const hidden = dense ? sorted.filter(e => e.minor) : [];
+      svg += endKey(shown, W - R + 12, dense ? 16 : 14, H - B, T + 8);
+      for (const e of hidden) {
+        svg += `<g class="end-key is-minor" data-id="${esc(e.id)}"><text class="label is-value selected-end" x="${(W - R + 16).toFixed(1)}" y="${(e.y + 3.5).toFixed(1)}">${esc(e.name)}</text></g>`;
+      }
     }
     const chart = htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
     if (!(named && dense)) return chart;
@@ -3073,10 +3082,11 @@
   // 14 px apart so names never overlap. entries: [{id, colour, name, x, y, value}].
   // bottom: the lowest a name may sit; names pushed past it move back up, so a cluster of lines ending together (many
   // drivers near zero points) stacks upward inside the chart. A name moved off its line's end gets a hairline leader.
-  function endKey(entries, labelX, gap = 14, bottom = Infinity) {
+  function endKey(entries, labelX, gap = 14, bottom = Infinity, top = -Infinity) {
     const list = [...entries].sort((a, b) => a.y - b.y);
     list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + gap) : e.y; });
     for (let i = list.length - 1; i >= 0; i--) list[i].ly = Math.min(list[i].ly, i === list.length - 1 ? bottom : list[i + 1].ly - gap);
+    for (let i = 0; i < list.length; i++) list[i].ly = Math.max(list[i].ly, i ? list[i - 1].ly + gap : top);
     // On a phone a dense chart labels its first ten lines only (season.css .end-key.is-minor); every line stays in the tips.
     return list.map((e, rank) => {
       // Every moved label is tied to its line's end, the quiet ones by a fainter leader, so no name floats unattached.
@@ -3095,7 +3105,7 @@
     return out;
   }
   function bumpChart(rounds, series, {width = 640, row = 18} = {}) {
-    const n = series.length, W = width, H = Math.max(224, n * row + 54), L = 30, R = 64, T = 10, B = 46;
+    const n = series.length, W = width, H = Math.max(224, n * row + 54), L = 26, R = 52, T = 10, B = 46;
     const dashed = teammateDashes(series);
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
@@ -3120,7 +3130,7 @@
       if (n <= 8) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       svg += '</g>';
     }
-    svg += endKey(ends, W - R + 16, row, H - B);
+    svg += endKey(ends, W - R + 12, row, H - B);
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
   // Round ticks for a value range. Outward (the default): the first tick is at or below the smallest value and the last at or

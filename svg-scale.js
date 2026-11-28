@@ -19,7 +19,7 @@
       svg.classList.remove('is-crowded');
       const boxes = labels.map(t => t.getBoundingClientRect());
       const spacing = Math.min(...boxes.slice(1).map((b, i) => b.left + b.width / 2 - (boxes[i].left + boxes[i].width / 2)));
-      svg.classList.toggle('is-crowded', spacing < Math.max(...boxes.map(b => b.width)) + 4);
+      svg.classList.toggle('is-crowded', spacing < Math.max(...boxes.map(b => b.width)) + 1.5);
     }
   };
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => requestAnimationFrame(() => entries.forEach(e => measure(e.target)))) : null;

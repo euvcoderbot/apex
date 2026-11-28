@@ -46,11 +46,11 @@
 :root[data-skin="linear"][data-skin] #liveTiming .select-shell .select-trigger:not(#loadSession):not(#performanceLoad):not(#linearWorkspace *) { box-sizing: border-box; height: 28px; min-height: 28px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); font: 500 12px/1 var(--ui-font); }
 :root[data-skin="linear"][data-skin] #liveTiming :is(.live-source label, .live-compare-pick label) { font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); }
 :root[data-skin="linear"][data-skin] #liveTiming .live-flag { border-radius: 9999px; padding: 6px 14px; font: 600 13px/1.2 var(--ui-font); }
-/* Timing tower: the group-header band, quiet rows. */
-:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th { background: var(--lin-band); border-bottom: 0; font: 500 12px/1 var(--ui-font); color: var(--ui-tertiary); padding-block: 8px; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:first-child { border-radius: 8px 0 0 8px; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:last-child { border-radius: 0 8px 8px 0; }
-:root[data-skin="linear"][data-skin] #liveTiming .live-table td { border-bottom: 0; font-size: 13px; }
+/* Timing tower: Linear 32 px transparent header, quiet 36 px rows. */
+:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th { height: 32px; background: transparent; border-bottom: 1px solid var(--lin-hairline); font: 450 12px/1 var(--ui-font); color: var(--ui-tertiary); padding-block: 0; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:first-child { border-radius: 0; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table thead th:last-child { border-radius: 0; }
+:root[data-skin="linear"][data-skin] #liveTiming .live-table td { border-bottom: 0; font-size: 13px; height: 36px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr td:first-child { border-radius: 6px 0 0 6px; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr td:last-child { border-radius: 0 6px 6px 0; }
 :root[data-skin="linear"][data-skin] #liveTiming .live-table tbody tr:hover td { background: var(--lin-nav-hover); }
@@ -74,7 +74,7 @@
 :root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table :is(th, td):nth-child(2) {
   inset-inline-start: var(--live-place-width); box-shadow: 1px 0 var(--lin-hairline);
 }
-:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table thead th:nth-child(-n+2) { background: var(--lin-band); }
+:root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table thead th:nth-child(-n+2) { background: var(--lin-card); }
 :root[data-skin="linear"] #liveTiming :is(.live-tower, .live-engineer) .live-table tr:hover td:not([colspan]):nth-child(-n+2) {
   background: color-mix(in srgb, var(--lin-card) 96%, var(--ui-label));
 }
@@ -135,10 +135,10 @@
 :root[data-skin="linear"] #liveTiming .live-minis i[data-s="overall"] { background: var(--f1-purple); }
 :root[data-skin="linear"] #liveTiming .live-minis i[data-s="personal"] { background: var(--f1-green); }
 :root[data-skin="linear"] #liveTiming .live-minis i[data-s="slower"] { background: var(--f1-yellow); }
-:root[data-skin="linear"] #liveTiming .live-minis i[data-s="pit"] { background: #0a84ff; }
+:root[data-skin="linear"] #liveTiming .live-minis i[data-s="pit"] { background: var(--ui-rain); }
 :root[data-skin="linear"] #liveTiming .live-moved { margin-left: 4px; font: 500 10px/1 var(--ui-font); font-variant-numeric: tabular-nums; }
-:root[data-skin="linear"] #liveTiming .live-moved.is-up { color: #30d158; }
-:root[data-skin="linear"] #liveTiming .live-moved.is-down { color: #ff6961; }
+:root[data-skin="linear"] #liveTiming .live-moved.is-up { color: var(--ui-positive); }
+:root[data-skin="linear"] #liveTiming .live-moved.is-down { color: var(--ui-negative); }
 :root[data-skin="linear"] #liveTiming .live-tower-mode { margin-left: auto; }
 :root[data-skin="linear"] #liveTiming > nav.live-tower-mode { width: 100%; max-width: 100%; flex-wrap: wrap; }
 @media (max-width: 760px) {
@@ -159,8 +159,8 @@
 :root[data-skin="linear"] #liveTiming .live-engineer-tile small { color: var(--ui-tertiary); font: 450 12px/1.2 var(--ui-font); }
 :root[data-skin="linear"] #liveTiming .live-engineer-tile b { color: var(--ui-label); font: 600 18px/1.2 var(--ui-font); font-variant-numeric: tabular-nums; }
 :root[data-skin="linear"] #liveTiming .live-engineer-tile span { color: var(--ui-tertiary); font: 450 12px/1.3 var(--ui-font); }
-:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-gain { color: #30d158; }
-:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-loss { color: #ff6961; }
+:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-gain { color: var(--ui-positive); }
+:root[data-skin="linear"] #liveTiming .live-engineer-table td.is-loss { color: var(--ui-negative); }
 :root[data-skin="linear"] body.is-descriptions-hidden #liveTiming .explanation-only { display: none; }
 
 .live-grid[data-workspace="timing"] :is(.live-compare, .live-telemetry-card),

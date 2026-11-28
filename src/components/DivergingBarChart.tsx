@@ -50,7 +50,7 @@ export function DivergingBarChart({title, subtitle, rows, unit, extent, seriesKe
               <div className="performance-tyre-age-name rank-label"><TeamLabel team={rows.length > 14 && r.displayName ? {...r, displayName: String(r.displayName).split(' · ')[0]} : r} />{r.evidenceLabel && r.evidenceLabel !== evidence.common ? <small className="rank-evidence">{r.evidenceLabel}</small> : null}</div>
               <div className="performance-tyre-age-track">
                 <i className="performance-tyre-age-zero" style={{left:`${zero.toFixed(2)}%`}} />
-                <i className={`performance-tyre-age-bar${capped ? (r.value < 0 ? ' is-capped is-low' : ' is-capped') : ''}`} title={capped ? 'Beyond the scale: an outlier' : undefined} style={{'--bar-color': color(r.color), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as CSSProperties} />
+                <i data-dir={r.value < 0 ? 'neg' : 'pos'} className={`performance-tyre-age-bar${capped ? (r.value < 0 ? ' is-capped is-low' : ' is-capped') : ''}`} title={capped ? 'Beyond the scale: an outlier' : undefined} style={{'--bar-color': color(r.color), left: `${left.toFixed(2)}%`, width: `${width.toFixed(2)}%`} as CSSProperties} />
               </div>
               <span className="performance-tyre-age-value">{signed(r.value, 3, unit)}</span>
             </div>

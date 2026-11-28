@@ -71,24 +71,72 @@ function CornerProfile({charts}: {charts: SpeedChart[]}) {
     const ranks = columns.map(c => c.cells.get(name(team))?.rank).filter((x): x is number => x != null);
     return {team, mean: ranks.length ? ranks.reduce((a, b) => a + b, 0) / ranks.length : 99};
   }).sort((a, b) => a.mean - b.mean);
+  const colX = columns[0], colY = columns[columns.length - 1];
+  const points = rows.map(({team}) => {
+    const vx = colX.cells.get(name(team))?.gap, vy = colY.cells.get(name(team))?.gap;
+    return finite(vx) && finite(vy) ? {team, vx: vx as number, vy: vy as number} : null;
+  }).filter((p): p is NonNullable<typeof p> => p !== null);
+  const maxX = Math.max(0.05, ...points.map(p => p.vx)) * 1.15;
+  const maxY = Math.max(0.05, ...points.map(p => p.vy)) * 1.15;
+  const W = 360, H = 250, L = 44, R = 38, T = 16, B = 32;
+  const px = (v: number) => L + (v / maxX) * (W - L - R);
+  const py = (v: number) => H - B - (v / maxY) * (H - T - B);
+  const diagEnd = Math.min(maxX, maxY);
   return (
     <section className="corner-profile">
-      <h4 className="perf-chart-heading">Teams across corner speeds</h4>
-      <p className="performance-quality-status">Gap to the quickest team in each band. Deeper shading is a better rank in that band; rows are ordered by the average rank.</p>
-      <div className="performance-table-wrap" tabIndex={0} role="region" aria-label="Teams across corner speeds">
-        <table className="performance-table team-profile-table corner-profile-table">
-          <thead><tr><th scope="col">Team</th>{columns.map(c => <th key={c.label} scope="col">{c.label}</th>)}</tr></thead>
-          <tbody>{rows.map(({team}) => (
-            <tr key={name(team)}><th scope="row"><TeamLabel team={team} /></th>{columns.map(c => {
-              const cell = c.cells.get(name(team));
-              const heat = cell && c.count > 1 ? (c.count - cell.rank) / (c.count - 1) : 0;
-              const text = cell ? (cell.gap <= 0.00001 ? fmt(0, c.digits, c.unit) : `+${fmt(cell.gap, c.digits, c.unit)}`) : '—';
-              const reading = `${c.label}: ${cell ? `rank ${cell.rank} of ${c.count} · ${text}` : 'not measured'}`;
-              return <td key={c.label} className="profile-rank perf-heat-cell" title={reading} aria-label={reading}>
-                <span className="perf-heat-value" style={heat > 0 ? {'--heat': heat.toFixed(3)} as React.CSSProperties : undefined}>{text}</span></td>;
-            })}</tr>
-          ))}</tbody>
-        </table>
+      <div className="corner-profile-grid">
+        <div className="corner-profile-table-pane">
+          <h4 className="perf-chart-heading">Teams across corner speeds</h4>
+          <p className="performance-quality-status">Gap to the quickest team in each band. Rows are ordered by average rank.</p>
+          <div className="performance-table-wrap" tabIndex={0} role="region" aria-label="Teams across corner speeds">
+            <table className="performance-table team-profile-table corner-profile-table">
+              <thead><tr><th scope="col">Team</th>{columns.map(c => <th key={c.label} scope="col">{c.label}</th>)}</tr></thead>
+              <tbody>{rows.map(({team}) => (
+                <tr key={name(team)}><th scope="row"><TeamLabel team={team} /></th>{columns.map(c => {
+                  const cell = c.cells.get(name(team));
+                  const heat = cell && c.count > 1 ? (c.count - cell.rank) / (c.count - 1) : 0;
+                  const text = cell ? (cell.gap <= 0.00001 ? fmt(0, c.digits, c.unit) : `+${fmt(cell.gap, c.digits, c.unit)}`) : '—';
+                  const reading = `${c.label}: ${cell ? `rank ${cell.rank} of ${c.count} · ${text}` : 'not measured'}`;
+                  return <td key={c.label} className="profile-rank perf-heat-cell" title={reading} aria-label={reading}>
+                    <span className="perf-heat-value" style={heat > 0 ? {'--heat': heat.toFixed(3)} as React.CSSProperties : undefined}>{text}</span></td>;
+                })}</tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+        {points.length >= 2 ? (
+          <div className="performance-chart-card corner-tradeoff-card">
+            <div className="perf-chart-header"><div className="perf-chart-title-group">
+              <h4 className="perf-chart-heading">{colX.label} vs {colY.label} balance</h4>
+              <span className="perf-chart-sub">Closer to bottom-left is quickest</span>
+            </div></div>
+            <svg className="trade-off-plot" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${colX.label} against ${colY.label} corner deficit scatter plot`}>
+              {[0, 0.5, 1].map(f => {
+                const tickX = maxX * f, tickY = maxY * f;
+                return <Fragment key={f}>
+                  <line className="grid" x1={L} x2={W - R} y1={py(tickY)} y2={py(tickY)} />
+                  <line className="grid" x1={px(tickX)} x2={px(tickX)} y1={T} y2={H - B} />
+                  <text className="axis" x={L - 6} y={py(tickY) + 3.5} textAnchor="end">{fmt(tickY, 2, colY.unit)}</text>
+                  <text className="axis" x={px(tickX)} y={H - 14} textAnchor="middle">{fmt(tickX, 2, colX.unit)}</text>
+                </Fragment>;
+              })}
+              <line x1={px(0)} y1={py(0)} x2={px(diagEnd)} y2={py(diagEnd)} stroke="var(--lin-hairline)" strokeDasharray="3 3" />
+              {points.map((pt, i) => {
+                const label = name(pt.team);
+                const code = label.replace(/ F1 Team| Racing| GP/gi, '').slice(0, 3).toUpperCase();
+                const tip = `${label} · ${colX.label} +${fmt(pt.vx, colX.digits, colX.unit)} · ${colY.label} +${fmt(pt.vy, colY.digits, colY.unit)}`;
+                const dy = i % 2 === 1 && points[i - 1] && Math.abs(px(pt.vx) - px(points[i - 1].vx)) < 26 && Math.abs(py(pt.vy) - py(points[i - 1].vy)) < 16 ? -7 : 3.5;
+                return <g key={label} className="corner-scatter-pt" data-entrant={label}>
+                  <circle className="pt" cx={px(pt.vx)} cy={py(pt.vy)} r="4" fill={String(pt.team.color || 'var(--ui-accent)')} tabIndex={i === 0 ? 0 : -1} data-chart-value={`Corner balance:${label}`} aria-label={tip}>
+                    <title>{tip}</title>
+                  </circle>
+                  <text className="label" x={px(pt.vx) + 6} y={py(pt.vy) + dy} fill="var(--ui-secondary)">{code}</text>
+                </g>;
+              })}
+              <text className="axis-title" x={(L + W - R) / 2} y={H - 2} textAnchor="middle">{colX.label} deficit ({colX.unit})</text>
+            </svg>
+          </div>
+        ) : null}
       </div>
     </section>
   );

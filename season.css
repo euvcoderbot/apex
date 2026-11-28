@@ -408,16 +408,18 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin="linear"] #seasonHub .season-body { gap: 24px; }
 :root[data-skin="linear"] #seasonHub :is(.season-two, .season-stack, .season-columns, .season-column) { gap: 16px; }
 :root[data-skin="linear"] #seasonHub .season-title h1 { font: 600 24px/32px var(--ui-font); letter-spacing: -.16px; }
-:root[data-skin="linear"] #seasonHub :is(.season-card:not(.season-data-section, .season-stats > *), .season-rounds, .season-h2h-hero) { border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
+:root[data-skin="linear"] #seasonHub :is(.season-card:not(.season-data-section, .season-stats > *), .season-rounds, .season-h2h-hero, .home-glance-card) { border-radius: var(--lin-card-radius); background: var(--lin-card); box-shadow: inset 0 0 0 1px var(--lin-card-border), var(--lin-faint-shadow); }
 :root[data-skin="linear"] #seasonHub .season-data-section { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 :root[data-skin="linear"] #seasonHub .season-data-section > h3 { padding-block: 4px 12px; margin: 0; }
 :root[data-skin="linear"] #seasonHub .season-data-section > :is(.season-table-wrap, .season-table-frame) { border-block: 1px solid var(--lin-hairline); }
 :root[data-skin="linear"] #seasonHub .season-stats { gap: 0; border-block: 1px solid var(--lin-hairline); }
 :root[data-skin="linear"] #seasonHub .season-stats > .season-stat { padding: 16px; border: 0; border-radius: 0; background: transparent; box-shadow: inset -1px 0 var(--lin-hairline), inset 0 -1px var(--lin-hairline); }
 :root[data-skin="linear"] #seasonHub .season-stats .season-big { font-size: 20px; }
-:root[data-skin="linear"] #seasonHub .season-standings-layout { grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr); align-items: start; gap: 24px; }
+:root[data-skin="linear"] #seasonHub .season-standings-layout { grid-template-columns: minmax(340px, 415px) minmax(0, 1fr); align-items: start; gap: 20px; }
+:root[data-skin="linear"] #seasonHub .season-standings-layout:has(.season-split) { grid-template-columns: minmax(385px, 465px) minmax(0, 1fr); }
 @media (max-width: 1100px) {
-  :root[data-skin="linear"] #seasonHub .season-standings-layout { grid-template-columns: minmax(0, 1fr); }
+  :root[data-skin="linear"] #seasonHub .season-standings-layout,
+  :root[data-skin="linear"] #seasonHub .season-standings-layout:has(.season-split) { grid-template-columns: minmax(0, 1fr); }
   .season-standings-layout > .season-stack { display: contents; }
   .season-standings-layout .season-title-fight { grid-row: 1; }
 }
@@ -432,7 +434,12 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin="linear"] #seasonHub :is(.season-battle, .season-tabs button):not(#loadSession):not(#performanceLoad):not(#linearWorkspace *):hover { color: var(--ui-label); }
 /* Tables (spec §8): a 32 px header row in 450 12 tertiary with no band; rows without separators, a wash on hover. */
 :root[data-skin="linear"] #seasonHub .season-table thead th { height: 32px; padding-block: 0; background: transparent; color: var(--ui-tertiary); font: 450 12px/1 var(--ui-font); }
-:root[data-skin="linear"] #seasonHub .season-standings tbody td { height: 48px; padding-block: 0; }
+:root[data-skin="linear"] #seasonHub .season-standings :is(th, td) { padding-inline: 5px; }
+:root[data-skin="linear"] #seasonHub .season-standings .season-pos { width: 22px; }
+:root[data-skin="linear"] #seasonHub .season-standings .season-move { width: 24px; }
+:root[data-skin="linear"] #seasonHub .season-standings td > .season-who { gap: 6px; min-width: 0; }
+:root[data-skin="linear"] #seasonHub .season-standings td > .season-who > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+:root[data-skin="linear"] #seasonHub .season-standings tbody td { height: 36px; padding-block: 0; }
 :root[data-skin="linear"] #seasonHub .season-table tbody tr:not(.season-detail):hover td:not(.is-heat):not([data-tone]):not(.is-first) { background: var(--season-row-hover, var(--lin-nav-hover)); }
 @media (max-width: 760px) {
   :root[data-skin="linear"] #seasonHub .season-standings .season-points {
@@ -484,7 +491,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 :root[data-skin="linear"] #seasonHub .season-countdown { background: none; }
 @media (max-width: 760px) { #seasonHub .season-countdown { justify-items: start; } }  /* on a phone it sits under the title, so it reads from the left */
 .season-sessions { gap: 0; border-radius: 8px; overflow: hidden; }
-#seasonHub .season-sessions li { position: relative; padding: 10px 14px; border-radius: 0; background: none; box-shadow: inset 1px 0 var(--line); opacity: 1; }
+#seasonHub .season-sessions li { position: relative; padding: 8px 12px; border-radius: 0; background: none; box-shadow: inset 1px 0 var(--line); opacity: 1; }
 #seasonHub .season-sessions li:first-child { box-shadow: none; }
 .season-sessions li span { display: flex; align-items: center; gap: 6px; }
 .season-sessions li[data-state="done"] :is(span, time) { color: var(--ui-tertiary); }
@@ -493,7 +500,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 .season-sessions li[data-state="next"]::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--ui-accent, #5e6ad2); }
 .season-sessions em { margin-left: auto; color: var(--ui-accent, #5e6ad2); font-size: 11px; font-style: normal; font-weight: 600; }
 .season-next-body { gap: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-#seasonHub .season-next-body > * { padding: 16px; border-radius: 0; background: none; box-shadow: inset 1px 0 var(--line); }
+#seasonHub .season-next-body > * { padding: 14px; border-radius: 0; background: none; box-shadow: inset 1px 0 var(--line); }
 #seasonHub .season-next-body > :first-child { box-shadow: none; }
 #seasonHub .season-next-body > .season-weather { grid-column: 1 / -1; box-shadow: inset 0 1px var(--line); }
 .season-next-body h3 { grid-column: 1 / -1; margin: 0 0 10px; color: var(--ui-tertiary); font-size: 13px; font-weight: 500; }
@@ -923,6 +930,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 /* A round not yet run is a dashed slot (the same mark as the calendar's "Upcoming"), not an empty filled-looking box. */
 :root #seasonHub .season-matrix td.is-upcoming::before { content: ""; display: block; box-sizing: border-box; min-width: 30px; height: 26px; border-radius: 6px; border: 1px dashed var(--ui-border-strong, var(--ui-border)); }
 :root[data-skin] #seasonHub :is(.season-strip-cell, .season-h2h-weeks > div).is-upcoming { background: none; box-shadow: none; outline: 1px dashed var(--ui-border-strong, var(--ui-border)); outline-offset: -1px; }
+:root[data-skin] #seasonHub :is(.season-strip-cell, .season-h2h-weeks > div):focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
 :root[data-skin] #seasonHub .season-h2h-weeks > .is-upcoming i { background: none; box-shadow: inset 0 0 0 1px var(--line); }
 :root[data-skin] #seasonHub .season-strip-cell.is-upcoming small { color: var(--ui-tertiary); }  /* the ring marks it upcoming; the label stays readable */
 /* The key above the head-to-head weekend dots: each driver's dot colour, and the ring for a race the other car lost to a failure. */
@@ -1005,6 +1013,8 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
    twenty names. */
 :root[data-skin] #seasonHub .season-chart .is-faint-group .end-key { opacity: 0; transition: opacity .12s; }
 :root[data-skin] #seasonHub .season-chart .is-faint-group:hover .end-key, :root[data-skin] #seasonHub .season-chart:has(.is-dim) .is-faint-group:not(.is-dim) .end-key { opacity: 1; }
+#seasonHub .season-chart.is-dense .end-key.is-minor { opacity: 0; pointer-events: none; transition: opacity .12s; }
+#seasonHub .has-entrant .season-chart.is-dense .end-key.is-minor.is-entrant { opacity: 1; }
 /* Power units by manufacturer and their reliability: a name with its colour and car count; the replacement share as a bar
    with a mark at the grid share, its figures beside it and a small over/under chip; per-element figures quieter; failure
    rates with a bar scaled to the worst. A short list of the failures follows. */
@@ -1188,7 +1198,7 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
   #seasonHub .home-glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   #seasonHub .home-glance:not(:has(> :nth-child(3))) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-#seasonHub .home-glance-card { padding: 14px 16px; border-radius: var(--lin-card-radius, 10px); box-shadow: inset 0 0 0 1px var(--lin-card-border, var(--line)); }
+#seasonHub .home-glance-card { padding: 14px 16px; }
 #seasonHub .home-glance-card > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 #seasonHub .home-glance-open { display: inline-flex; align-items: center; gap: 8px; min-height: 24px; padding: 0; border: 0; background: none; color: var(--ui-label); font: 600 14px/1.3 var(--ui-font); cursor: pointer; }
 #seasonHub .home-glance-open:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -1267,8 +1277,9 @@ svg :is(.axis, .label, .axis-title, text) { font-feature-settings: "cv01", "ss03
 #seasonHub .season-track-lap-copy small { flex-basis: 100%; }
 #seasonHub .season-track-lap-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 #seasonHub .season-track-head .season-track-tiles { grid-column: 1 / -1; }
-/* One card level: the circuit numbers are the card's lower band, split by hairlines, not a boxed grid inside the card. */
-:root #seasonHub .season-track-head .season-track-tiles { margin: 2px -16px -16px; border-radius: 0; background: transparent; box-shadow: inset 0 1px var(--lin-hairline); }
+/* One card level: the circuit numbers are the card's lower band, split by a hairline pseudo-element without nesting boxes. */
+:root #seasonHub .season-track-head .season-track-tiles { position: relative; margin: 2px -16px -16px; border-radius: 0; background: transparent; box-shadow: none; }
+:root #seasonHub .season-track-head .season-track-tiles::before { content: ""; position: absolute; inset: 0 0 auto; height: 1px; background: var(--lin-hairline); }
 :root #seasonHub .season-track-head .season-track-tiles > div { border-color: var(--lin-hairline); }
 #seasonHub .season-track-two { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: start; }
 /* Beside a long table the track map stays in view while the table scrolls. */
@@ -1679,7 +1690,7 @@ body.is-descriptions-hidden #seasonHub :is(.season-card:not(.season-stat) > .sea
 #seasonHub .season-h2h-grid tr.season-gap-row > th { color: var(--ui-secondary); font-weight: 500; }
 #seasonHub .season-h2h-key { margin: 0; padding: 4px 8px 10px; gap: 6px 14px; }
 #seasonHub .season-h2h-key span[data-tone]::before { flex: none; border-radius: 50%; }
-:root[data-skin] #seasonHub .season-h2h-grid thead th { padding-block: 6px; }
+:root[data-skin] #seasonHub .season-h2h-grid thead th { height: 32px; padding-block: 0; }
 /* Head-to-head race-by-race: Qualifying and Race as their own header rows, a quiet label over each group of three. */
 /* Section labels (Qualifying, Race) are short label rows, not 44 px data rows: they sit just above their rows. */
 :root[data-skin] #seasonHub .season-table.season-h2h-grid tr.season-section-row > :is(th, td) { height: 24px; padding: 10px 0 2px 6px; line-height: 1; }

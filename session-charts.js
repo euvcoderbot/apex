@@ -330,7 +330,7 @@ function renderCharts() {
   const inputRow = ([name, unit], index) => `
       <div class="chart-row${index === inputDefs.length - 1 ? ' is-axis-row' : ''}" data-row="${name}">
         <h3 class="chart-row-label">${INPUT_LABELS[name]} <small>${unit}</small></h3>
-        <canvas data-chart="${name}" data-axis="${index === inputDefs.length - 1 ? 'shown' : 'hidden'}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
+        <canvas data-chart="${name}" data-axis="${index === inputDefs.length - 1 ? 'shown' : 'hidden'}" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0" aria-valuetext="Not set" aria-describedby="telemetryDataHelp" aria-label="${name}. Use Left and Right arrows to inspect exact samples, Home and End to jump, or drag horizontally to zoom."></canvas>
       </div>`;
   const inputStack = inputDefs.length ? `
     <section class="chart chart-stack" aria-label="Driver inputs">
@@ -376,7 +376,7 @@ function renderCharts() {
           <p class="pit-lap-notice" id="alignmentCorrectionNotice" hidden aria-live="polite"></p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
-      <canvas data-chart="${name}"${name === 'Timing delta' ? ' data-axis="shown"' : ''} role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
+      <canvas data-chart="${name}"${name === 'Timing delta' ? ' data-axis="shown"' : ''} tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0" aria-valuetext="Not set" aria-describedby="telemetryDataHelp" aria-label="${name}. Use Left and Right arrows to inspect exact samples, Home and End to jump, or drag horizontally to zoom."></canvas>
     </section>
   `;
   }).join('') + inputStack + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
@@ -1572,7 +1572,7 @@ function drawRealChart(name) {
   const shadedFields = ['Speed trace', 'Engine speed'];
   if (traceTintEnabled && traceEntries.length && shadedFields.includes(name)) {
     const bottomY = rect.height - bounds.bottom;
-    const baseAlpha = name === 'Speed trace' ? .16 : .11;
+    const baseAlpha = name === 'Speed trace' ? .09 : .07;
     const tintAlpha = Math.min(baseAlpha, baseAlpha / Math.sqrt(Math.max(1, traceEntries.length)) * 1.45);
     traceEntries.forEach(({ points, teamColor }) => {
       if (!points.length || points.some(point=>point.y===null)) return;
@@ -1605,7 +1605,7 @@ function drawRealChart(name) {
         ctx.lineTo(points[0].x, zeroY);
         ctx.closePath();
         // Warm colours (orange, yellow) wash out on white at a low alpha, so a thin wedge near zero read as unshaded.
-        ctx.fillStyle = hexToRgba(colour, .2);
+        ctx.fillStyle = hexToRgba(colour, .11);
         ctx.fill();
         ctx.restore();
       }
@@ -1676,34 +1676,6 @@ function drawRealChart(name) {
     ctx.save();clipWindows(gaps);ctx.setLineDash([4,3]);tracePath(points);ctx.stroke();ctx.restore();
   });
   ctx.shadowBlur = 0;
-  // Timing delta: each compared lap is named at the right-hand end of its line with its gap there (the lap gap when the
-  // whole lap is in view), so laps in similar team colours stay identifiable without matching colours to the legend.
-  if (name === 'Timing delta' && traceEntries.length > 1) {
-    const plotTop = bounds.top, plotBottom = rect.height - bounds.bottom, plotRight = rect.width - bounds.right;
-    const labels = traceEntries.filter(entry => entry.index !== 0).map(({ points, teamColor, lap }) => {
-      const end = [...points].reverse().find(point => Number.isFinite(point?.y));
-      if (!end) return null;
-      const value = bounds.max - (end.y - plotTop) / (plotBottom - plotTop) * (bounds.max - bounds.min);
-      return { y: end.y, color: teamColor, text: `${lap?.code || ''} ${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}` };
-    }).filter(Boolean).sort((a, b) => a.y - b.y);
-    // Above its line's end where there is room, then spread so no two labels overlap and all stay inside the plot.
-    const gap = 13;
-    labels.forEach((label, i) => {
-      label.ty = Math.max(plotTop + 7, label.y - 9);
-      if (i) label.ty = Math.max(label.ty, labels[i - 1].ty + gap);
-    });
-    for (let i = labels.length - 1; i >= 0; i--) {
-      const limit = i === labels.length - 1 ? plotBottom - 6 : labels[i + 1].ty - gap;
-      if (labels[i].ty > limit) labels[i].ty = limit;
-    }
-    ctx.save();
-    ctx.font = canvasFont(10, 600); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-    for (const label of labels) {
-      ctx.strokeStyle = theme.labelStroke; ctx.lineWidth = 3; ctx.strokeText(label.text, plotRight - 4, label.ty);
-      ctx.fillStyle = label.color; ctx.fillText(label.text, plotRight - 4, label.ty);
-    }
-    ctx.restore();
-  }
   if (name==='Speed trace' && showSpeedAnnotations) {
     const entries=visibleEntries.map(({lap})=>{const samples=telemetryCache.get(telemetryKey(lap));return {lap,samples,alignment:samples?.alignmentInputs};}).filter(e=>e.samples?.length && !e.lap.real?.out_lap);
     const key=totalDist.toFixed(1)+'|'+speedCornerMarkers.map(m=>`${m.key}:${m.fraction.toFixed(5)}`).join('|')+'|'+entries.map(e=>e.samples.positionRevision||0).join(':');
