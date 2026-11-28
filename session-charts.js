@@ -410,7 +410,8 @@ function renderTelemetryReadout() {
     const samples=telemetryCache.get(telemetryKey(lap));
     const values={};
     for(const [field,name] of fields){
-      const value=(samples?.alignmentMethod==='live-distance'||['Speed','Throttle'].includes(field))&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
+      const unread=['Speed','Throttle'].includes(field)&&telemetryChannelGapRanges(samples,field).some(range=>fraction>range.start&&fraction<range.end);
+      const value=unread?null:(samples?.alignmentMethod==='live-distance'||['Speed','Throttle'].includes(field))&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
       const estimated=typeof isReconstructedTelemetry==='function'&&isReconstructedTelemetry(samples,fraction,field);
       const low=typeof telemetryEstimateInfo==='function'&&telemetryEstimateInfo(samples,fraction,field)?.confidence==='low';
       values[field]=!Number.isFinite(value)?'—':field==='Brake'?(value>=50?'On':'Off'):field==='DRS'?(value>=.5?'Open':'Closed'):(estimated?'~':'')+(['Speed','Throttle'].includes(field)?value.toFixed(3):Math.round(value))+(low?' (low confidence)':'');
@@ -1122,9 +1123,29 @@ function telemetrySourceGapAt(series,fraction) {
   return telemetrySourceGapRanges(series).find(gap=>fraction>gap.start+1e-10&&fraction<gap.end-1e-10)||null;
 }
 
+// Stretches where one channel has no reading although packets kept arriving (the pedals' 104 placeholder decodes to
+// null): from the last reading before to the first after. The line across them is drawn dashed, as across a source gap.
+function telemetryChannelGapRanges(series,field) {
+  if(!series?.length||!field)return [];
+  const memo=series.channelGapEvidence?.[field];
+  if(memo&&memo.identity===series.alignmentInputs&&memo.length===series.length)return memo.ranges;
+  const ranges=[];let last=null,open=false;
+  for(const point of series){
+    const known=point[field]!==null&&point[field]!==undefined&&Number.isFinite(+point[field]);
+    if(!known){open=true;continue;}
+    const fraction=traceSampleFraction(series,point);
+    if(open&&last!=null&&fraction>last)ranges.push({start:last,end:fraction,channel:field});
+    open=false;last=fraction;
+  }
+  if(!series.channelGapEvidence)Object.defineProperty(series,'channelGapEvidence',{value:{},writable:true,configurable:true});
+  series.channelGapEvidence[field]={identity:series.alignmentInputs,length:series.length,ranges};
+  return ranges;
+}
+
 function telemetryTraceGapRanges(series,reference,name,index) {
   if(!['Speed trace','Throttle application','Timing delta'].includes(name)||name==='Timing delta'&&index===0)return [];
   const ranges=[...telemetrySourceGapRanges(series)];
+  if(name!=='Timing delta')ranges.push(...telemetryChannelGapRanges(series,chartField[name]));
   if(name==='Timing delta'&&reference!==series)ranges.push(...telemetrySourceGapRanges(reference));
   // The delta depends on both laps, including a hidden timing-reference trace.
   const merged=[];
@@ -1604,19 +1625,31 @@ function drawRealChart(name) {
       ctx.fillStyle = hexToRgba(teamColor, .1);
       ctx.fillRect(bounds.left, top, rect.width - bounds.left - bounds.right, laneH);
       ctx.fillStyle = teamColor;
-      // Braking zones as runs: each starts at its first "on" sample and ends at the first "off" one; runs a few pixels
-      // apart (a single dropped sample) join, so a zone is one block rather than a comb of slivers.
-      const runs = [];
-      for (let i = 0; i < points.length; i++) {
-        const point = points[i];
-        if (point.y == null || point.y >= mid) continue;
-        let j = i; while (j + 1 < points.length && points[j + 1].y != null && points[j + 1].y < mid) j++;
-        const end = points[j + 1]?.x ?? points[j].x;
-        const prev = runs.at(-1);
-        if (prev && point.x - prev[1] <= 6) prev[1] = end; else runs.push([point.x, end]);
-        i = j;
+      // Each state holds from its packet to the next one: braking runs are solid blocks from the first "on" packet to the
+      // first "off" one. Nothing is joined across a gap of any width, so an unknown stretch (no reading, a long packet gap
+      // or the feed's 104 placeholder) never becomes braking at a narrow plot; it is hatched instead.
+      const runs = [], unknown = [];
+      for (let i = 0; i + 1 < points.length; i++) {
+        const point = points[i], next = points[i + 1];
+        if (!(next.x > point.x)) continue;
+        const list = point.y == null ? unknown : point.y < mid ? runs : null;
+        if (!list) continue;
+        const last = list.at(-1);
+        if (last && Math.abs(last[1] - point.x) < 1e-6) last[1] = next.x; else list.push([point.x, next.x]);
       }
-      for (const [start, end] of runs) ctx.fillRect(start, top, Math.max(2, end - start), laneH);
+      for (const [start, end] of runs) ctx.fillRect(start, top, Math.max(1.5, end - start), laneH);
+      if (unknown.length) {
+        ctx.save();
+        ctx.beginPath();
+        for (const [start, end] of unknown) ctx.rect(start, top, Math.max(1.5, end - start), laneH);
+        ctx.clip();
+        ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = bounds.left - laneH; x < rect.width; x += 5) { ctx.moveTo(x, top + laneH); ctx.lineTo(x + laneH, top); }
+        ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = teamColor;
+      }
       ctx.fillStyle = teamColor; ctx.textAlign = 'right'; ctx.font = `600 10px ${typeof getComputedStyle === 'function' && document?.body ? getComputedStyle(document.body).fontFamily : 'sans-serif'}`;
       ctx.fillText(lap?.code || '', bounds.left - 8, top + laneH / 2 + 3.5);
     });

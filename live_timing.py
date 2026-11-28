@@ -464,7 +464,7 @@ class LiveState:
             for name in TRACE_CHANNELS:
                 out[name].append(sample.get(name))
         out['distance'] = round(distance, 1)
-        spatial = self._track_distances(number, [s['t'] for s in samples])
+        spatial = self._track_distances(number, [s['t'] for s in samples], [s.get('speed') for s in samples])
         if spatial:
             out['d'], out['distance'], out['spatial'] = spatial[0], spatial[1], True
         return out
@@ -476,7 +476,7 @@ class LiveState:
         if not inside:
             return None
         chosen = history[max(0, inside[0] - 1): inside[-1] + 2]
-        measured = self._track_distances(number, [s['t'] for s in chosen])
+        measured = self._track_distances(number, [s['t'] for s in chosen], [s.get('speed') for s in chosen])
         if not measured:
             return None
         xs, length = measured
@@ -551,9 +551,16 @@ class LiveState:
                 best = (cumulative[i] + f * (cumulative[i + 1] - cumulative[i]), i, gap)
         return best
 
-    def _track_distances(self, number: str, times: list[float]) -> tuple[list[float], float] | None:
+    POSITION_BRACKET_S = .6   # the same rule as Session analysis (telemetry_sources.interpolate_positions)
+
+    def _track_distances(self, number: str, times: list[float], speeds: list | None = None) -> tuple[list[float], float] | None:
         """Distance from the timing line in metres for each sample time, from the car's position at that moment
-        projected onto the outline. None when the outline or line is not known yet, or positions are missing."""
+        projected onto the outline. None when the outline or line is not known yet, or positions are missing.
+
+        A position is interpolated only between two packets that bracket the sample and are at most 0.6 s apart; it is
+        never held past the observed interval or stretched across a longer gap. A sample without one takes its distance
+        from the nearest projected neighbour plus the distance its speed covers (speed integration), and when that
+        applies to more than a third of the samples the whole result is None (the callers then integrate speed)."""
         geometry = self._geometry()
         if not geometry or not times:
             return None
@@ -561,23 +568,43 @@ class LiveState:
         if len(track) < 10:
             return None
         stamps = [p[0] for p in track]
-        length, origin, out, hint = geometry['length'], geometry['origin'], [], None
+        length, origin, raw, hint = geometry['length'], geometry['origin'], [], None
         for t in times:
-            i = min(max(bisect.bisect_left(stamps, t), 1), len(track) - 1)
-            a, b = track[i - 1], track[i]
-            f = 0.0 if b[0] == a[0] else max(0.0, min(1.0, (t - a[0]) / (b[0] - a[0])))
-            along, hint, gap = self._project(geometry, a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), hint)
-            if gap > 600:   # off the outline (pit lane): fall back to a full search next time
-                hint = None
-            out.append((along - origin) % length)
-        # Laps start a moment either side of the line: unwrap, so distance runs on from about 0 to one lap.
-        if out[0] > length / 2:
-            out[0] -= length
-        for k in range(1, len(out)):
-            while out[k] < out[k - 1] - length / 2:
+            i = bisect.bisect_left(stamps, t)
+            value = None
+            if i < len(stamps) and abs(stamps[i] - t) <= .001:
+                a = b = track[i]
+                f = 0.0
+            elif 0 < i < len(stamps) and 0 < stamps[i] - stamps[i - 1] <= self.POSITION_BRACKET_S:
+                a, b = track[i - 1], track[i]
+                f = (t - a[0]) / (b[0] - a[0])
+            else:
+                a = None
+            if a is not None:
+                along, hint, gap = self._project(geometry, a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), hint)
+                if gap > 600:   # off the outline (pit lane): fall back to a full search next time
+                    hint = None
+                value = (along - origin) % length
+            raw.append(value)
+        known = [k for k, v in enumerate(raw) if v is not None]
+        if not known or len(known) < len(raw) * 2 / 3:
+            return None
+        # Laps start a moment either side of the line: unwrap the projected values, so distance runs on from about 0.
+        out = list(raw)
+        if out[known[0]] > length / 2:
+            out[known[0]] -= length
+        for previous, k in zip(known, known[1:]):
+            while out[k] < out[previous] - length / 2:
                 out[k] += length
-            while out[k] > out[k - 1] + length / 2:
+            while out[k] > out[previous] + length / 2:
                 out[k] -= length
+        # Fill the unbracketed samples from their neighbours by the distance their speed covers (decimetres, as projected).
+        speed = lambda k: float((speeds[k] if speeds and k < len(speeds) else None) or 0)
+        for k in range(known[0] + 1, len(out)):
+            if out[k] is None:
+                out[k] = out[k - 1] + (speed(k - 1) + speed(k)) / 2 / 3.6 * (times[k] - times[k - 1]) * 10
+        for k in range(known[0] - 1, -1, -1):
+            out[k] = out[k + 1] - (speed(k) + speed(k + 1)) / 2 / 3.6 * (times[k + 1] - times[k]) * 10
         return [round(v / 10, 1) for v in out], round(length / 10, 1)
 
     PUSH_MARGIN = 1.07   # within 107% of the session's best lap: a push lap, not a cool-down, in- or out-lap
@@ -763,7 +790,7 @@ class LiveState:
                 if len(samples) < 2:
                     out['laps'][number] = None
                     continue
-                spatial = self._track_distances(number, [sample['t'] for sample in samples])
+                spatial = self._track_distances(number, [sample['t'] for sample in samples], [sample.get('speed') for sample in samples])
                 if spatial:
                     xs = spatial[0]
                 else:

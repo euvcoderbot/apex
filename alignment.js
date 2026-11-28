@@ -169,7 +169,8 @@ function normalizeTelemetry(samples, lap, source = 'Unknown') {
       Distance: distance,
       ElapsedSeconds: elapsed,
       Speed: telemetryNumber(point.Speed),
-      Throttle: telemetryNumber(point.Throttle),
+      Throttle: window.ApexAnalysis?.observedThrottle ? window.ApexAnalysis.observedThrottle(point.Throttle) : telemetryNumber(point.Throttle),
+      RawThrottle: point.Throttle,   // as published, for the brake decoder's placeholder check
       RPM: telemetryNumber(point.RPM),
       nGear: telemetryNumber(point.nGear),
       DRS: point.DRS,
@@ -245,10 +246,13 @@ async function fetchTelemetry(lap) {
     setTelemetryMeta(samples, 'modeAvailable', hasRawMode && season < 2026);
 
     samples.forEach(point => {
-      const brake = window.ApexAnalysis?.observedBrake(point.Brake) ?? (point.Brake==null?null:point.Brake===true?100:point.Brake===false?0:Number.isFinite(Number(point.Brake))?Number(point.Brake)>0?100:0:null);
-      point.ReconstructionBrake = telemetryNumber(point.Brake);
+      // The shared decoders return null on purpose for a missing or unknown reading (brake 104, an unknown DRS code): that
+      // null is kept, never replaced by a fallback that would turn it into a definite state.
+      const brake = window.ApexAnalysis ? window.ApexAnalysis.observedBrake(point.Brake, point.RawThrottle ?? point.Throttle)
+        : (point.Brake==null||+point.Brake===104?null:point.Brake===true?100:point.Brake===false?0:Number.isFinite(Number(point.Brake))?Number(point.Brake)>0?100:0:null);
+      point.ReconstructionBrake = brake;
       point.DRS = season < 2026 && hasRawMode
-        ? window.ApexAnalysis?.observedDRS(point.DRS) ?? (point.DRS==null?null:[1,10,12,14].includes(Number(point.DRS))||Number(point.DRS)>=10?1:0)
+        ? (window.ApexAnalysis ? window.ApexAnalysis.observedDRS(point.DRS) : null)
         : null;
       point.Brake = brake;
     });

@@ -107,6 +107,9 @@ function bindAllChartHover() {
         } else {
           val = interpolate(series, targetDist, field);
         }
+        // No reading on this channel here (the pedals' 104 placeholder): unknown, not the value interpolated across it.
+        if ((chartName === 'Throttle application' || chartName === 'Speed trace') && typeof telemetryChannelGapRanges === 'function'
+            && telemetryChannelGapRanges(series, field).some(range => fraction > range.start && fraction < range.end)) val = null;
         if (!Number.isFinite(val)) return '—';
         if (chartName === 'Timing delta') return `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
         if (field === 'DRS') return val >= 0.5 ? 'open' : 'closed';
@@ -140,9 +143,16 @@ function bindAllChartHover() {
       const reconstructionNote = hasReconstructedValue
         ? `<br><small>~ ${hasLowConfidenceValue ? 'Low-confidence gap estimate' : 'Estimated repair'}</small>`
         : '';
+      // Zoomed in on braking, the card says where each lap's nearest brake change can lie: between the last packet in the old
+      // state and the first in the new one (about 15 m at the median), so a few metres between two laps is not over-read.
+      const zoomedMetres = (traceZoom.end - traceZoom.start) * maxDistance;
+      const brakeNotes = (hoveredChartName === 'Brake application' || hoveredChartName === 'Speed trace') && zoomedMetres <= 1500
+        ? entries.map(({lap, series}) => { const t = brakeTransitionNear(series, fraction, maxDistance); return t ? `${escapeUI(lap.code)} ${t.kind} between ${Math.round(t.from)} and ${Math.round(t.to)} m (${Math.round(t.to - t.from)} m)` : null; }).filter(Boolean)
+        : [];
+      const brakeNote = brakeNotes.length ? `<br><small>Brake change · ${brakeNotes.join('; ')}</small>` : '';
       const sourceGapNote=sourceGapNotes.size?`<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
       // The distance is already on the x-axis cursor label, so the card carries only the readings.
-      tooltip.innerHTML = `${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
+      tooltip.innerHTML = `${lines.join('<br>')}${brakeNote}${sourceGapNote}${reconstructionNote}`;
       tooltip.classList.toggle('has-readout', allChannels);
       tooltip.style.display = 'block';
       
@@ -337,3 +347,23 @@ function updateTelemetryVisibility() {
   if (emptyState) emptyState.hidden = !empty || genericMap;
 }
 document.addEventListener('click', event => { if (event.target.closest?.('#telemetryEmptyLoad')) $('#loadSession')?.click(); });
+
+// The brake change nearest a lap position (within reach metres): the interval between the last packet in the old state and
+// the first in the new one, where the real change happened somewhere. Unknown readings break the pair.
+function brakeTransitionNear(series, fraction, total, reach = 60) {
+  if (!series?.length || !(total > 0)) return null;
+  const at = fraction * total;
+  let best = null, previous = null;
+  for (const point of series) {
+    const state = point.Brake == null || !Number.isFinite(+point.Brake) ? null : +point.Brake >= 50;
+    const metres = traceSampleFraction(series, point) * total;
+    if (state === null) { previous = null; continue; }
+    if (previous && previous.state !== state && metres > previous.metres) {
+      const distance = at < previous.metres ? previous.metres - at : at > metres ? at - metres : 0;
+      if (distance <= reach && (!best || distance < best.distance)) best = {distance, from: previous.metres, to: metres, kind: state ? 'on' : 'off'};
+    }
+    previous = {state, metres};
+  }
+  return best;
+}
+

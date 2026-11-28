@@ -317,5 +317,35 @@ class Replay(unittest.TestCase):
         self.assertIn('available', status)
 
 
+
+class LiveProjection(unittest.TestCase):
+    """Positions are interpolated only between packets at most 0.6 s apart, never held outside the observed interval."""
+    def state(self, stamps):
+        state = lt.LiveState()
+        state.outline_loop = [(0, 0), (10000, 0), (10000, 10000), (0, 10000)]   # decimetres: a 4 km square
+        state.line_points = [(0, 0)] * 5
+        state.positions['1'] = [(T0 + t, 1 + 1000 * t, 0) for t in stamps]   # 100 m/s along the first side
+        return state
+
+    def test_bracketed_samples_follow_the_car_and_long_gaps_use_speed(self):
+        stamps = [k * .27 for k in range(12)] + [5 + k * .27 for k in range(12)]   # a 2 s hole after 2.97 s
+        state = self.state(stamps)
+        times = [T0 + k * .1 for k in range(80)]
+        out = state._track_distances('1', times, [360] * len(times))
+        self.assertIsNotNone(out)
+        distances, _ = out
+        for k, d in enumerate(distances):
+            self.assertAlmostEqual(d, 100 * k * .1, delta=.5, msg=f'sample {k}')
+
+    def test_samples_after_the_last_packet_are_not_held_at_its_position(self):
+        state = self.state([k * .27 for k in range(20)])          # observed to 5.13 s
+        times = [T0 + k * .1 for k in range(60)]                  # asks to 5.9 s
+        distances, _ = state._track_distances('1', times, [360] * 60)
+        self.assertGreater(distances[-1], distances[51] + 70)     # carried on by speed, not frozen at the last packet
+
+    def test_mostly_unbracketed_lap_falls_back_to_integration(self):
+        state = self.state([k * 1.0 for k in range(12)])          # 1 Hz positions: nothing is bracketed within 0.6 s
+        self.assertIsNone(state._track_distances('1', [T0 + k * .25 + .1 for k in range(40)], [360] * 40))
+
 if __name__ == '__main__':
     unittest.main()

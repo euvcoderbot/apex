@@ -125,7 +125,7 @@ function officialZones(gp, s, marks, length) {
   // gap (throttle reads over 100, the feed's placeholder, and the speed holds still), the zone stops at the gap: its length
   // is then a minimum ('data gap'), since the lift or braking is somewhere inside it.
   const gap = x => x.Throttle > 100;
-  const braking = x => Number(x.Brake) > 0 && !(x.Throttle >= 30);
+  const braking = x => Number(x.Brake) > 0 && Number(x.Brake) !== 104 && !(x.Throttle >= 30);
   const lifts = s.filter(x => !gap(x) && x.Distance < length - 40 && (!(x.Throttle >= 95) || braking(x))).map(x => x.Distance);
   const flats = s.filter(x => !gap(x) && x.Throttle >= 95 && !braking(x)).map(x => x.Distance);
   // Only a gap of 100 m or more can hide a lift; shorter ones (a few lost samples) are stepped over.
@@ -178,7 +178,7 @@ const round1 = v => Math.round(v * 10) / 10;
 function profile(gp, lap, session, guide) {
   const s = lap.samples, time = lap.time, length = s.at(-1).Distance;
   let full = 0, brake = 0, zones = 0, changes = 0, onBrake = false;
-  const braking = x => Number(x.Brake) > 0 && !(x.Throttle >= 30);
+  const braking = x => Number(x.Brake) > 0 && Number(x.Brake) !== 104 && !(x.Throttle >= 30);
   for (let i = 1; i < s.length; i++) {
     const a = s[i - 1], b = s[i], dt = b.ElapsedSeconds - a.ElapsedSeconds;
     if (!(dt > 0)) continue;

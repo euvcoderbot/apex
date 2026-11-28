@@ -165,20 +165,18 @@ class RetrievalTests(unittest.TestCase):
         invalid = [{**p,'X':float('nan')} for p in full]
         self.assertEqual(server.position_geometry_quality(invalid),(0,False))
 
-    def test_position_join_matches_dataframe_nearest_with_gaps_and_ties(self):
+    def test_position_join_interpolates_between_bracketing_packets_with_gaps_and_ties(self):
         start = datetime(2026, 9, 12, 14, 10, tzinfo=timezone.utc)
         def point(t, **values):
             return {'date': (start + timedelta(seconds=t)).isoformat(), **values}
         car = [point(t, speed=200) for t in [0, .2, .4, .6, 1, 1.7, 2.8]]
         location = [point(t, x=i, y=-i) for i, t in enumerate([0, .4, .4, .8, 2])]
         actual = server.join_openf1_positions(car, location)
-        left, right = pd.DataFrame(car), pd.DataFrame(location)
-        left['_date'] = pd.to_datetime(left.date, format='mixed')
-        right['_date'] = pd.to_datetime(right.date, format='mixed')
-        expected = pd.merge_asof(left, right[['_date','x','y']], on='_date',
-                                 direction='nearest', tolerance=pd.Timedelta(milliseconds=400))
-        self.assertEqual([(server.seconds(p.get('x')), server.seconds(p.get('y'))) for p in actual],
-                         [(server.seconds(p.x), server.seconds(p.y)) for p in expected.itertuples()])
+        # Exact instants are native (the later of two duplicates); between packets at most 0.6 s apart the position is
+        # interpolated in time; across the 1.2 s hole and past the last packet it stays missing (no nearest-packet guess).
+        self.assertEqual([tuple(None if v is None else round(v, 6) for v in (p.get('x'), p.get('y'))) for p in actual],
+                         [(0, 0), (.5, -.5), (2, -2), (2.5, -2.5), (None, None), (None, None), (None, None)])
+        self.assertEqual([p['position_estimated'] for p in actual], [False, True, False, True, False, False, False])
 
     def test_selected_context_uses_two_channels_across_boundary_windows(self):
         start = datetime(2026, 9, 12, 14, 10, tzinfo=timezone.utc)

@@ -2,6 +2,7 @@
 from collections import defaultdict
 import math
 import numpy as np
+from telemetry_sources import observed_brake, observed_throttle
 
 
 def source_intervals(item):
@@ -34,8 +35,26 @@ def prepare(samples, selection, require_gps=True):
             if 0 <= j < len(samples):
                 samples[j]['SourceIntervalSeconds'] = max(1.501, samples[j].get('SourceIntervalSeconds') or 0)
     samples = [r for i,r in enumerate(samples) if i not in bad]
+    # Pedals, each decoded on its own. A missing reading (the feed's 104) is never braking or full throttle: like a corrupt
+    # speed packet it marks its stretch as an unsupported gap (source_intervals), so no measurement window crosses it, while
+    # the rest of the lap still counts. The value carried in the array is the last real reading (the next one at the start),
+    # only so the array stays numeric; nothing measures across it.
+    pedal_gaps = 0
+    for channel, decode in (('Throttle', lambda r: observed_throttle(r.get('Throttle'))),
+                            ('Brake', lambda r: None if observed_brake(r.get('Brake'), r.get('Throttle')) is None
+                             else float(observed_brake(r.get('Brake'), r.get('Throttle')) > 0))):
+        values = [decode(r) for r in samples]
+        known = [v for v in values if v is not None]
+        last = known[0] if known else None
+        for r, value in zip(samples, values):
+            if value is None:
+                r['_' + channel] = last
+                r['SourceIntervalSeconds'] = max(1.501, r.get('SourceIntervalSeconds') or 0)
+                pedal_gaps += 1
+            else:
+                r['_' + channel] = last = value
     a = np.array([[r.get('Distance'), r.get('ElapsedSeconds'), r.get('Speed'),
-                   r.get('Throttle'), float(bool(r.get('Brake'))),
+                   r['_Throttle'], r['_Brake'],
                    r.get('X'), r.get('Y'), float(r.get('DRS') or 0)] for r in samples], dtype=float)
     official = float(selection.get('time') or selection['end']-selection['start'])
     if len(a) < 100 or not np.isfinite(a[:, :5]).all():
@@ -57,7 +76,7 @@ def prepare(samples, selection, require_gps=True):
     if require_gps and np.mean(gps) < .65:
         raise ValueError('Insufficient position coverage for shared track windows')
     return {'a': a, 'gps': gps, 'official': official, 'selection': selection, 'samples': samples,
-            'removed_speed_samples': len(bad), 'local_gap_count': int(np.sum(np.diff(a[:,1])>1.5))}
+            'removed_speed_samples': len(bad), 'missing_pedal_samples': pedal_gaps, 'local_gap_count': int(np.sum(np.diff(a[:,1])>1.5))}
 
 
 def common_zone_scores(zone_times):
