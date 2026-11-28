@@ -160,7 +160,7 @@ for (const theme of ['dark', 'light']) test(`Live uses official fastest times wh
   const current = page.frameLocator('iframe[title="Current lap telemetry charts"]');
   await expect(current.locator('canvas[data-chart="Gear"]')).toBeVisible();
   await expect(current.locator('#alignmentCorrectionToggle')).toBeDisabled();
-  await expect(current.locator('#traceZoomReadout')).toHaveText('0.00–6.00 km');
+  await expect(current.locator('#traceZoomReadout')).toHaveText('Full lap');
   await current.getByText('Inspect telemetry values', {exact: true}).click();
   await current.getByRole('slider', {name: 'Lap distance'}).press('End');
   await expect(current.getByRole('row', {name: /^VER L30/}).getByRole('cell').first()).toHaveText('—');

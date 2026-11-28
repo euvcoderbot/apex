@@ -14,7 +14,6 @@ main > .sidebar, main > .analysis-column { grid-row: 3; }
 .team-logo { width: 22px; height: 22px; flex-basis: 22px; }
 .tire-option { display: flex; flex-direction: column; padding: 8px 4px; gap: 4px; text-align: center; min-height: 64px; }
 .tire-option .tyre-image { width: 26px; height: 26px; }
-.workspace-heading { justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; gap: 4px 12px; }
 .lap-workspace #stintPanels { grid-template-columns: repeat(auto-fit,minmax(min(100%,380px),1fr)); gap: 10px; align-items: start; }
 .lap-chip .lap-clock { text-align: right; white-space: nowrap; }
 .loaded-lap-main { padding: 8px 10px; gap: 8px; }
@@ -35,9 +34,9 @@ body:not(.trace-focus) .chart.compact .chart-heading { margin-bottom: 5px; }
   body:not(.trace-focus) .chart:has(canvas[data-chart="Engine speed"]) canvas { height: 132px !important; min-height: 0 !important; }
   /* Driver inputs: proportional rows; on/off channels are thin strips, the axis row adds room for turns and distances. */
   body:not(.trace-focus) .chart-row canvas { height: 92px !important; min-height: 0 !important; }
-  body:not(.trace-focus) .chart-row:is([data-row="Brake application"], [data-row="DRS"]) canvas { height: 40px !important; }
+  body:not(.trace-focus) .chart-row:is([data-row="Brake application"], [data-row="DRS"]) canvas { height: 64px !important; }  /* tall enough to read each braking zone */
   body:not(.trace-focus) .chart-row.is-axis-row canvas { height: 133px !important; }
-  body:not(.trace-focus) .chart-row.is-axis-row:is([data-row="Brake application"], [data-row="DRS"]) canvas { height: 81px !important; }
+  body:not(.trace-focus) .chart-row.is-axis-row:is([data-row="Brake application"], [data-row="DRS"]) canvas { height: 105px !important; }
 }
 .track-pill { justify-content: flex-start; padding: 8px 10px; white-space: normal; }
 #performanceResults > .performance-toolbar { position: sticky; top: 76px; z-index: 24; padding: 8px 0; }

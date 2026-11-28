@@ -43,11 +43,11 @@ test('keyboard telemetry readout keeps estimates, partial-lap delta and visible 
   const series=[{Distance:0},{Distance:6000}];
   const box={window:{},$:s=>nodes[s.slice(1)],loaded:[reference,partial],telemetryCache:new Map([['VER',series],['LEC',series]]),telemetryKey:l=>l.code,
     visibleTraceLaps:()=>[{lap:reference,index:0},{lap:partial,index:1}],traceTelemetryValue:(samples,fraction,field)=>{calls.push([fraction,field]);return field==='Speed'?301.25:75;},
-    interpolate:(samples,distance,field)=>field==='Brake'?0:8,isReconstructedTelemetry:(samples,fraction,field)=>field==='Speed',telemetryEstimateInfo:()=>({confidence:'low'}),telemetrySourceGapAt:()=>null,escapeUI:s=>s,displayDeltaAt:()=>.1};
+    interpolate:(samples,distance,field)=>field==='Brake'?0:8,isReconstructedTelemetry:(samples,fraction,field)=>field==='Speed',telemetryEstimateInfo:()=>({confidence:'low'}),telemetrySourceGapAt:()=>null,escapeUI:s=>s,displayDeltaAt:()=>.1,circuitReferenceTelemetry:()=>({lap:reference,samples:series}),telemetryChannelGapRanges:()=>[]};
   vm.createContext(box);const source=read('session-charts.js');
   const alignment=read('alignment.js');
   vm.runInContext(alignment.slice(alignment.indexOf('function referenceDistance'),alignment.indexOf('function rawFractionAt')),box);
-  vm.runInContext(source.slice(source.indexOf('function renderTelemetryReadout'),source.indexOf('function deltaAt')),box);box.renderTelemetryReadout();
+  vm.runInContext(source.slice(source.indexOf('function renderTelemetryReadout'),source.indexOf('function getSectorDistances')),box);box.renderTelemetryReadout();
   assert.equal(nodes.telemetrySampleDistance.textContent,'1.500 km');assert.equal(nodes.telemetrySample['aria-valuetext'],'1.500 km');
   assert.match(nodes.telemetrySampleRows.innerHTML,/VER L1 \(reference\)/);assert.match(nodes.telemetrySampleRows.innerHTML,/~301\.250 \(low confidence\)/);
   assert.match(nodes.telemetrySampleRows.innerHTML,/<td>\+0\.000<\/td>/);assert.match(nodes.telemetrySampleRows.innerHTML,/LEC L2<\/th><td>[^<]+<\/td><td>—<\/td>/);

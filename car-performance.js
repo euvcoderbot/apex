@@ -1014,8 +1014,11 @@ function teamProfileModel(paceTeams) {
 function teamProfileCard(paceTeams) {
   if(!paceTeams.length)return '';
   const model=teamProfileModel(paceTeams),{measures,rows}=model;
-  const head=`<tr><th scope="col">Team</th>${measures.map(m=>`<th scope="col">${escape(m.label)}</th>`).join('')}<th scope="col">Strongest at</th></tr>`;
-  const body=rows.sort((a,b)=>(a.ranks[0]??99)-(b.ranks[0]??99)).map(r=>`<tr style="--team:${escape(color(r.team.color))}"><th scope="row">${teamLabel(r.team)}</th>${r.ranks.map((rank,i)=>{
+  // A measurement no team has on these weekends is a column of dashes: name it once under the table instead.
+  const shown=measures.map((m,i)=>i).filter(i=>measures[i].count>0);
+  const missing=measures.filter(m=>!m.count).map(m=>m.label);
+  const head=`<tr><th scope="col">Team</th>${shown.map(i=>`<th scope="col">${escape(measures[i].label)}</th>`).join('')}<th scope="col">Strongest at</th></tr>`;
+  const body=rows.sort((a,b)=>(a.ranks[0]??99)-(b.ranks[0]??99)).map(r=>`<tr style="--team:${escape(color(r.team.color))}"><th scope="row">${teamLabel(r.team)}</th>${shown.map(i=>[r.ranks[i],i]).map(([rank,i])=>{
     const m=measures[i],v=m.values.get(r.team.team);
     const heat=rank!=null&&m.count>1?(m.count-rank)/(m.count-1):0;
     const reading=escape(`${m.label}: ${rank==null?'not measured':`rank ${rank} of ${m.count} · ${signed(v,m.digits??3,m.unit)}`}`);
@@ -1024,6 +1027,7 @@ function teamProfileCard(paceTeams) {
   return `<section class="dashboard-card performance-card team-profile-card"><div class="panel-heading"><h2>Car strengths and weaknesses</h2></div>
     <p class="performance-note">Each team’s rank among the teams measured, 1 = best, in every measurement on this page set. Deeper shading is a better rank; the measured value is on hover. Ranks hide how close teams are: check the gaps before reading much into neighbouring places.</p>
     ${loadButton}<div class="performance-table-wrap" tabindex="0" role="region" aria-label="Car strengths and weaknesses"><table class="performance-table team-profile-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    ${missing.length&&model.speedLoaded?`<p class="team-profile-missing">Not measured on these weekends: ${escape(missing.join(', ').toLowerCase().replace(/^./,c=>c.toUpperCase()))}.</p>`:''}
     ${model.speedLoaded?tradeOffPlot(model):''}</section>`;
 }
 // Plot both measured deficits on the same set of qualifying weekends.
@@ -2015,6 +2019,10 @@ function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const meta=SPEED_DOMAIN_METRICS[key],season=speedDomainSeason(events,subject,key),style=speedDomainEntities(subject);
   const ranked=season.rows.filter(r=>finite(r.value));
   const bestByMean=Math.min(...ranked.map(r=>r.value));
+  // Until both subjects have finished measuring, a short or empty chart is still loading: the first visit used to say
+  // "insufficient" or "no measurement" for the GPs and subject not fetched yet.
+  const pending=running||speedDomainRunning.team||speedDomainRunning.driver;
+  if(pending&&!ranked.length)return {title:title||meta.label,empty:'Loading qualifying telemetry…'};
   if(season.gps&&!ranked.length)return {title:title||meta.label,empty:`Insufficient shared weekends for a ranking. ${season.sharedEvents.length} of ${season.gps} supported GPs overlap. Individual measurements are under Values by GP.`};
   const medians=ranked.map(r=>median(r.perEvent.filter(e=>season.sharedEvents.includes(e.event)).map(e=>e.value)));
   const bestByMedian=Math.min(...medians);
@@ -2028,7 +2036,7 @@ function speedDomainChart(key,title,subtitle,subject=telemetrySubject) {
   const rows=season.rows.map(r=>({...(style.get(r.name)||{team:r.name}),value:r.value,missingReason:r.missingReason,traceProvisional:r.provisional,
     evidenceLabel:season.rivalOverlap?`${r.gps} measured GPs · ${evidence}`:`${season.sharedEvents.length} shared GPs`,evidenceBadge:season.rivalOverlap?'':undefined}));
   // While GPs are still loading an empty chart is pending, not a missing measurement.
-  if(!rows.length)return {title:title||meta.label,empty:running||speedDomainRunning[subject]?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
+  if(!rows.length)return {title:title||meta.label,empty:pending?'Loading qualifying telemetry…':key.startsWith('corner_')?'No shared supported corner measurement in this band. Missing values are not zero.':'No supported measurement in the loaded GPs. Missing values are not zero.'};
   return {title:title||meta.label,rows,matchedRivals:Boolean(season.rivalOverlap),options:{title:title||meta.label,evidenceSummary,
     subtitle:`${subtitle?subtitle+' · ':''}${season.rivalOverlap?'':evidence+' · '}0 = best${sensitive?' · Leader changes when GPs are summarized by median':''}${rows.some(r=>r.traceProvisional)?' · ≈ provisional: source gaps >0.6 s':''}`,unit:meta.unit,digits:meta.digits}};
 }
@@ -2145,6 +2153,19 @@ function hydratePerformanceEvidence(detail) {
   window.ApexPresentation?.arrangePerformance(host,activeMetric);
 }
 root.addEventListener('toggle',event=>{if(event.target.matches('details')&&event.target.open)hydratePerformanceEvidence(event.target);},true);
+// Pointing at an entrant in one ranking marks the same entrant in every other ranking on the view (qualifying beside race
+// pace, teams beside a band), so one team can be followed across the cards without reading each list again.
+let linkedEntrant='';
+const linkEntrant=name=>{
+  if(name===linkedEntrant)return;linkedEntrant=name;
+  const panel=root.querySelector('#performanceMetricPanel');if(!panel)return;
+  panel.classList.toggle('has-linked-entrant',!!name);
+  panel.querySelectorAll('.performance-bar-row.is-linked').forEach(row=>row.classList.remove('is-linked'));
+  if(name)panel.querySelectorAll('.performance-bar-row[data-entrant]').forEach(row=>{if(row.dataset.entrant===name)row.classList.add('is-linked');});
+};
+root.addEventListener('pointerover',event=>{const row=event.target.closest?.('#performanceMetricPanel .performance-bar-row[data-entrant]');linkEntrant(row?row.dataset.entrant:'');});
+root.addEventListener('pointerleave',()=>linkEntrant(''));
+root.addEventListener('focusin',event=>{const row=event.target.closest?.('#performanceMetricPanel .performance-bar-row[data-entrant]');linkEntrant(row?row.dataset.entrant:'');});
 root.addEventListener('input',event=>{
   if(!event.target.matches('[data-evidence-search]'))return;
   const query=event.target.value.trim().toLowerCase();

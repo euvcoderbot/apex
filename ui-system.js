@@ -133,7 +133,7 @@
       if(!kind)unowned.push(el.tagName+' '+(el.id||el.className));
       else counts[kind]=(counts[kind]||0)+1;
     }
-    return {version:'macos-components-v1',counts,unowned};
+    return {version:'linear-components-v1',counts,unowned};
   }
   decorate();
   // New controls are decorated where they appeared, not across the whole page: re-scanning every button in the document after each

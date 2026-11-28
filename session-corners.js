@@ -183,8 +183,10 @@ function renderCornerAnalysis() {
     root.innerHTML = '<span class="section-empty">Corner analysis is waiting for aligned position data.</span>';
     return;
   }
-  const totalDistance = reference[reference.length - 1].Distance || 1;
-  const markers = resolveCornerMarkers(reference, totalDistance, referenceLap?.cornerMarkers);
+  // Corner windows are circuit locations: measured on the circuit path and its distance scale, whichever lap is the reference.
+  const circuit = typeof circuitReferenceTelemetry === 'function' ? circuitReferenceTelemetry() : null;
+  const totalDistance = circuit ? referenceDistance() : reference[reference.length - 1].Distance || 1;
+  const markers = resolveCornerMarkers(circuit?.samples || reference, totalDistance, circuit?.lap?.cornerMarkers?.length ? circuit.lap.cornerMarkers : referenceLap?.cornerMarkers);
   const zones = sessionPerformanceZones(adaptiveCornerZones(markers), totalDistance);
   if (!zones.length) {
     pickerRoot.innerHTML = ''; cornerPickerMarkup.delete(pickerRoot);
@@ -255,7 +257,7 @@ function renderCornerAnalysis() {
       </tr>`;
   }).join('');
 
-  updateCornerPicker(pickerRoot, `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section>`, selectedCornerIndices, automaticStraightIndices);
+  updateCornerPicker(pickerRoot, `<section class="circuit-section-group"><header><h3>Corners</h3><span>Choose one or more to compare</span></header><nav class="corner-picker" aria-label="Select one or more corners">${picker('corner')}</nav></section><section class="circuit-section-group"><header><h3>Straights</h3></header><nav class="corner-picker straight-zone-picker" aria-label="Select straight zones">${picker('straight')||'<small>No supported straight zones.</small>'}</nav></section>`, selectedCornerIndices, automaticStraightIndices);
   const pickedCorners=pickedZones.filter(z=>z.kind==='corner').map(cornerLabel);
   const pickedStraights=pickedZones.filter(z=>z.kind!=='corner');
   const selectionLabel=combined?[...pickedCorners,...(pickedStraights.length?[`${pickedStraights.length} link${pickedStraights.length===1?'':'s'}`]:[])].join(' + '):zone.label||cornerLabel(zone);
@@ -275,12 +277,16 @@ function renderCornerAnalysis() {
   const everyCorner=cornerOrder.filter(([,i])=>allMetrics[i]?.length);
   if(everyCorner.length&&loaded.length){
     const lapHead=loaded.map(lap=>`<th scope="col" class="num"><span class="corner-every-lap" style="--team:${escapeUI(getLapColor(lap))}">${escapeUI(lap.code)} <small>L${lap.lap}</small></span></th>`).join('');
+    const diffScale=Math.max(1,...everyCorner.map(([,i])=>{const v=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);return loaded.length===2&&v.every(Number.isFinite)?Math.abs(v[1]-v[0]):0;}));
     const body=everyCorner.map(([z,i])=>{
       const speeds=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);
       const finite=speeds.filter(Number.isFinite), top=finite.length>1?Math.max(...finite):null;
       const cells=speeds.map((v,k)=>{const metric=allMetrics[i].find(m=>m.lap===loaded[k])?.metric;const tip=metric?`${loaded[k].code}: ${v.toFixed(1)} km/h at ${Math.round(metric.apexFraction*totalDistance)} m${metric.minimumAtBoundary?' · turn boundary; not a local speed dip':''}. Select this corner to mark it on the speed trace.`:'Insufficient speed samples inside the turn';return `<td class="num${Number.isFinite(v)&&top!=null&&Math.abs(v-top)<.05?' is-best':''}" title="${escapeUI(tip)}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}</td>`;}).join('');
       const diff=loaded.length===2&&speeds.every(Number.isFinite)?speeds[1]-speeds[0]:null;
-      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</td>`:'';
+      // A diverging bar beside the number: it grows toward the lap that carried more speed, in that lap's colour, scaled to
+      // the largest difference on the lap, so the corners where one car is stronger stand out down the column.
+      const bar=diff==null||Math.abs(diff)<0.5?'':`<span class="corner-every-bar" data-side="${diff>0?'right':'left'}" style="--w:${Math.min(100,Math.abs(diff)/diffScale*100).toFixed(1)}%;--team:${escapeUI(getLapColor(loaded[diff>0?1:0]))}" aria-hidden="true"></span>`;
+      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}"><span class="corner-every-track">${bar}</span><span class="corner-every-value">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</span></td>`:'';
       return `<tr><th scope="row"><button type="button" class="corner-every-pick" data-corner-every="${i}" aria-pressed="${selectedCornerIndices.has(i)}">${escapeUI(z.label||cornerLabel(z))}</button></th>${cells}${diffCell}</tr>`;
     }).join('');
     root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum corner speeds</summary>
@@ -747,6 +753,18 @@ function miniSectorDominanceSegments(series, totalDistance, segmentLength = 25) 
       return before == null || after == null ? null : after - before;
     });
     const comparable = durations.length >= 2 && durations.every(time => Number.isFinite(time) && time > 0);
-    return {start, end, durations, winner: comparable ? durations.indexOf(Math.min(...durations)) : -1};
+    const sorted = comparable ? [...durations].sort((a, b) => a - b) : [];
+    // level: the two quickest are closer than the timing can separate here (winner still names the quicker one).
+    const level = comparable && sorted[1] - sorted[0] < miniSectorTieSeconds((end - start) * totalDistance);
+    return {start, end, durations, winner: comparable ? durations.indexOf(sorted[0]) : -1, level, missing: !comparable};
   });
+}
+
+// The smallest segment-time difference treated as real. Measured by resampling (scripts/audit-mini-sector-ties.mjs, the
+// 2026 Singapore qualifying fixture): every other packet was dropped and the laps realigned, and the change in each
+// segment's time gap recorded. At half the sample rate its 90th percentile was about 10 ms over 25 m and 40 ms over 230 m
+// (the sector-time rescaling spreads error along the segment); at the native rate that is about half. Below this, a
+// segment is level rather than won.
+function miniSectorTieSeconds(metres) {
+  return Math.max(.005, (Number(metres) || 0) * 8.5e-5);
 }

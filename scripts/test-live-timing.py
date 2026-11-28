@@ -132,6 +132,35 @@ class LiveAuthentication(unittest.TestCase):
         self.assertEqual(manager.state.laps['1'][2]['seconds'], 90.0)
 
 
+    def test_connecting_without_a_sign_in_leaves_out_the_empty_token_factory(self):
+        """FastF1 3.9.2 passes access_token_factory=None when not signed in; signalrcore then refuses to connect."""
+        import types
+        from unittest.mock import patch
+
+        class HubConnectionBuilder:   # signalrcore's check, as it raises
+            def with_url(self, hub_url, options=None):
+                if options and 'access_token_factory' in options and not callable(options['access_token_factory']):
+                    raise TypeError('access_token_factory is not function')
+                self.options = options
+                return self
+
+        client = types.ModuleType('fastf1.livetiming.client')
+        client.HubConnectionBuilder = HubConnectionBuilder
+        livetiming = types.ModuleType('fastf1.livetiming'); livetiming.client = client
+        fastf1 = types.ModuleType('fastf1'); fastf1.livetiming = livetiming
+        with patch.dict(sys.modules, {'fastf1': fastf1, 'fastf1.livetiming': livetiming, 'fastf1.livetiming.client': client}):
+            with self.assertRaisesRegex(TypeError, 'not function'):
+                client.HubConnectionBuilder().with_url('u', options={'access_token_factory': None})
+            lt.allow_unauthenticated_connection()
+            lt.allow_unauthenticated_connection()   # once only: no wrapper around the wrapper
+            self.assertIs(client.HubConnectionBuilder.__mro__[1], HubConnectionBuilder)
+            built = client.HubConnectionBuilder().with_url('u', options={'verify_ssl': True, 'access_token_factory': None})
+            self.assertEqual(built.options, {'verify_ssl': True})
+            token = lambda: 'abc'
+            built = client.HubConnectionBuilder().with_url('u', options={'access_token_factory': token})
+            self.assertIs(built.options['access_token_factory'], token)
+
+
 class CompletedLaps(unittest.TestCase):
     def test_timed_lap_is_available_while_telemetry_is_missing(self):
         state = lt.LiveState()
@@ -287,6 +316,36 @@ class Replay(unittest.TestCase):
         status = lt.stored_token_status()
         self.assertIn('available', status)
 
+
+
+class LiveProjection(unittest.TestCase):
+    """Positions are interpolated only between packets at most 0.6 s apart, never held outside the observed interval."""
+    def state(self, stamps):
+        state = lt.LiveState()
+        state.outline_loop = [(0, 0), (10000, 0), (10000, 10000), (0, 10000)]   # decimetres: a 4 km square
+        state.line_points = [(0, 0)] * 5
+        state.positions['1'] = [(T0 + t, 1 + 1000 * t, 0) for t in stamps]   # 100 m/s along the first side
+        return state
+
+    def test_bracketed_samples_follow_the_car_and_long_gaps_use_speed(self):
+        stamps = [k * .27 for k in range(12)] + [5 + k * .27 for k in range(12)]   # a 2 s hole after 2.97 s
+        state = self.state(stamps)
+        times = [T0 + k * .1 for k in range(80)]
+        out = state._track_distances('1', times, [360] * len(times))
+        self.assertIsNotNone(out)
+        distances, _ = out
+        for k, d in enumerate(distances):
+            self.assertAlmostEqual(d, 100 * k * .1, delta=.5, msg=f'sample {k}')
+
+    def test_samples_after_the_last_packet_are_not_held_at_its_position(self):
+        state = self.state([k * .27 for k in range(20)])          # observed to 5.13 s
+        times = [T0 + k * .1 for k in range(60)]                  # asks to 5.9 s
+        distances, _ = state._track_distances('1', times, [360] * 60)
+        self.assertGreater(distances[-1], distances[51] + 70)     # carried on by speed, not frozen at the last packet
+
+    def test_mostly_unbracketed_lap_falls_back_to_integration(self):
+        state = self.state([k * 1.0 for k in range(12)])          # 1 Hz positions: nothing is bracketed within 0.6 s
+        self.assertIsNone(state._track_distances('1', [T0 + k * .25 + .1 for k in range(40)], [360] * 40))
 
 if __name__ == '__main__':
     unittest.main()

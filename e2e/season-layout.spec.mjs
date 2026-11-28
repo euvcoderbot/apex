@@ -78,7 +78,7 @@ test('Las Vegas FP1 switches to the observed wet track as the session ends', asy
 
   const fp2End = Date.parse(next.sessions[1].start) + 60 * 60_000;
   await page.clock.fastForward(fp2End - fp1End);
-  await expect(fp2).toContainText('Observed weather unavailable');
+  await expect(fp2.locator('.season-session-weather')).toHaveCount(0);  // no reading: nothing repeated under the session
   await expect(forecast.getByText('FP2', {exact: true})).toHaveCount(0);
   await expect(forecast.getByText('FP3', {exact: true})).toBeVisible();
   await sessions.screenshot({path: test.info().outputPath('observed-weather.png')});

@@ -39,7 +39,6 @@ export function PitsView(p: PitsViewProps) {
           </> : null}
           {' '}Consistency (IQR) needs 4 samples. No recorded visit is not a zero-second stop.
           </span>
-          {p.quality.refresh ? <button type="button" data-pit-retry="">Refresh missing timing</button> : null}
         </p>
         <div className="performance-pit-controls">
           <div className="performance-scope-toggle" role="group" aria-label="Pit timing measurement">
@@ -50,6 +49,8 @@ export function PitsView(p: PitsViewProps) {
           {p.isLane ? <SegmentedControl name="pit-lane-basis" label="Pit-lane comparison basis" value={p.relativeLane ? 'event' : 'raw'} options={[['raw', 'Raw seconds'], ['event', 'Vs GP median']]} /> : null}
           <SegmentedControl name="pit-chart" label="Pit timing chart statistic" value={p.chartMetric}
             options={[['mean', 'Mean'], ['median', 'Median'], ['fastest', 'Quickest'], ['spread', 'Consistency · IQR']]} />
+          {/* The refresh sits at the end of the controls row rather than alone on a line of its own. */}
+          {p.quality.refresh ? <button type="button" className="performance-pit-retry" data-pit-retry="">Refresh missing timing</button> : null}
         </div>
         <p className="performance-note">Median describes a typical stop; mean includes slow stops; quickest shows the best visit; IQR describes consistency. Only confirmed service visits are ranked. Pit-lane time is not inferred pit loss.</p>
         {/* Unranked rows still draw (missing is not zero); only no rows at all is empty. */}
@@ -61,6 +62,9 @@ export function PitsView(p: PitsViewProps) {
               </div>
             : <BarChart rows={p.chartRows} options={p.chart} />
           : <p className="section-empty" role="status">{p.emptyMessage}</p>}
+        {/* Mean, median, quickest and spread for every entrant: the chart above shows one of them, so the table folds. */}
+        <details className="performance-table-fold" open={!p.chartRows.length || undefined}>
+        <summary>Values table</summary>
         <DataTable
           evidenceFrom={p.isDriver ? 6 : 5}
           headers={[p.sort.pitName, ...(p.isDriver ? [p.sort.pitTeam] : []), p.sort.pitMean, p.sort.pitMedian, p.sort.pitFastest, p.sort.pitSpread, p.sort.pitCount, p.sort.pitEvents]}
@@ -73,6 +77,7 @@ export function PitsView(p: PitsViewProps) {
               : <>—<small className="explanation-only">{r.sample.count ? `Needs 4 ${unit} · ${r.sample.count} measured` : 'No timed samples'}</small></>,
             r.sample.count, r.eventCount,
           ])} />
+        </details>
       </Card>
       <details className="dashboard-card performance-methods">
         <summary>Exact times for individual pit visits and timing sources</summary>

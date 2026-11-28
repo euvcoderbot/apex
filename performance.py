@@ -11,6 +11,7 @@ import numpy as np
 
 from fia_energy_params import get_fia_energy_envelope
 from pace_models import tyre_curve, compound_age_basis, qualifying_conditions
+from telemetry_sources import observed_brake, observed_throttle
 
 DRY_COMPOUNDS = {'SOFT', 'MEDIUM', 'HARD', 'HYPERSOFT', 'ULTRASOFT',
                  'SUPERSOFT', 'SUPERHARD'}
@@ -1603,7 +1604,12 @@ def telemetry_metrics(samples, corners):
         if i and times[i]-times[i-1] > 1.5:
             active = None
             continue
-        braking = bool(row.get('Brake'))
+        # A missing pedal reading (the feed's 104) ends the zone without counting: braking inside it is not known.
+        braking = observed_brake(row.get('Brake'), row.get('Throttle'))
+        if braking is None:
+            active = None
+            continue
+        braking = braking > 0
         if braking and active is None:
             active = i
         if active is not None and (not braking or i == len(rows)-1):
@@ -1628,7 +1634,7 @@ def telemetry_metrics(samples, corners):
                               'duration': duration, 'mean_g': drop/3.6/duration/9.80665,
                               'early_g': float(early_g)})
             active = None
-    full = [float(r['Speed']) for r in rows if number(r.get('Throttle')) is not None and r['Throttle'] >= 98 and not r.get('Brake')]
+    full = [float(r['Speed']) for r in rows if (observed_throttle(r.get('Throttle')) or 0) >= 98 and observed_brake(r.get('Brake'), r.get('Throttle')) == 0]
     return {'corners': output, 'braking': zones, 'top_speed': float(speed.max()),
             'full_throttle_p95': float(np.percentile(full, 95)) if len(full) >= 10 else None,
             'samples': len(rows), 'median_sample_interval': float(np.median(np.diff(times))),

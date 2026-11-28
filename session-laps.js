@@ -351,7 +351,7 @@ function renderLoaded() {
   const pitNotice = $('#pitLapNotice');
   if (pitNotice) pitNotice.hidden = !loaded.some(item => item.real?.in_lap || item.real?.out_lap);
   if (!loaded.length) {
-    root.innerHTML = '<span class="section-empty">No laps loaded. Click laps in the panel to compare.</span>';
+    root.innerHTML = '<span class="section-empty">No laps loaded yet. Choose laps, or select a best time in Driver summary, to compare them here.</span>';
     return;
   }
   
@@ -384,38 +384,19 @@ function renderLoaded() {
   });
 }
 
-// Mini-sectors under each sector time, as the live timing tower draws them: each sector cut into eight equal stretches (the
-// sector lines found on the reference lap's telemetry), each lap timed through every stretch from its own telemetry
-// (performanceSectionDuration, as the mini-sector dominance map), and coloured as F1 colours them: purple the quickest of
-// the compared laps there, green within a hundredth of it, yellow slower. One lap alone has nothing to be compared with,
-// so it shows none. Returns [lap index][sector][stretch] = 'best' | 'near' | 'slow', or null while telemetry loads.
-const MINI_PER_SECTOR = 8;
+// Mini-sectors under each sector time: F1's own statuses from the timing feed (OpenF1 segments_sector_1..3), coloured as the
+// timing tower colours them: purple a session best, green the driver's personal best, yellow slower, grey through the pit
+// lane. Laps without them (FastF1-only sources, older prepared sessions) show none.
+// Returns [lap index][sector] = ['best' | 'pb' | 'slow' | 'pit' | 'none', ...] or null.
+const MINI_SECTOR_STATUS = {2051: 'best', 2049: 'pb', 2048: 'slow', 2064: 'pit'};
 function lapMiniSectors() {
-  if (loaded.length < 2 || typeof performanceSectionDuration !== 'function' || typeof calibratedElapsed !== 'function') return null;
-  const series = loaded.map(item => (typeof telemetryCache !== 'undefined' ? telemetryCache.get(telemetryKey(item)) : null));
-  if (!series.every(samples => samples?.length)) return null;
-  const ref = loaded[0].real || {}, refSeries = series[0];
-  // The fraction of the lap where the reference lap's elapsed time reaches t (elapsed rises with distance).
-  const fractionAt = t => {
-    let lo = 0, hi = 1;
-    for (let k = 0; k < 30; k++) { const mid = (lo + hi) / 2, e = calibratedElapsed(refSeries, mid); if (e == null) return null; if (e < t) lo = mid; else hi = mid; }
-    return (lo + hi) / 2;
-  };
-  if (!Number.isFinite(ref.s1) || !Number.isFinite(ref.s2)) return null;
-  const f1 = fractionAt(ref.s1), f2 = fractionAt(ref.s1 + ref.s2);
-  if (f1 == null || f2 == null || !(f1 > 0 && f1 < f2 && f2 < 1)) return null;
-  const bounds = [[0, f1], [f1, f2], [f2, 1]];
-  const out = loaded.map(() => bounds.map(() => []));
-  bounds.forEach(([a, b], sector) => {
-    for (let m = 0; m < MINI_PER_SECTOR; m++) {
-      const start = a + (b - a) * m / MINI_PER_SECTOR, end = a + (b - a) * (m + 1) / MINI_PER_SECTOR;
-      const times = series.map(samples => performanceSectionDuration(samples, start, end));
-      const finite = times.filter(t => Number.isFinite(t) && t > 0);
-      const best = finite.length === times.length ? Math.min(...finite) : null;
-      times.forEach((t, lap) => out[lap][sector].push(best == null ? 'none' : t - best <= .0005 ? 'best' : t - best <= .01 ? 'near' : 'slow'));
-    }
+  const out = loaded.map(item => {
+    const minis = item.real?.minis;
+    return Array.isArray(minis) && minis.some(sector => sector?.length)
+      ? [0, 1, 2].map(k => (minis[k] || []).map(code => MINI_SECTOR_STATUS[code] || 'none'))
+      : null;
   });
-  return out;
+  return out.some(Boolean) ? out : null;
 }
 
 function renderSectors() {
@@ -457,6 +438,8 @@ function renderSectors() {
     if (!Number.isFinite(value) || !Number.isFinite(reference)) return '';
     const delta = value - reference;
     const className = basis && Math.abs(delta).toFixed(3) === '0.000' ? 'is-even' : delta >= 0 ? 'is-slower' : 'is-faster';
+    // The fastest compared lap is named rather than given a +0.000 s gap to itself.
+    if (className === 'is-even') return `<em class="summary-delta is-even" title="${basis}">Fastest</em>`;
     return `<em class="summary-delta ${className}"${basis ? ' title="' + basis + '"' : ''}>${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s${basis ? '<span class="visually-hidden"> to fastest compared lap</span>' : ''}</em>`;
   };
 
@@ -509,9 +492,9 @@ function renderSectors() {
         ${conditionsHtml}
         <div class="summary-sectors">${sectors.map(({ label, value, reference, state, quickest }, sectorIndex) => {
           const strip = minis?.[i]?.[sectorIndex];
-          const stripHtml = strip ? `<span class="sector-minis" aria-hidden="true">${strip.map(kind => `<i class="is-${kind}"></i>`).join('')}</span>` : '';
+          const stripHtml = strip?.length ? `<span class="sector-minis" aria-hidden="true">${strip.map(kind => `<i class="is-${kind}"></i>`).join('')}</span>` : '';
           return `
-          <span class="sector-cell ${state.className}${quickest ? ' is-compared-best' : ''}" title="${label} · ${state.label}${quickest ? ' · quickest of the compared laps' : ''}${strip ? ' · mini-sectors: purple quickest of the compared laps, green within 0.01 s, yellow slower' : ''}">
+          <span class="sector-cell ${state.className}${quickest ? ' is-compared-best' : ''}" title="${label} · ${state.label}${quickest ? ' · quickest of the compared laps' : ''}${strip?.length ? ' · mini-sectors: purple session best, green personal best, yellow slower' : ''}">
             <span class="sector-cell-value"><small>${label}</small><span class="sector-time-pair"><span class="sector-delta-slot">${i === 0 ? '' : deltaBadge(value, reference)}</span><strong>${Number.isFinite(value) ? `${value.toFixed(3)}s` : '—'}</strong></span></span>
             <span class="sector-status-line" aria-hidden="true"></span>${stripHtml}
           </span>`;

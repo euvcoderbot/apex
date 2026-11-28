@@ -788,12 +788,35 @@
 
   // Home keeps a completed weekend in context while the visitor explores its evidence.
   const homeRoundByYear = new Map();
+  // An overflowing strip sizes its tiles so a whole number fills the view: scrolled anywhere, even to the end, no tile is
+  // cut at either edge.
+  function fitStripTiles(strip) {
+    strip.style.gridAutoColumns = '';
+    const tiles = strip.children.length, gap = parseFloat(getComputedStyle(strip).columnGap) || 0;
+    const pad = parseFloat(getComputedStyle(strip).paddingLeft || 0) * 2, view = strip.clientWidth - pad;
+    const min = strip.firstElementChild?.getBoundingClientRect().width || 0;
+    if (!tiles || !min || strip.scrollWidth <= strip.clientWidth + 1) return;
+    const fit = Math.max(1, Math.floor((view + gap) / (min + gap)));
+    strip.style.gridAutoColumns = `${((view - (fit - 1) * gap) / fit).toFixed(2)}px`;
+  }
   function revealSelectedRound(strip) {
+    if (!strip.dataset.fitted) {
+      strip.dataset.fitted = '1';
+      let last = 0;
+      new ResizeObserver(() => { if (Math.abs(strip.clientWidth - last) > 1) { last = strip.clientWidth; fitStripTiles(strip); } }).observe(strip);
+    }
     requestAnimationFrame(() => {
+      fitStripTiles(strip);
       const selected = strip.querySelector('[aria-pressed="true"]');
       if (!selected || !strip.isConnected || strip.scrollWidth <= strip.clientWidth) return;
       strip.scrollLeft += selected.getBoundingClientRect().left - strip.getBoundingClientRect().left -
         (strip.clientWidth - selected.offsetWidth) / 2;
+      // Then settle on a whole tile: the first tile in view starts at the strip's edge, never cut in half.
+      const edge = strip.getBoundingClientRect().left + parseFloat(getComputedStyle(strip).paddingLeft || 0);
+      const first = [...strip.children].find(tile => tile.getBoundingClientRect().right > edge + 1);
+      const cut = first ? first.getBoundingClientRect().left - edge : 0;
+      // At the end of the strip the last tile is whole already: stay there rather than cut it on the right.
+      if (cut < -0.5 && strip.scrollLeft < strip.scrollWidth - strip.clientWidth - 1) strip.scrollLeft += cut;
     });
   }
   function weekendReview(data, rounds) {
@@ -832,7 +855,8 @@
     const draw = r => {
       picker.value = String(r.round);
       previous.disabled = r === rounds[0]; next.disabled = r === rounds.at(-1);
-      title.replaceChildren(...[flag(r), el('span', null, r.name)].filter(Boolean));
+      // The picker beside it names the race; the title says which one this is rather than repeating the name.
+      title.replaceChildren(...[flag(r), el('span', null, String(r.round) === String(rounds.at(-1)?.round) ? 'Latest Grand Prix' : 'Weekend review')].filter(Boolean));
       const race = r.race.filter(x => x.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
       const quali = (r.qualifying || []).filter(q => q.position > 0).sort((a, b) => a.position - b.position).slice(0, 3);
       const best = q => { const k = ['q3', 'q2', 'q1'].find(k => Number.isFinite(q[k]) && q[k] > 0); return k ? lapTime(q[k]) : '—'; };
@@ -1712,7 +1736,13 @@
       }
       shown = true;
       const upcoming = next.sessions.find(x => new Date(x.start) > now());
-      if (!upcoming) { countLabel.textContent = 'Race'; countValue.textContent = 'under way'; return; }
+      if (!upcoming) {
+        // Three hours after the start the race is over; until the saved data has its result it is awaiting results.
+        const race = next.sessions.find(x => x.name === 'Race');
+        const over = race && now() - new Date(race.start) > 3 * 3600e3;
+        countLabel.textContent = over ? 'Race finished' : 'Race'; countValue.textContent = over ? 'results pending' : 'under way';
+        return;
+      }
       countLabel.textContent = upcoming.name === 'Race' ? 'Race in' : `${upcoming.name} in`;
       countValue.textContent = fmtLeft(new Date(upcoming.start) - now());
     };
@@ -1763,8 +1793,9 @@
           const reading = el('a', 'season-link is-wet', 'Observed wet track');
           reading.href = vegasWetTrack; reading.target = '_blank'; reading.rel = 'noopener';
           w.append(icon, reading);
-        } else w.textContent = 'Observed weather unavailable';
-        li.append(w);
+        }
+        // No reading is the usual case for a finished session: say nothing rather than repeat it under every session.
+        if (w.childNodes.length) li.append(w);
       } else if (at > currentTime && forecastOk) {
         const own = x.weather?.temp != null ? x.weather : null;
         const day = !own && data.next_weather?.find(d => d.date === (offset == null ? x.start : trackClock(at)).slice(0, 10));
@@ -1805,11 +1836,23 @@
     const facts = el('dl', 'season-facts-list');
     const fact = (k, v, note) => { if (v == null || v === '') return; const d = el('div'), dd = el('dd', null, String(v)); if (note) dd.append(el('small', null, note)); d.append(el('dt', null, k), dd); facts.append(d); };
     circuit.prepend(el('h3', null, next.circuit));
-    if (props) {
-      fact('Lap length', props.length ? `${(props.length / 1000).toFixed(3)} km` : null);
-      fact('Altitude', props.altitude != null ? `${props.altitude} m` : null);
-      fact('Opened', props.opened);
-      fact('First Grand Prix', props.firstgp);
+    const circuitFacts = p => {
+      fact('Lap length', p.length ? `${(p.length / 1000).toFixed(3)} km` : null);
+      fact('Altitude', p.altitude != null ? `${p.altitude} m` : null);
+      fact('Opened', p.opened);
+      fact('First Grand Prix', p.firstgp);
+    };
+    if (props) circuitFacts(props);
+    else if (imagery.circuits === null) {
+      // Opened straight on this page the circuit file may still be loading: its facts join the list, first, when it lands,
+      // so the hero shows the same six facts here as on Home.
+      loadCircuits().then(() => {
+        const late = circuitFeature(next)?.properties;
+        if (!late || !facts.isConnected) return;
+        const history = [...facts.children];
+        circuitFacts(late);
+        facts.append(...history);   // moved back to the end, after the circuit's own facts
+      });
     }
     if (hist?.held) {
       fact('Grands Prix here', hist.held);
@@ -2472,7 +2515,7 @@
         cell.append(bar); cell.title = parts.map(([d, v]) => `${driverCode(data, d)} ${v}`).join(' · ');
         tr.append(cell);
       }
-      tr.append(el('td', 'num season-strong season-points', String(e.points)), el('td', 'num season-muted', e.position === 1 ? '' : `−${(leaderPoints - e.points).toFixed(0)}`));
+      tr.append(el('td', 'num season-strong season-points', String(e.points)), el('td', 'num season-muted', e.position === 1 ? 'Leader' : `−${(leaderPoints - e.points).toFixed(0)}`));
       tb.append(tr);
     }
     table.append(tb);
@@ -2488,9 +2531,9 @@
     controls.append(entrantShell);
 
     const points = lineChart(history.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: label(id), short: drivers ? driverCode(data, id) : teamName(data, id),
-      values: history.map(s => s.table.find(x => x.id === id)?.points ?? null)})), {title: 'Points after each round', format: value => `${value} pts`, endLabels: drivers ? 6 : 5, height: 300, width: 460});   // drawn near the column's width (about 410 px), so names read at full size
+      values: history.map(s => s.table.find(x => x.id === id)?.points ?? null)})), {title: 'Points after each round', format: value => `${value} pts`, endLabels: drivers ? 6 : 5, height: 310, width: 680});
     const ranks = bumpChart(history.map(s => s.round), ids.map(id => ({id, colour: colour(id), label: drivers ? driverCode(data, id) : teamName(data, id),
-      values: history.map(s => s.table.find(x => x.id === id)?.position ?? null)})), {width: 460, row: 16});   // 16 units: names at least 14 px apart at that width
+      values: history.map(s => s.table.find(x => x.id === id)?.position ?? null)})), {width: 680, row: 15});
     const layout = el('div', 'season-two season-standings-layout');
     const standingsColumn = el('div', 'season-stack'); standingsColumn.append(card('Championship standings', wrap(table)));
     if (index === evo.length - 1) { const fight = titleFight(data, drivers); if (fight) standingsColumn.append(fight); }
@@ -2693,17 +2736,32 @@
   }
 
   // Hover or focus previews an entrant. Leaving the layout restores the explicit selection.
+  // Clicking a table row pins that entrant, so several lines can be compared; clicking it again unpins it.
   function linkHover(scope, picker) {
     const entries = [...scope.querySelectorAll('[data-id]')];
+    const pinned = new Set();
     let current;
     const idOf = target => target?.closest?.('[data-id]')?.dataset.id;
     const highlight = (preview = '') => {
-      const id = preview || picker.value;
-      if (id === current) return;
-      current = id;
-      scope.classList.toggle('has-entrant', Boolean(id));
-      for (const node of entries) node.classList.toggle('is-entrant', node.dataset.id === id);
+      const ids = new Set(pinned);
+      if (preview) ids.add(preview);
+      if (!ids.size && picker.value) ids.add(picker.value);
+      const key = [...ids].sort().join('|');
+      if (key === current) return;
+      current = key;
+      scope.classList.toggle('has-entrant', ids.size > 0);
+      for (const node of entries) {
+        node.classList.toggle('is-entrant', ids.has(node.dataset.id));
+        if (node.tagName === 'TR') { node.classList.toggle('is-pinned', pinned.has(node.dataset.id)); node.setAttribute('aria-selected', String(pinned.has(node.dataset.id))); }
+      }
     };
+    scope.addEventListener('click', event => {
+      const row = event.target.closest?.('tr[data-id]');
+      if (!row || event.target.closest('a, button, select, input')) return;
+      const id = row.dataset.id;
+      if (pinned.has(id)) pinned.delete(id); else pinned.add(id);
+      current = null; highlight(id);
+    });
     scope.addEventListener('pointerover', event => highlight(idOf(event.target)));
     scope.addEventListener('pointerleave', () => highlight(scope.contains(document.activeElement) ? idOf(document.activeElement) : ''));
     scope.addEventListener('focusin', event => highlight(idOf(event.target)));
@@ -2795,7 +2853,10 @@
       }));
       tipCard.hidden = false;
       const w = tipCard.offsetWidth, h = tipCard.offsetHeight;
-      tipCard.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, x + 14))}px`;
+      // Right of the pointer, unless that would cover a chart's end labels (pointer in the right part of the chart).
+      const chartBox = mark.closest?.('svg')?.getBoundingClientRect();
+      const leftSide = chartBox && x > chartBox.left + chartBox.width * .6;
+      tipCard.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, leftSide ? x - w - 14 : x + 14))}px`;
       // Above the pointer when it fits, otherwise below it: the card stays next to what it describes.
       const above = y - h - 12, below = y + 18;
       tipCard.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, above >= 8 ? above : below))}px`;
@@ -2936,7 +2997,8 @@
     // Every series is drawn in its team colour and named at its end (teammates dashed); with many series the chart grows so
     // the names, 13 px apart, never collide, and the points shrink so the lines stay readable.
     const named = endLabels && series.length > 1, dense = series.length > 8;
-    const W = width, H = named ? Math.max(height, series.length * 19 + 60) : height, R = series.length === 1 ? 44 : named ? 52 : 12, T = 12, B = 48;
+    // Named lines leave a short run beyond the last round for the leaders to their names (endKey).
+    const W = width, H = named ? Math.max(height, Math.min(series.length, 10) * 20 + 50) : height, R = series.length === 1 ? 44 : named ? 52 : 12, T = 12, B = 48;
     const dashed = teammateDashes(series);
     // A crowded chart (the whole grid) colours the six leaders at the last round; the rest stay as faint context lines that
     // light up on hover or when picked, so the chart reads as a story rather than a tangle.
@@ -2958,7 +3020,7 @@
     const slot = rounds.length > 1 ? (W - L - R) / (rounds.length - 1) : 40;
     rounds.forEach((r, i) => {
       const at = series.map(s => [s, s.values[i]]).filter(([, v]) => v != null).sort((p, q) => (invert ? p[1] - q[1] : q[1] - p[1]));
-      const lines = at.slice(0, 5).map(([s, v]) => `${s.label}  ${invert ? 'P' + v : format(v)}`).join('\n');
+      const lines = at.slice(0, 8).map(([s, v]) => `${s.label}  ${invert ? 'P' + v : format(v)}`).join('\n');
       svg += `<rect class="hit" x="${(x(i) - slot / 2).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${H - T - B}" data-tip="${esc(`${roundTip(r)}\n${lines}`)}"/>`;
     });
     // Close each measured run against zero. Closing a compound path draws a diagonal across gaps.
@@ -2992,11 +3054,20 @@
       }
     }
     if (named) {
-      const ends = series.map(s => {
-        const i = s.values.findLastIndex(v => v != null);
-        return i < 0 ? null : {id: s.id, colour: faint(s) ? 'var(--ui-tertiary)' : s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i]), minor: faint(s), quiet: faint(s)};
-      }).filter(Boolean);
-      svg += endKey(ends, W - R + 4, dense ? 19 : 14, H - B);   // 19 units: about 14 px apart at a half-width desktop card
+      const sorted = [...series]
+        .map(s => {
+          const i = s.values.findLastIndex(v => v != null);
+          return i < 0 ? null : {id: s.id, colour: faint(s) ? 'var(--ui-tertiary)' : s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i]), minor: dense ? faint(s) : false, quiet: faint(s)};
+        })
+        .filter(Boolean);
+      // Only visible contenders (leaders in dense view) pack via endKey so labels stay cleanly inside [T, H - B];
+      // remaining drivers still carry .selected-end at their exact line end for hover/selection.
+      const shown = dense ? sorted.filter(e => !e.minor) : sorted;
+      const hidden = dense ? sorted.filter(e => e.minor) : [];
+      svg += endKey(shown, W - R + 12, dense ? 16 : 14, H - B, T + 8);
+      for (const e of hidden) {
+        svg += `<g class="end-key is-minor" data-id="${esc(e.id)}"><text class="label is-value selected-end" x="${(W - R + 16).toFixed(1)}" y="${(e.y + 3.5).toFixed(1)}">${esc(e.name)}</text></g>`;
+      }
     }
     const chart = htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
     if (!(named && dense)) return chart;
@@ -3011,14 +3082,19 @@
   // 14 px apart so names never overlap. entries: [{id, colour, name, x, y, value}].
   // bottom: the lowest a name may sit; names pushed past it move back up, so a cluster of lines ending together (many
   // drivers near zero points) stacks upward inside the chart. A name moved off its line's end gets a hairline leader.
-  function endKey(entries, labelX, gap = 14, bottom = Infinity) {
+  function endKey(entries, labelX, gap = 14, bottom = Infinity, top = -Infinity) {
     const list = [...entries].sort((a, b) => a.y - b.y);
     list.forEach((e, i) => { e.ly = i ? Math.max(e.y, list[i - 1].ly + gap) : e.y; });
     for (let i = list.length - 1; i >= 0; i--) list[i].ly = Math.min(list[i].ly, i === list.length - 1 ? bottom : list[i + 1].ly - gap);
+    for (let i = 0; i < list.length; i++) list[i].ly = Math.max(list[i].ly, i ? list[i - 1].ly + gap : top);
     // On a phone a dense chart labels its first ten lines only (season.css .end-key.is-minor); every line stays in the tips.
     return list.map((e, rank) => {
-      const leader = Math.abs(e.ly - e.y) > 3 && e.x != null && !e.quiet
-        ? `<path class="end-leader" d="M${(e.x + 4).toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 2).toFixed(1)} ${e.y.toFixed(1)}L${(labelX + 2).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
+      // Every moved label is tied to its line's end, the quiet ones by a fainter leader, so no name floats unattached.
+      // The leader leaves the line's end level and turns towards the name only past the last round, dotted, so a moved name
+      // never reads as the line itself jumping in the final round.
+      const bend = Math.max((e.x ?? labelX) + 6, labelX - 10);
+      const leader = Math.abs(e.ly - e.y) > 3 && e.x != null
+        ? `<path class="end-leader${e.quiet ? ' is-quiet' : ''}" d="M${(e.x + 3).toFixed(1)} ${e.y.toFixed(1)}L${bend.toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 1).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
       return `<g class="end-key${rank >= 10 || e.minor ? ' is-minor' : ''}" data-id="${esc(e.id)}">${leader}<text class="label is-value selected-end" x="${(labelX + 4).toFixed(1)}" y="${(e.y + 3.5).toFixed(1)}">${esc(e.name)}</text><text class="label packed-end" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
     }).join('');
   }
@@ -3029,7 +3105,7 @@
     return out;
   }
   function bumpChart(rounds, series, {width = 640, row = 18} = {}) {
-    const n = series.length, W = width, H = Math.max(224, n * row + 54), L = 30, R = 52, T = 10, B = 46;
+    const n = series.length, W = width, H = Math.max(224, n * row + 54), L = 26, R = 52, T = 10, B = 46;
     const dashed = teammateDashes(series);
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
@@ -3054,7 +3130,7 @@
       if (n <= 8) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       svg += '</g>';
     }
-    svg += endKey(ends, W - R + 4, row, H - B);
+    svg += endKey(ends, W - R + 12, row, H - B);
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
   // Round ticks for a value range. Outward (the default): the first tick is at or below the smallest value and the last at or
@@ -3409,6 +3485,8 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
       cell.append(head, el('b', null, '—'), el('span', 'season-strip-status', 'Scheduled'));
       strip.append(cell);
     }
+    // Two even rows on a wide card (12 + 11 rather than 13 + 10); a phone keeps its own wrap.
+    strip.style.setProperty('--strip-cols', String(Math.ceil(strip.children.length / 2)));
     const counts = s.finish_counts, maxCount = Math.max(1, ...Object.values(counts));
     const dist = el('div', 'season-dist'); dist.style.setProperty('--team', teamColour(data.drivers[id]?.team));
     dist.setAttribute('aria-label', 'Race finishing positions');
@@ -3699,7 +3777,7 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
     // driver's race finish (the small number their sprint finish). The pinned column counts the sessions each was ahead.
     const label = id => { const th = el('th'); th.scope = 'row'; th.append(who(data, id, {code: true, team: false})); return th; };
     // A section's own header row: its name in the first column, the rest of the row left clear.
-    const sectionRow = name => { const tr = el('tr', 'season-section-row'); const th = el('th', null, name); th.scope = 'rowgroup'; tr.append(th); for (let i = 0; i < data.rounds.length + 1; i++) tr.append(el('td')); return tr; };
+    const sectionRow = name => { const tr = el('tr', 'season-section-row'); const th = el('th', null, name); th.scope = 'rowgroup'; tr.append(th); for (let i = 0; i < data.rounds.length; i++) tr.append(el('td')); tr.append(pin(el('td'))); return tr; };  // the pinned column runs unbroken through it
     gbody.append(sectionRow('Qualifying'));
     for (const id of [a, b]) {
       const tr = el('tr'); tr.append(label(id));
@@ -4236,8 +4314,16 @@ Left out as unrepresentative: ${r.dropped.map(([n, v]) => `${code(n)} +${v.toFix
         const src = el('a', 'season-link', 'FIA document'); src.href = i.document; src.target = '_blank'; src.rel = 'noopener'; row.append(src);
         section.append(row);
       }
+      // A long season opens with its six latest Grands Prix; the rest wait behind one button.
+      if (k >= 6 && byRound.length > 8 && !byRound.slice(6).includes(state.expandedUpdate)) section.hidden = true;
       list.append(section);
     });
+    const hiddenRounds = [...list.children].filter(x => x.hidden);
+    if (hiddenRounds.length) {
+      const more = el('button', 'season-link season-updates-more', `Show ${hiddenRounds.length} earlier Grands Prix`); more.type = 'button';
+      more.addEventListener('click', () => { for (const x of hiddenRounds) x.hidden = false; more.remove(); });
+      list.append(more);
+    }
     const busiest = roundsWith.map(r => [r, items.filter(i => i.round === r).length]).sort((x, y) => y[1] - x[1])[0];
     const perf = items.filter(i => i.reason_type === 'Performance').length;
     const total = el('div', 'season-numbers');

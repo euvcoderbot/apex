@@ -31,6 +31,16 @@ test('observed brake and DRS channels preserve missing observations',()=>{
   assert.equal(c.observedBrake(false),0);assert.equal(c.observedBrake(true),100);
   assert.equal(c.observedDRS(12),1);assert.equal(c.observedDRS(8),0);
 });
+test('each pedal decodes the feed placeholder 104 as missing, never braking or full throttle',()=>{
+  const c=core();
+  assert.equal(c.observedBrake(104),null);assert.equal(c.observedBrake(100),100);assert.equal(c.observedBrake(0),0);
+  assert.equal(c.observedThrottle(104),null);assert.equal(c.observedThrottle(102),100);assert.equal(c.observedThrottle(37),37);
+  for(const value of [null,undefined,'',-1,'x'])assert.equal(c.observedThrottle(value),null);
+  // Decoded independently: a real brake beside a missing throttle is still braking, and the reverse.
+  assert.equal(c.observedBrake(100,104),100);assert.equal(c.observedThrottle(100),100);
+  // A brake stored only as true/false (bool(104) is true) beside a 104 throttle is the placeholder; false stays a reading.
+  assert.equal(c.observedBrake(true,104),null);assert.equal(c.observedBrake(false,104),0);assert.equal(c.observedBrake(true,55),100);
+});
 test('sorting keeps nulls last in both directions and preserves ties and source order',()=>{
   const rows=[{id:'a',v:2},{id:'missing',v:null},{id:'b',v:1},{id:'c',v:2}],c=core();
   assert.equal(c.sortRows(rows,{v:r=>r.v},'v',1).map(r=>r.id).join(','),'b,a,c,missing');

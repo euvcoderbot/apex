@@ -105,7 +105,7 @@ export function BarChart({rows, options = {}}: {rows: Row[]; options?: BarChartO
           const summary = `${label}: ${display}${seconds != null ? ` (about ${seconds.toFixed(2)} s per lap)` : ''}${whisker ? ` · 90% GP-resample range ${fmt(whisker[0], digits, unit)} to ${fmt(whisker[1], digits, unit)}` : ''}${plotted === 0 && value !== 0 ? ` · Exact change ${value}${unit}; below displayed precision` : ''}${explanations && r.traceProvisional ? ' · Provisional: source gaps over 0.6 s; inspect corner evidence' : ''}${explanations && r.evidenceLabel ? ' · ' + r.evidenceLabel : ''}`;
           return (
             <div key={label + i} className="performance-bar-row"
-              title={summary} aria-label={summary} role="img" data-chart-value={`${title}:${label}`} tabIndex={i === 0 ? 0 : -1}>
+              title={summary} aria-label={summary} role="img" data-chart-value={`${title}:${label}`} data-entrant={label} tabIndex={i === 0 ? 0 : -1}>
               <div className="performance-bar-label rank-label"><TeamLabel team={r} />{badge ? <small className="rank-evidence">{badge}</small> : null}</div>
               <div className="performance-bar-track">
                 {preserveSignedValues ? <i className="performance-zero" style={{left: `${zero.toFixed(2)}%`}} /> : null}

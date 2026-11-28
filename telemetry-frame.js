@@ -33,6 +33,7 @@
       traceZoom = {start: 0, end: 1}; timingDeltaZoom = 1; hoverFraction = null; estimateAlignmentCorrection = false;
     }
     document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+    if (theme === 'black') document.documentElement.dataset.surface = 'black'; else delete document.documentElement.dataset.surface;
     sessionYear = Number(year) || 2026;
     sessionEventName = event || '';
     $('#year').value = String(sessionYear);
@@ -52,7 +53,7 @@
           return cached.item;
         }
         const points = trace.x.flatMap((metres, i) => Number.isFinite(metres) && (!partial || metres >= 0) ? [{
-          Distance: metres, ElapsedSeconds: number(trace.t?.[i]), Speed: number(trace.speed?.[i]), Throttle: number(trace.throttle?.[i]),
+          Distance: metres, ElapsedSeconds: number(trace.t?.[i]), Speed: number(trace.speed?.[i]), Throttle: window.ApexAnalysis.observedThrottle(trace.throttle?.[i]),
           Brake: window.ApexAnalysis.observedBrake(trace.brake?.[i]), RPM: number(trace.rpm?.[i]), nGear: number(trace.gear?.[i]),
           DRS: sessionYear < 2026 ? window.ApexAnalysis.observedDRS(trace.drs?.[i]) : null,
           X: number(trace.posX?.[i]), Y: number(trace.posY?.[i]),

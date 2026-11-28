@@ -20,10 +20,21 @@
     const rounded=Math.abs(value)<.5*10**(-digits)?0:value;
     return (signed&&rounded>0?'+':'')+rounded.toFixed(digits)+unit;
   }
-  function observedBrake(value) {
+  // The pedal channels carry 104 where the feed has no reading (OpenF1 publishes it on either pedal, often on both at once,
+  // at any speed). Each pedal is decoded on its own: 104 is missing, never braking or full throttle.
+  const PEDAL_MISSING=104;
+  // Some stored laps kept the brake only as true/false (bool(104) is true). Both pedals carry the placeholder together in
+  // most cases, so a true brake beside a 104 throttle is taken as missing too; a false brake is still a reading.
+  function observedBrake(value,throttle) {
     if(value===null||value===undefined||value==='')return null;
-    if(typeof value==='boolean')return value?100:0;
-    const number=Number(value);return Number.isFinite(number)?number>0?100:0:null;
+    if(typeof value==='boolean')return value&&Number(throttle)===PEDAL_MISSING?null:value?100:0;
+    const number=Number(value);if(!Number.isFinite(number)||number===PEDAL_MISSING||number<0)return null;
+    return number>0?100:0;
+  }
+  function observedThrottle(value) {
+    if(value===null||value===undefined||value==='')return null;
+    const number=Number(value);if(!Number.isFinite(number)||number===PEDAL_MISSING||number<0)return null;
+    return Math.min(100,number);   // the odd 101–103 reading is a full pedal, not more than full
   }
   function observedDRS(value) {
     if(value===null||value===undefined||value==='')return null;
@@ -54,5 +65,5 @@
     }).length;
     return supported;
   }
-  root.ApexAnalysis=Object.freeze({version,definitions,preference,savePreference,format,observedBrake,observedDRS,sortRows,metricCoverage});
+  root.ApexAnalysis=Object.freeze({version,definitions,preference,savePreference,format,observedBrake,observedThrottle,observedDRS,sortRows,metricCoverage});
 })(typeof window==='object'?window:globalThis);

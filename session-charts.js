@@ -1,11 +1,12 @@
 /* Session analysis: telemetry chart stack (speed trace, delta, inputs). */
 // Chart Constants and Configuration
+try { if (window.hoverAllChannels === undefined) window.hoverAllChannels = localStorage.getItem('apex-hover-all') !== '0'; } catch { window.hoverAllChannels = true; }
 const defs = [
   ['Speed trace', 'km/h', false],
   ['Timing delta', 'seconds vs reference', false],
   ['Throttle application', '%', true],
   ['Brake application', 'on / off', true],
-  ['Gear', '0–8', false],
+  ['Gear', '', false],
   ['DRS', 'open / closed', true]
 ];
 
@@ -40,7 +41,9 @@ function updateZoomReadout() {
   const distance = reference?.length ? referenceDistance() : 0;
   const fullLap = traceZoom.start <= 1e-6 && traceZoom.end >= 1 - 1e-6;
   if (readout) {
-    readout.textContent = distance
+    // The whole lap reads "Full lap" whether or not its length is known yet, so the readout never switches between the two
+    // for the same view (it read 0.00–5.48 km once telemetry arrived, and in the expanded view).
+    readout.textContent = distance && !fullLap
       ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} km`
       : 'Full lap';
   }
@@ -124,6 +127,20 @@ function bindChartZoom() {
 let traceFocusReturn = null;
 let traceFocusPreviousView = null;
 let traceFocusInert = [];
+// Where the track map lives on the page; the expanded view borrows it to sit beside the lap cards.
+let traceFocusMapHome = null;
+function moveTrackMapForFocus(expanded) {
+  const map = document.querySelector?.('.dominance-map'), content = $('#telemetryContent');
+  if (!map?.before || !content?.querySelector) return;
+  if (expanded && !traceFocusMapHome) {
+    traceFocusMapHome = document.createComment('track map');
+    map.before(traceFocusMapHome);
+    (content.querySelector('.sector-times') || content.firstElementChild)?.after(map);
+  } else if (!expanded && traceFocusMapHome) {
+    traceFocusMapHome.replaceWith(map);
+    traceFocusMapHome = null;
+  }
+}
 // Set while a screenshot redraws the charts, so they are as sharp as the text around them.
 let chartCaptureScale = null;
 // Expanded charts keep their height on the page, with more room for the speed trace.
@@ -138,6 +155,7 @@ function setTraceFocus(expanded) {
     if(document.body.classList.contains('trace-focus'))return;
     traceFocusReturn = document.activeElement;
     traceFocusPreviousView = {zoom:{...traceZoom},delta:timingDeltaZoom};
+    moveTrackMapForFocus(true);
     // Inert only siblings along the ancestor path, never an ancestor of charts.
     traceFocusInert = [];
     for (let node = view; node.parentElement; node = node.parentElement) {
@@ -163,13 +181,15 @@ function setTraceFocus(expanded) {
     for (const [element,inert] of traceFocusInert) element.inert = inert;
     traceFocusInert = [];view.removeAttribute('role');view.removeAttribute('aria-modal');
     for (const canvas of canvases) canvas.style.removeProperty('--focus-height');
+    moveTrackMapForFocus(false);
   }
   document.body.classList.toggle('trace-focus', expanded);
   $('#realTooltip').style.display = 'none';
   if (expanded) view.setAttribute('aria-label', 'Expanded lap telemetry');
   else view.removeAttribute('aria-label');
   $('[data-trace-focus="open"]')?.setAttribute('aria-expanded', String(expanded));
-  if (expanded) $('[data-trace-focus="close"]')?.focus();
+  // The expanded view opens at its top (the lap cards), even when its Close button sits below the fold on a phone.
+  if (expanded) { $('[data-trace-focus="close"]')?.focus({preventScroll: true}); if (view.scrollTo) view.scrollTo(0, 0); }
   else if (traceFocusReturn?.isConnected) traceFocusReturn.focus();
   requestAnimationFrame(() => drawAll());
 }
@@ -214,7 +234,7 @@ function renderTraceVisibilityControls() {
     const visible = !hiddenTraceKeys.has(key);
     const disableLast = visible && visibleCount === 1;
     const displayTime=Number.isFinite(lap.real?.display_time)?lap.real.display_time:lap.time;
-    const lapLabel=`${lap.real?.display_time_estimated?'~':''}${time(displayTime)}s`;
+    const lapLabel=`${lap.real?.display_time_estimated?'~':''}${time(displayTime)}${displayTime<60?'s':''}`;  // 1:35.130, as on the lap cards; a seconds-only lap keeps its unit
     // One chart-key pill (as the lap chart's legend): the colour dot opens a colour picker, the rest shows or hides the trace.
     return `<div class="trace-pill-group" style="--team:${getLapColor(lap)}"><label class="trace-swatch"${window.apexDriverFaces?.img(realDrivers.get(lap.code)?.name) ? ' data-face' : ''} title="Change ${lap.code} lap ${lap.lap} colour">${(() => { const f = window.apexDriverFaces?.img(realDrivers.get(lap.code)?.name); return f ? f : ''; })()}<input type="color" value="${getLapColor(lap)}" data-lap-color="${key}" aria-label="Change ${lap.code} lap ${lap.lap} trace colour"></label><label class="trace-driver-chip ${visible ? 'is-visible' : ''}" style="--team:${getLapColor(lap)}" title="${visible ? 'Hide' : 'Show'} ${lap.code} lap ${lap.lap}">
       <input type="checkbox" data-trace-key="${key}" ${visible ? 'checked' : ''} ${disableLast ? 'disabled' : ''}>
@@ -267,10 +287,19 @@ function bindSpeedChartControls() {
     window.ApexAnalysis?.savePreference('speed-annotations',showSpeedAnnotations);
     if (loaded.length) drawRealChart('Speed trace');
   });
+  $('#hoverAllToggle')?.addEventListener('change', event => {
+    window.hoverAllChannels = event.target.checked;
+    try { localStorage.setItem('apex-hover-all', event.target.checked ? '1' : '0'); } catch { /* storage blocked */ }
+  });
   $('#traceTintToggle')?.addEventListener('change', event => {
     traceTintEnabled = event.target.checked;
     window.ApexAnalysis?.savePreference('trace-tint', traceTintEnabled);
     if (loaded.length) paintReadyTelemetry();
+  });
+  $('#deltaTintToggle')?.addEventListener('change', event => {
+    deltaTintEnabled = event.target.checked;
+    window.ApexAnalysis?.savePreference('delta-tint', deltaTintEnabled);
+    if (loaded.length) drawRealChart('Timing delta');
   });
   $('#distanceNumbersToggle')?.addEventListener('change', event => {
     showDistanceNumbers = event.target.checked;
@@ -301,7 +330,7 @@ function renderCharts() {
   const inputRow = ([name, unit], index) => `
       <div class="chart-row${index === inputDefs.length - 1 ? ' is-axis-row' : ''}" data-row="${name}">
         <h3 class="chart-row-label">${INPUT_LABELS[name]} <small>${unit}</small></h3>
-        <canvas data-chart="${name}" data-axis="${index === inputDefs.length - 1 ? 'shown' : 'hidden'}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
+        <canvas data-chart="${name}" data-axis="${index === inputDefs.length - 1 ? 'shown' : 'hidden'}" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0" aria-valuetext="Not set" aria-describedby="telemetryDataHelp" aria-label="${name}. Use Left and Right arrows to inspect exact samples, Home and End to jump, or drag horizontally to zoom."></canvas>
       </div>`;
   const inputStack = inputDefs.length ? `
     <section class="chart chart-stack" aria-label="Driver inputs">
@@ -314,7 +343,7 @@ function renderCharts() {
       <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
         <div class="trace-chart-actions">
         <div class="trace-zoom-cluster" aria-label="Trace zoom controls">
-          <span class="trace-zoom-readout">View <b id="traceZoomReadout">Full lap</b></span>
+          <span class="trace-zoom-readout"><span class="visually-hidden">View </span><b id="traceZoomReadout">Full lap</b></span>
           <div class="trace-tools">
             <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
             <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
@@ -324,9 +353,9 @@ function renderCharts() {
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
         </div>
-        <details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="A soft fill in each lap's colour under the speed, throttle, brake and engine-speed traces"><input type="checkbox" id="traceTintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint under traces</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details>
+        <details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="A soft fill in each lap's colour under the speed trace"><input type="checkbox" id="traceTintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint under traces</span></label><label class="trace-setting" title="Shade the area between each lap's timing delta and zero: the leading lap's colour"><input type="checkbox" id="deltaTintToggle" ${deltaTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint timing delta</span></label><label class="trace-setting" title="On hover, show speed, time delta, throttle, brake and gear for every lap together, whichever chart the pointer is on"><input type="checkbox" id="hoverAllToggle" ${window.hoverAllChannels !== false ? 'checked' : ''}><i aria-hidden="true"></i><span>All channels on hover</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details>
         <button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button>
-        <details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>
+        <details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="cards">Lap cards, speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>
         </div>` : name === 'Timing delta' ? `
         <div class="trace-zoom-cluster delta-zoom-cluster" aria-label="Timing delta vertical zoom controls">
           <span class="trace-zoom-readout">Scale <b id="timingDeltaZoomReadout">${Math.round(timingDeltaZoom * 100)}%</b></span>
@@ -347,7 +376,7 @@ function renderCharts() {
           <p class="pit-lap-notice" id="alignmentCorrectionNotice" hidden aria-live="polite"></p>
           <span class="visually-hidden" id="cornerStatus" aria-live="polite">Corner labels hidden.</span>
         </div>` : ''}
-      <canvas data-chart="${name}" role="img" aria-describedby="telemetryDataHelp" aria-label="${name}. Drag horizontally to zoom every telemetry chart."></canvas>
+      <canvas data-chart="${name}"${name === 'Timing delta' ? ' data-axis="shown"' : ''} tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="0" aria-valuetext="Not set" aria-describedby="telemetryDataHelp" aria-label="${name}. Use Left and Right arrows to inspect exact samples, Home and End to jump, or drag horizontally to zoom."></canvas>
     </section>
   `;
   }).join('') + inputStack + `<details class="chart-data-access" id="telemetryDataAccess"><summary>Inspect telemetry values</summary>
@@ -381,7 +410,8 @@ function renderTelemetryReadout() {
     const samples=telemetryCache.get(telemetryKey(lap));
     const values={};
     for(const [field,name] of fields){
-      const value=(samples?.alignmentMethod==='live-distance'||['Speed','Throttle'].includes(field))&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
+      const unread=['Speed','Throttle'].includes(field)&&telemetryChannelGapRanges(samples,field).some(range=>fraction>range.start&&fraction<range.end);
+      const value=unread?null:(samples?.alignmentMethod==='live-distance'||['Speed','Throttle'].includes(field))&&typeof traceTelemetryValue==='function'?traceTelemetryValue(samples,fraction,field):interpolate(samples,fraction*maxDistance,field);
       const estimated=typeof isReconstructedTelemetry==='function'&&isReconstructedTelemetry(samples,fraction,field);
       const low=typeof telemetryEstimateInfo==='function'&&telemetryEstimateInfo(samples,fraction,field)?.confidence==='low';
       values[field]=!Number.isFinite(value)?'—':field==='Brake'?(value>=50?'On':'Off'):field==='DRS'?(value>=.5?'Open':'Closed'):(estimated?'~':'')+(['Speed','Throttle'].includes(field)?value.toFixed(3):Math.round(value))+(low?' (low confidence)':'');
@@ -396,13 +426,7 @@ function renderTelemetryReadout() {
 }
 
 
-function deltaAt(samples, reference, targetDistance) {
-  const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
-  const timeHere = calibratedElapsed(samples, fraction);
-  const referenceHere = calibratedElapsed(reference, fraction);
-  if (!Number.isFinite(timeHere) || !Number.isFinite(referenceHere)) return null;
-  return timeHere - referenceHere;
-}
+// deltaAt lives in alignment.js (one definition; this file loads first).
 
 function getSectorDistances(lap) {
   if (!lap) return { s1: null, s2: null };
@@ -771,7 +795,7 @@ function drawGridAxes(ctx, width, height, bounds, unit) {
       if (tick === 0) displayVal = 'Open';
       else if (tick === 4) displayVal = 'Closed';
       else return;
-      if (unit === 'on / off') displayVal = tick === 0 ? 'On' : 'Off';
+      if (unit === 'on / off') return;  // brake lanes carry each lap's code instead
     }
     ctx.fillStyle = seconds && Math.abs(value) < 1e-5
       ? theme.textStrong
@@ -1093,9 +1117,29 @@ function telemetrySourceGapAt(series,fraction) {
   return telemetrySourceGapRanges(series).find(gap=>fraction>gap.start+1e-10&&fraction<gap.end-1e-10)||null;
 }
 
+// Stretches where one channel has no reading although packets kept arriving (the pedals' 104 placeholder decodes to
+// null): from the last reading before to the first after. The line across them is drawn dashed, as across a source gap.
+function telemetryChannelGapRanges(series,field) {
+  if(!series?.length||!field)return [];
+  const memo=series.channelGapEvidence?.[field];
+  if(memo&&memo.identity===series.alignmentInputs&&memo.length===series.length)return memo.ranges;
+  const ranges=[];let last=null,open=false;
+  for(const point of series){
+    const known=point[field]!==null&&point[field]!==undefined&&Number.isFinite(+point[field]);
+    if(!known){open=true;continue;}
+    const fraction=traceSampleFraction(series,point);
+    if(open&&last!=null&&fraction>last)ranges.push({start:last,end:fraction,channel:field});
+    open=false;last=fraction;
+  }
+  if(!series.channelGapEvidence)Object.defineProperty(series,'channelGapEvidence',{value:{},writable:true,configurable:true});
+  series.channelGapEvidence[field]={identity:series.alignmentInputs,length:series.length,ranges};
+  return ranges;
+}
+
 function telemetryTraceGapRanges(series,reference,name,index) {
   if(!['Speed trace','Throttle application','Timing delta'].includes(name)||name==='Timing delta'&&index===0)return [];
   const ranges=[...telemetrySourceGapRanges(series)];
+  if(name!=='Timing delta')ranges.push(...telemetryChannelGapRanges(series,chartField[name]));
   if(name==='Timing delta'&&reference!==series)ranges.push(...telemetrySourceGapRanges(reference));
   // The delta depends on both laps, including a hidden timing-reference trace.
   const merged=[];
@@ -1322,8 +1366,10 @@ function drawRealChart(name) {
     : getNiceBounds(name, rawMin, rawMax);
   const min = niceBounds.min;
   const max = niceBounds.max;
-  const refLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
-  const refSamples = telemetryCache.get(telemetryKey(refLap));
+  // Distance axis, corner ticks and sector lines come from the circuit path, so they stay put when the timing reference changes.
+  const circuit = typeof circuitReferenceTelemetry === 'function' ? circuitReferenceTelemetry() : null;
+  const refLap = circuit?.lap || loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
+  const refSamples = circuit?.samples || telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples?.length ? referenceDistance() : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
   const speedCornerMarkers = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
@@ -1331,6 +1377,14 @@ function drawRealChart(name) {
   // Turn numbers as one quiet row under each chart (two under the speed trace when wide); labels that do not fit are left
   // out and keep their tick.
   // Stacked input rows above the last one keep the guide lines but leave turn numbers and distances to the axis row.
+  // The speed trace sits directly on the timing delta (one card edge, one distance axis): when the delta below draws its
+  // axis, the speed trace leaves distances and turn numbers to it instead of repeating them.
+  if (name === 'Speed trace') {
+    const deltaAxis = !window.ApexTelemetryFrame?.partial() && !loaded[0]?.real?.out_lap
+      && telemetryCache.get(telemetryKey(loaded[0]))?.length && document.querySelector('canvas[data-chart="Timing delta"]');
+    if (canvas.dataset) { if (deltaAxis) canvas.dataset.axis = 'hidden'; else delete canvas.dataset.axis; }
+    canvas.closest?.('.chart')?.classList?.toggle('shares-axis', !!deltaAxis);
+  }
   const axisHidden = canvas.dataset.axis === 'hidden';
   const showCornerTags = showCornerNumbers && !axisHidden;
   const maxTagLanes = name === 'Speed trace' && rect.width >= 560 ? 2 : 1;
@@ -1466,6 +1520,9 @@ function drawRealChart(name) {
       domainPoints = enhancedInterpolationEnabled()
         ? sampledEnhancedTrace(series, field, viewStart, viewEnd, name === 'Speed trace' ? 640 : 420)
         : measuredContinuousTrace(series, field, viewStart, viewEnd);
+    } else if (name === 'Engine speed') {
+      // Every native RPM packet, as the measured speed trace: a fixed grid could step over the peak before a shift.
+      domainPoints = measuredContinuousTrace(series, field, viewStart, viewEnd);
     } else if (name === 'Brake application' || name === 'Gear' || name === 'DRS') {
       domainPoints = measuredDiscreteTrace(series, field, viewStart, viewEnd);
     } else {
@@ -1490,7 +1547,7 @@ function drawRealChart(name) {
       y: point.y===null?null:bounds.top + (bounds.max - point.y) / (bounds.max - bounds.min || 1)
         * (rect.height - bounds.top - bounds.bottom),
     }));
-    if (points.length) traceEntries.push({ points, domainPoints, teamColor, index,
+    if (points.length) traceEntries.push({ points, domainPoints, teamColor, index, lap,
       sourceGaps:telemetryTraceGapRanges(series,refSeries,name,index) });
   });
 
@@ -1511,10 +1568,11 @@ function drawRealChart(name) {
   // Give every visible loaded lap its own restrained tint. Tinting follows the
   // rendered trace entries, so hidden trace toggles also hide their tint and
   // each colour remains identifiable when several laps overlap.
-  const shadedFields = ['Speed trace', 'Throttle application', 'Brake application', 'Engine speed'];
+  // Only the speed trace is tinted: on the stacked input rows a fill under two on/off traces read as broken blocks.
+  const shadedFields = ['Speed trace', 'Engine speed'];
   if (traceTintEnabled && traceEntries.length && shadedFields.includes(name)) {
     const bottomY = rect.height - bounds.bottom;
-    const baseAlpha = name === 'Speed trace' ? .16 : .11;
+    const baseAlpha = name === 'Speed trace' ? .09 : .07;
     const tintAlpha = Math.min(baseAlpha, baseAlpha / Math.sqrt(Math.max(1, traceEntries.length)) * 1.45);
     traceEntries.forEach(({ points, teamColor }) => {
       if (!points.length || points.some(point=>point.y===null)) return;
@@ -1531,26 +1589,77 @@ function drawRealChart(name) {
   }
 
   // Timing delta: a flat wash between each lap's line and zero, so time lost and gained reads as area at a glance.
-  if (name === 'Timing delta' && traceEntries.length && bounds.max > bounds.min) {
+  if (name === 'Timing delta' && deltaTintEnabled && traceEntries.length && bounds.max > bounds.min) {
     const plotBottom = rect.height - bounds.bottom;
     const zeroY = Math.min(plotBottom, Math.max(bounds.top, bounds.top + (bounds.max / (bounds.max - bounds.min)) * (plotBottom - bounds.top)));
-    traceEntries.forEach(({ points, teamColor }) => {
-      if (points.length < 2 || points.some(point => point.y === null)) return;
-      tracePath(points);
-      ctx.lineTo(points[points.length - 1].x, zeroY);
-      ctx.lineTo(points[0].x, zeroY);
-      ctx.closePath();
-      ctx.fillStyle = hexToRgba(teamColor, .1);
-      ctx.fill();
+    // Above zero the compared lap is behind, so the area takes the reference lap's colour (it is leading there);
+    // below zero the compared lap is ahead and the area takes its own colour.
+    const referenceColor = (traceEntries.find(entry => entry.index === 0) || traceEntries[0]).teamColor;
+    traceEntries.forEach(({ points, teamColor, index }) => {
+      if (index === 0 || points.length < 2 || points.some(point => point.y === null)) return;
+      for (const [top, height, colour] of [[0, zeroY, referenceColor], [zeroY, rect.height - zeroY, teamColor]]) {
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0, top, rect.width, height); ctx.clip();
+        tracePath(points);
+        ctx.lineTo(points[points.length - 1].x, zeroY);
+        ctx.lineTo(points[0].x, zeroY);
+        ctx.closePath();
+        // Warm colours (orange, yellow) wash out on white at a low alpha, so a thin wedge near zero read as unshaded.
+        ctx.fillStyle = hexToRgba(colour, .11);
+        ctx.fill();
+        ctx.restore();
+      }
     });
   }
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+  // Brake: one lane per lap, each braking zone a solid block in the lap's colour, so overlapping on/off steps never
+  // hide each other and every zone's start and end reads at a glance.
+  if (name === 'Brake application' && traceEntries.length) {
+    const plotTop = bounds.top, plotH = rect.height - bounds.top - bounds.bottom, n = traceEntries.length;
+    const laneGap = n > 1 ? 3 : 0, laneH = (plotH - laneGap * (n - 1)) / n, mid = plotTop + plotH / 2;
+    traceEntries.forEach(({ points, teamColor, lap }, lane) => {
+      const top = plotTop + lane * (laneH + laneGap);
+      ctx.fillStyle = hexToRgba(teamColor, .1);
+      ctx.fillRect(bounds.left, top, rect.width - bounds.left - bounds.right, laneH);
+      ctx.fillStyle = teamColor;
+      // Each state holds from its packet to the next one: braking runs are solid blocks from the first "on" packet to the
+      // first "off" one. Nothing is joined across a gap of any width, so an unknown stretch (no reading, a long packet gap
+      // or the feed's 104 placeholder) never becomes braking at a narrow plot; it is hatched instead.
+      const runs = [], unknown = [];
+      for (let i = 0; i + 1 < points.length; i++) {
+        const point = points[i], next = points[i + 1];
+        if (!(next.x > point.x)) continue;
+        const list = point.y == null ? unknown : point.y < mid ? runs : null;
+        if (!list) continue;
+        const last = list.at(-1);
+        if (last && Math.abs(last[1] - point.x) < 1e-6) last[1] = next.x; else list.push([point.x, next.x]);
+      }
+      for (const [start, end] of runs) ctx.fillRect(start, top, Math.max(1.5, end - start), laneH);
+      if (unknown.length) {
+        ctx.save();
+        ctx.beginPath();
+        for (const [start, end] of unknown) ctx.rect(start, top, Math.max(1.5, end - start), laneH);
+        ctx.clip();
+        ctx.strokeStyle = theme.gridStrong; ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let x = bounds.left - laneH; x < rect.width; x += 5) { ctx.moveTo(x, top + laneH); ctx.lineTo(x + laneH, top); }
+        ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = teamColor;
+      }
+      ctx.fillStyle = teamColor; ctx.textAlign = 'right'; ctx.font = `600 10px ${typeof getComputedStyle === 'function' && document?.body ? getComputedStyle(document.body).fontFamily : 'sans-serif'}`;
+      ctx.fillText(lap?.code || '', bounds.left - 8, top + laneH / 2 + 3.5);
+    });
+    ctx.textAlign = 'left';
+  }
   traceEntries.forEach(({ points, teamColor, index, sourceGaps }) => {
+    if (name === 'Brake application') return;
     ctx.strokeStyle = teamColor;
     const speedWidthMultiplier = name === 'Speed trace' ? 1.15 : 1;
-    ctx.lineWidth = (index === 0 ? 1.44 : 1.12) * speedWidthMultiplier;
+    // On the delta chart the reference lap is the flat zero line: kept thin so it does not cover the wash beside it.
+    ctx.lineWidth = (index === 0 ? (name === 'Timing delta' ? 1 : 1.44) : 1.12) * speedWidthMultiplier;
     ctx.shadowColor = teamColor;
     ctx.shadowBlur = 0;
     const gaps=sourceGaps.map(gap=>({start:Math.max(viewStart,gap.start),end:Math.min(viewEnd,gap.end)})).filter(gap=>gap.end>gap.start);

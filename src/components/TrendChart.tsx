@@ -4,8 +4,8 @@ export type SparkPoint = {round: number; event: string; pace: number};
 export type SparkFit = {round: number; pace: number}[] | null;
 export type TrendSeries = {key: string; label: string; teamColor?: string; points: SparkPoint[]; fit?: SparkFit};
 
-const HEIGHT = 400, TOP = 14, BOTTOM = 26;
-const STEPS = [.05, .1, .2, .25, .5, 1, 2, 5];
+const HEIGHT = 340, TOP = 14, BOTTOM = 26;
+const STEPS = [.05, .1, .2, .25, .5, 1, 1.5, 2, 5];
 
 /**
  * Every team's qualifying gap by round on one shared scale, quickest at the top
@@ -15,14 +15,25 @@ const STEPS = [.05, .1, .2, .25, .5, 1, 2, 5];
 export function TrendChart({series, lo, hi, ceiling, selectedRound}: {series: TrendSeries[]; lo: number; hi: number; ceiling: number; selectedRound?: number}) {
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || !series.length) return <>—</>;
   const x = (round: number) => `${7 + (round - lo) / Math.max(1, hi - lo) * 89}%`;
-  // The scale runs to the next round tick at or above the largest gap, so no point sits below the last labelled line
-  // (or on the round labels).
-  const step = STEPS.find(value => ceiling / value <= 5) || ceiling;
-  const top = Math.max(step, Math.ceil(ceiling / step - 1e-9) * step);
+  const maxObserved = Math.max(0.05, ...series.flatMap(s => s.points.map(p => p.pace)));
+  const visualCeiling = Math.min(ceiling, maxObserved * 1.08);
+  const step = STEPS.find(value => visualCeiling / value <= 5) || visualCeiling;
+  const top = Math.max(step, Math.ceil(visualCeiling / step - 1e-9) * step);
   const y = (pace: number) => TOP + pace / top * (HEIGHT - TOP - BOTTOM);
   const ticks = Array.from({length: Math.round(top / step) + 1}, (_, index) => index * step);
   const rounds = [...new Set(series.flatMap(line => line.points.map(point => point.round)))].sort((a, b) => a - b);
   const every = Math.max(1, Math.ceil(rounds.length / 12));
+  // Spread right-gutter team labels vertically so none collide while preserving x="96%" plot span.
+  const endLabels = series.map(line => {
+    const last = line.points.at(-1);
+    return last ? {key: line.key, label: line.label, color: color(line.teamColor), x: x(last.round), rawY: y(last.pace), y: y(last.pace)} : null;
+  }).filter((v): v is NonNullable<typeof v> => v !== null).sort((a, b) => a.rawY - b.rawY);
+  const minGap = 18, plotBottom = HEIGHT - BOTTOM;
+  endLabels.forEach((item, i) => { if (i) item.y = Math.max(item.rawY, endLabels[i - 1].y + minGap); });
+  for (let i = endLabels.length - 1; i >= 0; i--) {
+    const cap = i === endLabels.length - 1 ? plotBottom : endLabels[i + 1].y - minGap;
+    if (endLabels[i].y > cap) endLabels[i].y = cap;
+  }
   return (
     <div className="trend-chart">
       <svg width="100%" height={HEIGHT} overflow="visible" role="group" aria-label="Qualifying gap by round for each team; common scale across teams; use arrow keys to inspect values">
@@ -48,6 +59,11 @@ export function TrendChart({series, lo, hi, ceiling, selectedRound}: {series: Tr
             </g>
           );
         })}
+        {endLabels.map(item => (
+          <g key={`lbl-${item.key}`} data-trend-series={item.key} className="trend-series trend-end-label" aria-hidden="true" style={{'--series-stroke': item.color} as React.CSSProperties}>
+            <text x="98%" y={item.y + 3.5} fill="var(--series-stroke)" className="trend-axis trend-end-text">{item.label}</text>
+          </g>
+        ))}
       </svg>
     </div>
   );

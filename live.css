@@ -91,10 +91,10 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-table .live-best-time:hover:not([aria-disabled="true"]) { background: var(--ui-control-hover); }
 .live-table .live-best-time[aria-disabled="true"] { cursor: default; }
 .live-table .live-best-time:focus-visible { outline: 1px solid var(--ui-focus); outline-offset: 1px; }
-.live-time.is-personal { color: #30d158; }
-.live-time.is-overall { color: #bf5af2; font-weight: 600; }
-:root[data-theme="light"] .live-time.is-personal { color: #248a3d; }
-:root[data-theme="light"] .live-time.is-overall { color: #8944ab; }
+.live-time.is-personal { color: var(--f1-green); }
+.live-time.is-overall { color: var(--f1-purple); font-weight: 600; }
+:root[data-theme="light"] .live-time.is-personal { color: color-mix(in srgb, var(--f1-green) 82%, #000); }
+:root[data-theme="light"] .live-time.is-overall { color: color-mix(in srgb, var(--f1-purple) 82%, #000); }
 .live-tyre-group { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
 .live-tyre b { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--tyre); font-size: 10px; font-weight: 600; color: var(--ui-label); box-sizing: border-box; }
 .live-tyre span { color: var(--ui-secondary); }
@@ -155,15 +155,6 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 /* Compare laps: the chosen laps as chips (team colour, driver, lap, time, gap to the reference), then "+ Add lap". */
 .live-lap-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
 .live-lap-chips .live-empty { padding: 6px 0; margin: 0; text-align: left; }
-.live-lap-chip { display: inline-flex; align-items: stretch; border-radius: var(--radius-pill); background: var(--ui-well); box-shadow: inset 0 0 0 1px var(--ui-border); }
-.live-lap-chip-body { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 6px 0 12px; border: 0; border-radius: var(--radius-pill) 0 0 var(--radius-pill); background: none; color: var(--ui-secondary); font: inherit; font-size: var(--text-sm, 13px); font-variant-numeric: tabular-nums; cursor: pointer; }
-.live-lap-chip-body i { width: 8px; height: 8px; border-radius: 50%; background: var(--team); flex: none; }
-.live-lap-chip-body strong, .live-lap-chip-body b { color: var(--ui-label); font-weight: 600; }
-.live-lap-chip-body small { color: var(--ui-tertiary); font-size: var(--text-xs, 12px); }
-.live-lap-chip-body .live-lap-gap { color: var(--ui-label); font-weight: 600; }
-.live-lap-chip-body .live-lap-ref { padding: 1px 6px; border-radius: 4px; box-shadow: inset 0 0 0 1px var(--ui-border-strong, var(--ui-border)); }
-.live-lap-chip-body:hover, .live-lap-chip-remove:hover { color: var(--ui-label); background: color-mix(in srgb, var(--ui-label) 6%, transparent); }
-.live-lap-chip-remove { width: 30px; border: 0; border-radius: 0 var(--radius-pill) var(--radius-pill) 0; background: none; color: var(--ui-tertiary); font-size: 16px; line-height: 1; cursor: pointer; }
 .live-lap-add { min-height: 32px; padding: 0 14px; border: 1px dashed var(--ui-border-strong, var(--ui-border)); border-radius: var(--radius-pill); background: none; color: var(--ui-secondary); font: inherit; font-size: var(--text-sm, 13px); cursor: pointer; }
 .live-lap-add:hover:not(:disabled) { color: var(--ui-label); border-style: solid; }
 .live-lap-add:disabled { opacity: .5; cursor: default; }
@@ -184,8 +175,8 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-picker-lap small { grid-column: 1 / -1; color: var(--ui-tertiary); font-size: 11px; }
 .live-picker-lap:hover:not(:disabled), .live-picker-lap[aria-pressed="true"] { background: var(--ui-well); color: var(--ui-label); }
 .live-picker-lap[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--ui-border-strong, var(--ui-border)); }
-.live-picker-lap.is-fastest b { color: #bf5af2; }
-:root[data-theme="light"] .live-picker-lap.is-fastest b { color: #8944ab; }
+.live-picker-lap.is-fastest b { color: var(--f1-purple); }
+:root[data-theme="light"] .live-picker-lap.is-fastest b { color: color-mix(in srgb, var(--f1-purple) 82%, #000); }
 .live-picker-lap.is-pit { opacity: .7; }
 .live-picker-lap:disabled { opacity: .45; cursor: default; }
 .live-picker-rule { height: 1px; margin: 4px 2px; background: var(--ui-border); }
@@ -216,16 +207,16 @@ body.live-view > main#top, body.live-view > #carPerformance, body.live-view #ses
 .live-sectors-cell small { min-height: 13px; color: var(--ui-tertiary); font-size: 11px; line-height: 1.2; }
 .live-sectors-cell.is-lap b { font-size: 14px; }
 /* F1's timing colours: purple session best, green personal best, yellow neither. Gaps to the reference stay neutral. */
-.live-sectors-cell[data-tone="overall"] { --tone: #bf5af2; }
-.live-sectors-cell[data-tone="overall"] b { color: #bf5af2; }
-.live-sectors-cell[data-tone="personal"] { --tone: #30d158; }
-.live-sectors-cell[data-tone="personal"] b { color: #30d158; }
-.live-sectors-cell[data-tone="slower"] { --tone: #ffd60a; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="overall"] { --tone: #8944ab; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="overall"] b { color: #8944ab; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="personal"] { --tone: #248a3d; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="personal"] b { color: #248a3d; }
-:root[data-theme="light"] .live-sectors-cell[data-tone="slower"] { --tone: #d4a600; }
+.live-sectors-cell[data-tone="overall"] { --tone: var(--f1-purple); }
+.live-sectors-cell[data-tone="overall"] b { color: var(--f1-purple); }
+.live-sectors-cell[data-tone="personal"] { --tone: var(--f1-green); }
+.live-sectors-cell[data-tone="personal"] b { color: var(--f1-green); }
+.live-sectors-cell[data-tone="slower"] { --tone: var(--f1-yellow); }
+:root[data-theme="light"] .live-sectors-cell[data-tone="overall"] { --tone: var(--f1-purple); }
+:root[data-theme="light"] .live-sectors-cell[data-tone="overall"] b { color: color-mix(in srgb, var(--f1-purple) 82%, #000); }
+:root[data-theme="light"] .live-sectors-cell[data-tone="personal"] { --tone: var(--f1-green); }
+:root[data-theme="light"] .live-sectors-cell[data-tone="personal"] b { color: color-mix(in srgb, var(--f1-green) 82%, #000); }
+:root[data-theme="light"] .live-sectors-cell[data-tone="slower"] { --tone: var(--f1-yellow); }
 .live-sectors-cell small { color: var(--ui-tertiary); }
 .live-sectors-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 2px; color: var(--ui-tertiary); font-size: 11px; }
 .live-sectors-legend span { display: inline-flex; align-items: center; gap: 6px; }

@@ -57,7 +57,7 @@ test('command search supports keyboard filtering, activation and focus restorati
   const trigger = page.locator('.linear-search');
   await trigger.click();
   await expect(page.getByRole('dialog', {name: 'Search Apex commands'})).toBeVisible();
-  await page.locator('#linearCommandSearch').fill('appearance');
+  await page.locator('#linearCommandSearch').fill('light appearance');
   await expect(page.locator('.linear-command-results button')).toHaveCount(1);
   await page.locator('#linearCommandSearch').press('ArrowDown');
   await expect(page.locator('.linear-command-results button')).toBeFocused();
@@ -157,4 +157,30 @@ test('all eight performance categories work from the page pills with flat bars',
   expect(await selected.evaluate(el => getComputedStyle(el).gridTemplateRows.split(' ').length), 'selected track check stays on one row').toBe(1);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({path: `test-results/linear-performance-${test.info().project.name}.png`});
+});
+
+test('Black appearance: chosen from the Appearance menu, true black surfaces, kept after reload, System clears it', async ({page}) => {
+  // Opened without a stored appearance (open() stores dark on every load, which would undo the choice on reload).
+  await isolate(page);
+  await replayFixture(page, 'session-view.json.gz');
+  await page.goto('/apex?year=2026');
+  await expect(page.locator('#linearWorkspace')).toBeVisible();
+  await page.locator('#themeToggle').click();
+  const menu = page.locator('#appearanceMenu');
+  await expect(menu).toBeVisible();
+  await menu.getByRole('button', {name: 'Black'}).click();
+  await expect(menu).toBeHidden();
+  const root = page.locator('html');
+  await expect(root).toHaveAttribute('data-theme', 'dark');
+  await expect(root).toHaveAttribute('data-surface', 'black');
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+  await expect(page.locator('#themeToggle')).toHaveAttribute('aria-label', 'Appearance: Black');
+  await page.reload();
+  await expect(root).toHaveAttribute('data-surface', 'black');
+  await expect(page.locator('meta[name="theme-color"]').first()).toHaveAttribute('content', '#000000');
+  await page.locator('#themeToggle').click();
+  await expect(menu.getByRole('button', {name: 'Black'})).toHaveAttribute('aria-pressed', 'true');
+  await menu.getByRole('button', {name: 'System'}).click();
+  await expect(root).not.toHaveAttribute('data-surface', 'black');
+  expect(await page.evaluate(() => localStorage.getItem('apex-theme'))).toBeNull();
 });

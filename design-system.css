@@ -116,15 +116,6 @@ button#loadSession:active:not(:disabled) {
 
 /* Lap workspace: a distinct selection surface for runs, laps and comparison. */
 
-.workspace-heading {
-  padding: 2px 2px 12px;
-  margin-bottom: 12px;
-}
-
-.workspace-heading h2 {
-  margin-bottom: 4px;
-}
-
 .run-toolbar .compare-all-btn {
   width: auto;
   margin: 0;
@@ -468,24 +459,12 @@ main.sidebar-collapsed .sidebar {
   gap: 16px;
 }
 
-.panel-heading .panel-index {
-  display: grid;
-  place-items: center;
-  width: 27px;
-  height: 27px;
-}
-
 .panel-heading p {
   margin-top: 4px;
 }
 
 #driverPills .pill {
   min-height: 34px;
-}
-
-.lap-workspace .workspace-heading {
-  margin: 0 0 13px;
-  padding: 0 0 12px;
 }
 
 .lap-workspace #stintPanels > .section-empty,
@@ -615,13 +594,6 @@ canvas[data-chart="Speed trace"] {
   grid-template-columns: 27px minmax(0, 1fr);
   align-items: center;
   gap: 9px;
-}
-
-.analysis-heading-main > .panel-index {
-  display: grid;
-  width: 27px;
-  height: 27px;
-  place-items: center;
 }
 
 .analysis-heading-main > div {
@@ -756,7 +728,6 @@ canvas[data-chart="Speed trace"] {
     padding: 14px;
   }
 
-  .lap-workspace .workspace-heading,
   .analysis-heading {
     margin-bottom: 9px;
     padding-bottom: 9px;
@@ -854,8 +825,7 @@ button#loadSession.is-loading::before {
   }
 
   .sidebar .panel-heading,
-  .lap-workspace .workspace-heading,
-  .analysis-heading {
+.analysis-heading {
     margin-bottom: 8px;
     padding-bottom: 8px;
   }
@@ -894,8 +864,7 @@ button#loadSession.is-loading::before {
   }
 
   .sidebar .panel-heading,
-  .lap-workspace .workspace-heading,
-  .analysis-heading {
+.analysis-heading {
     margin-bottom: 8px;
     padding-bottom: 8px;
   }
@@ -1075,8 +1044,7 @@ main,
   margin: 0;
 }
 
-.analysis-heading,
-.lap-workspace .workspace-heading {
+.analysis-heading {
   margin-bottom: 7px;
   padding-bottom: 7px;
 }

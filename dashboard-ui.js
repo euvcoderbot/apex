@@ -65,7 +65,7 @@
     let stored=null;try{stored=localStorage.getItem('apex-theme');}catch(_){return;}
     if(stored)return;
     const isLight=document.documentElement.dataset.theme==='light';
-    if(event.matches!==isLight){document.querySelector('#themeToggle')?.click();try{localStorage.removeItem('apex-theme');}catch(_){}}
+    if(event.matches!==isLight)window.applyTheme?.('system',false);
   });
   // The category bar mirrors the in-panel tablist; activation is delegated to
   // the original control so car-performance.js keeps sole ownership of state.

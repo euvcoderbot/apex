@@ -26,7 +26,15 @@ function drawChartHover(name) {
     const entry=traceEntries.find(item=>item.index===index),stepped=['Brake application','Gear','DRS'].includes(name);
     const value=entry?renderedTraceValue(entry.domainPoints,hoverFraction,stepped):null;
     if(!Number.isFinite(value))continue;
-    const y=bounds.top+(bounds.max-value)/(bounds.max-bounds.min||1)*(rect.height-bounds.top-bounds.bottom);
+    let y=bounds.top+(bounds.max-value)/(bounds.max-bounds.min||1)*(rect.height-bounds.top-bounds.bottom);
+    if(name==='Brake application'){
+      // Brake is drawn as one lane per lap: the dot sits in that lap's lane, filled when braking, hollow when not.
+      const n=traceEntries.length,lane=traceEntries.indexOf(entry),gap=n>1?3:0,plotH=rect.height-bounds.top-bounds.bottom,laneH=(plotH-gap*(n-1))/n;
+      y=bounds.top+lane*(laneH+gap)+laneH/2;
+      ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);
+      if(value>=50){ctx.fillStyle=getLapColor(lap);ctx.strokeStyle='#fff';ctx.fill();ctx.stroke();}else{ctx.fillStyle=lightThemeActive()?'#fff':'#121213';ctx.strokeStyle=getLapColor(lap);ctx.fill();ctx.stroke();}
+      continue;
+    }
     ctx.fillStyle=getLapColor(lap);ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,4,0,2*Math.PI);ctx.fill();ctx.stroke();
   }
 }
@@ -39,14 +47,148 @@ function bindAllChartHover() {
   const tooltip = $('#realTooltip');
   const telemetryCard = $('.telemetry-card');
   
+  const showTelemetryHover = (canvas, rawFraction, { clientX = null, clientY = null } = {}) => {
+    if (!loaded.length) return;
+    const fraction = Math.max(traceZoom.start, Math.min(traceZoom.end, rawFraction));
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width) return;
+
+    hoverFraction = fraction;
+    hoveredChartName = canvas.dataset.chart;
+
+    // Repaint all charts and track map to show synchronized crosshair and ball tracker
+    defs.forEach(def => drawChartHover(def[0]));
+    drawMapHover();
+
+    const refSamples = telemetryCache.get(telemetryKey(loaded[0]));
+    const maxDistance = refSamples?.length ? referenceDistance() : 5891;
+
+    let hasReconstructedValue = false;
+    let hasLowConfidenceValue = false;
+    const sourceGapNotes = new Map();
+    const noteSourceGap = (lap, series) => {
+      const gap = telemetrySourceGapAt(series, fraction);
+      if (gap) sourceGapNotes.set(telemetryKey(lap), `${lap.code} L${lap.lap}: ${gap.interval.toFixed(3)} s`);
+    };
+    if (hoveredChartName === 'Timing delta') noteSourceGap(loaded[0], refSamples);
+
+    const readingFor = (chartName, lap, index, series) => {
+      const field = chartField[chartName];
+      const unit = (defs.find(def => def[0] === chartName) || [])[1] || '';
+      let val = null;
+      const targetDist = fraction * maxDistance;
+      if (chartName === 'Timing delta' && !window.ApexTelemetryFrame?.partial() && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
+        val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
+          ? displayDeltaAt(series, refSamples, fraction)
+          : deltaAt(series, refSamples, targetDist));
+      } else if (chartName === 'Timing delta') {
+        val = null;
+      } else if ((series?.alignmentMethod === 'live-distance' || chartName === 'Speed trace' || chartName === 'Throttle application')
+          && typeof smoothedTelemetryValue === 'function') {
+        val = typeof traceTelemetryValue === 'function'
+          ? traceTelemetryValue(series, fraction, field)
+          : smoothedTelemetryValue(series, fraction, field);
+      } else {
+        val = interpolate(series, targetDist, field);
+      }
+      if ((chartName === 'Throttle application' || chartName === 'Speed trace') && typeof telemetryChannelGapRanges === 'function'
+          && telemetryChannelGapRanges(series, field).some(range => fraction > range.start && fraction < range.end)) val = null;
+      if (!Number.isFinite(val)) return '—';
+      if (chartName === 'Timing delta') return `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
+      if (field === 'DRS') return val >= 0.5 ? 'open' : 'closed';
+      if (chartName === 'Brake application') return val >= 50 ? 'on' : 'off';
+      const reconstructed = typeof isReconstructedTelemetry === 'function' && isReconstructedTelemetry(series, fraction, field);
+      if (reconstructed) hasReconstructedValue = true;
+      if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
+      const precision = (chartName === 'Speed trace' || chartName === 'Throttle application') ? val.toFixed(1) : Math.round(val);
+      return `${reconstructed ? '~' : ''}${precision}${unit ? ' ' + unit : ''}`;
+    };
+
+    const entries = visibleTraceLaps().map(({ lap, index }) => {
+      const series = telemetryCache.get(telemetryKey(lap));
+      if (['Speed trace', 'Throttle application', 'Timing delta'].includes(hoveredChartName)) noteSourceGap(lap, series);
+      return {lap, index, series};
+    });
+
+    canvas.setAttribute('aria-valuenow', String(Math.round(fraction * 1000)));
+    const firstSummary = entries[0] ? `${entries[0].lap.code}: ${readingFor(hoveredChartName, entries[0].lap, entries[0].index, entries[0].series)}` : '';
+    canvas.setAttribute('aria-valuetext', `${((fraction * maxDistance) / 1000).toFixed(2)} km${firstSummary ? ' · ' + firstSummary : ''}`);
+
+    const allChannels = window.hoverAllChannels !== false;
+    let body;
+    if (allChannels) {
+      const channels = [...document.querySelectorAll('#charts canvas[data-chart]')].map(c => c.dataset.chart).filter(name => chartField[name] || name === 'Timing delta');
+      const short = {'Speed trace': 'km/h', 'Timing delta': 'Δ', 'Throttle application': 'Thr %', 'Brake application': 'Brake', Gear: 'Gear', DRS: 'DRS', 'Engine speed': 'rpm'};
+      const head = `<tr><th></th>${channels.map(name => `<th${name === hoveredChartName ? ' class="is-hovered"' : ''}>${short[name] || name}</th>`).join('')}</tr>`;
+      const rows = entries.map(({lap, index, series}) => `<tr><th><span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap}</th>${channels.map(name => `<td${name === hoveredChartName ? ' class="is-hovered"' : ''}>${readingFor(name, lap, index, series).replace(/ (km\/h|%|rpm)$/, '')}</td>`).join('')}</tr>`).join('');
+      body = `<table class="hover-readout">${head}${rows}</table>`;
+    } else {
+      body = entries.map(({lap, index, series}) => `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${readingFor(hoveredChartName, lap, index, series)}</b>`).join('<br>');
+    }
+    const lines = [body];
+    const reconstructionNote = hasReconstructedValue
+      ? `<br><small>~ ${hasLowConfidenceValue ? 'Low-confidence gap estimate' : 'Estimated repair'}</small>`
+      : '';
+    const zoomedMetres = (traceZoom.end - traceZoom.start) * maxDistance;
+    const brakeNotes = (hoveredChartName === 'Brake application' || hoveredChartName === 'Speed trace') && zoomedMetres <= 1500
+      ? entries.map(({lap, series}) => { const t = brakeTransitionNear(series, fraction, maxDistance); return t ? `${escapeUI(lap.code)} ${t.kind} between ${Math.round(t.from)} and ${Math.round(t.to)} m (${Math.round(t.to - t.from)} m)` : null; }).filter(Boolean)
+      : [];
+    const brakeNote = brakeNotes.length ? `<br><small>Brake change · ${brakeNotes.join('; ')}</small>` : '';
+    const deltaNotes = hoveredChartName === 'Timing delta' && !document.body.classList.contains('is-descriptions-hidden')
+      && typeof displayDeltaAt === 'function' && typeof deltaAt === 'function' && !window.ApexTelemetryFrame?.partial() && !loaded[0]?.real?.out_lap
+      ? entries.filter(({index, lap, series}) => index !== 0 && series?.length && !lap.real?.out_lap).map(({lap, series}) => {
+        const integrated = displayDeltaAt(series, refSamples, fraction), stamped = deltaAt(series, refSamples, fraction * maxDistance);
+        const signed = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(3)} s`;
+        return Number.isFinite(integrated) && Number.isFinite(stamped) && Math.abs(integrated - stamped) > DELTA_ESTIMATE_DISCLOSURE_S
+          ? `${escapeUI(lap.code)} ${signed(integrated)} speed · ${signed(stamped)} timestamps` : null;
+      }).filter(Boolean)
+      : [];
+    const deltaNote = deltaNotes.length ? `<br><small>Δ estimates · ${deltaNotes.join('; ')}</small>` : '';
+    const sourceGapNote = sourceGapNotes.size ? `<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>` : '';
+
+    tooltip.innerHTML = `${lines.join('<br>')}${brakeNote}${deltaNote}${sourceGapNote}${reconstructionNote}`;
+    tooltip.classList.toggle('has-readout', allChannels);
+    window.ApexMotion?.warmTooltip?.(tooltip);
+    tooltip.style.display = 'block';
+
+    const span = Math.max(0.0001, traceZoom.end - traceZoom.start);
+    const localX = rect.left + TRACE_PLOT_LEFT + ((fraction - traceZoom.start) / span) * (rect.width - TRACE_PLOT_LEFT - TRACE_PLOT_RIGHT);
+    const anchorX = clientX != null ? clientX : localX;
+    const anchorY = clientY != null ? clientY : rect.top + 16;
+
+    if (document.body.classList.contains('trace-focus')) {
+      const tipRect = tooltip.getBoundingClientRect();
+      const pageZoom = document.documentElement.getBoundingClientRect().width / document.documentElement.offsetWidth || 1;
+      tooltip.style.left = `${Math.max(8, Math.min(anchorX + 15, innerWidth - tipRect.width - 12)) / pageZoom}px`;
+      tooltip.style.top = `${Math.max(8, Math.min(anchorY + 15, innerHeight - tipRect.height - 12)) / pageZoom}px`;
+      return;
+    }
+    const parentRect = telemetryCard.getBoundingClientRect();
+    const zoom = parentRect.width / telemetryCard.offsetWidth || 1;
+    const tipRect = tooltip.getBoundingClientRect();
+    const right = Math.min(parentRect.right, window.innerWidth) - 12;
+    const x = anchorX + 15 + tipRect.width > right ? anchorX - tipRect.width - 15 : anchorX + 15;
+    const xPos = Math.max(8, (x - parentRect.left) / zoom);
+    const yPos = Math.max(8, (Math.min(anchorY + 15, window.innerHeight - tipRect.height - 12) - parentRect.top) / zoom);
+    tooltip.style.left = `${xPos}px`;
+    tooltip.style.top = `${yPos}px`;
+  };
+
+  const clearTelemetryHover = () => {
+    if (hoverFrame) { cancelAnimationFrame(hoverFrame); hoverFrame = 0; }
+    hoverFraction = null;
+    hoveredChartName = null;
+    tooltip.style.display = 'none';
+    defs.forEach(def => drawChartHover(def[0]));
+    drawMapHover();
+  };
+
   canvases.forEach(canvas => {
     canvas.addEventListener('pointermove', event => scheduleHover(() => {
-      const e=event;
       if (!loaded.length) return;
-      
       const rect = canvas.getBoundingClientRect();
       const printableWidth = rect.width - TRACE_PLOT_LEFT - TRACE_PLOT_RIGHT;
-      const localFraction = Math.max(0, Math.min(1, (e.clientX - rect.left - TRACE_PLOT_LEFT) / printableWidth));
+      const localFraction = Math.max(0, Math.min(1, (event.clientX - rect.left - TRACE_PLOT_LEFT) / printableWidth));
       const fraction = traceZoom.start + localFraction * (traceZoom.end - traceZoom.start);
 
       if (zoomDrag?.chart === canvas.dataset.chart) {
@@ -55,109 +197,30 @@ function bindAllChartHover() {
         drawRealChart(zoomDrag.chart);
         return;
       }
-      
-      hoverFraction = fraction;
-      hoveredChartName = canvas.dataset.chart;
-      
-      // Repaint all charts and track map to show synchronized crosshair and ball tracker
-      defs.forEach(def => drawChartHover(def[0]));
-      drawMapHover();
-      
-      // Update floating tooltip content
-      const field = chartField[hoveredChartName];
-      const currentDef = defs.find(def => def[0] === hoveredChartName);
-      const unit = currentDef ? currentDef[1] : '';
-      
-      const refSamples = telemetryCache.get(telemetryKey(loaded[0]));
-      const maxDistance = refSamples?.length ? referenceDistance() : 5891;
-      const distanceKM = (fraction * maxDistance) / 1000;
-      
-      let hasReconstructedValue = false;
-      let hasLowConfidenceValue = false;
-      const sourceGapNotes=new Map();
-      const noteSourceGap=(lap,series)=>{
-        const gap=telemetrySourceGapAt(series,fraction);
-        if(gap)sourceGapNotes.set(telemetryKey(lap),`${lap.code} L${lap.lap}: ${gap.interval.toFixed(3)} s`);
-      };
-      if(hoveredChartName==='Timing delta')noteSourceGap(loaded[0],refSamples);
-      const lines = visibleTraceLaps().map(({ lap, index }) => {
-        const series = telemetryCache.get(telemetryKey(lap));
-        if(['Speed trace','Throttle application','Timing delta'].includes(hoveredChartName))noteSourceGap(lap,series);
-        let val = null;
-        const targetDist = fraction * maxDistance;
-        if (hoveredChartName === 'Timing delta' && !window.ApexTelemetryFrame?.partial() && !lap.real?.out_lap && !loaded[0]?.real?.out_lap) {
-          val = index === 0 ? 0 : (typeof displayDeltaAt === 'function'
-            ? displayDeltaAt(series, refSamples, fraction)
-            : deltaAt(series, refSamples, targetDist));
-        } else if (hoveredChartName === 'Timing delta') {
-          val = null;
-        } else if ((series?.alignmentMethod === 'live-distance' || hoveredChartName === 'Speed trace' || hoveredChartName === 'Throttle application')
-            && typeof smoothedTelemetryValue === 'function') {
-          val = typeof traceTelemetryValue === 'function'
-            ? traceTelemetryValue(series, fraction, field)
-            : smoothedTelemetryValue(series, fraction, field);
-        } else {
-          val = interpolate(series, targetDist, field);
-        }
-        
-        let display = '—';
-        if (Number.isFinite(val)) {
-          if (hoveredChartName === 'Timing delta') {
-            display = `${val >= 0 ? '+' : ''}${val.toFixed(3)}s`;
-          } else if (field === 'DRS') {
-            display = val >= 0.5 ? 'OPEN' : 'CLOSED';
-          } else if (hoveredChartName === 'Brake application') {
-            display = val >= 50 ? 'ON' : 'OFF';
-          } else {
-            const reconstructed = typeof isReconstructedTelemetry === 'function'
-              && isReconstructedTelemetry(series, fraction, field);
-            if (reconstructed) hasReconstructedValue = true;
-            if (telemetryEstimateInfo(series, fraction, field)?.confidence === 'low') hasLowConfidenceValue = true;
-            // Speed and throttle are interpolated between whole-number samples: one decimal, not three.
-            const precision = (hoveredChartName === 'Speed trace'
-              || hoveredChartName === 'Throttle application')
-              ? val.toFixed(1)
-              : Math.round(val);
-            display = `${reconstructed ? '~' : ''}${precision} ${unit}`;
-          }
-        }
-        return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${display}</b>`;
-      });
-      
-      const reconstructionNote = hasReconstructedValue
-        ? `<br><small>~ ${hasLowConfidenceValue ? 'Low-confidence gap estimate' : 'Estimated repair'}</small>`
-        : '';
-      const sourceGapNote=sourceGapNotes.size?`<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
-      tooltip.innerHTML = `<b>${distanceKM.toFixed(3)} km</b><br>${lines.join('<br>')}${sourceGapNote}${reconstructionNote}`;
-      tooltip.style.display = 'block';
-      
-      if (document.body.classList.contains('trace-focus')) {
-        const tipRect = tooltip.getBoundingClientRect();
-        // Fixed positions are in layout px; pointer coordinates include the page zoom.
-        const pageZoom = document.documentElement.getBoundingClientRect().width / document.documentElement.offsetWidth || 1;
-        tooltip.style.left = `${Math.max(8, Math.min(e.clientX + 15, innerWidth - tipRect.width - 12)) / pageZoom}px`;
-        tooltip.style.top = `${Math.max(8, Math.min(e.clientY + 15, innerHeight - tipRect.height - 12)) / pageZoom}px`;
-        return;
-      }
-      const parentRect = telemetryCard.getBoundingClientRect();
-      const zoom = parentRect.width / telemetryCard.offsetWidth || 1;
-      const tipRect = tooltip.getBoundingClientRect();
-      const right = Math.min(parentRect.right, window.innerWidth) - 12;
-      const x = e.clientX + 15 + tipRect.width > right ? e.clientX - tipRect.width - 15 : e.clientX + 15;
-      const xPos = Math.max(8, (x - parentRect.left) / zoom);
-      const yPos = Math.max(8, (Math.min(e.clientY + 15, window.innerHeight - tipRect.height - 12) - parentRect.top) / zoom);
-      tooltip.style.left = `${xPos}px`;
-      tooltip.style.top = `${yPos}px`;
+      showTelemetryHover(canvas, fraction, { clientX: event.clientX, clientY: event.clientY });
     }));
-    
+
+    canvas.addEventListener('keydown', event => {
+      if (!loaded.length) return;
+      if (event.key === 'Escape') { event.preventDefault(); clearTelemetryHover(); return; }
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const span = Math.max(0.0001, traceZoom.end - traceZoom.start);
+      const step = span * (event.shiftKey ? 0.05 : 0.01);
+      const base = hoverFraction !== null && hoverFraction >= traceZoom.start && hoverFraction <= traceZoom.end
+        ? hoverFraction : traceZoom.start + span * 0.5;
+      const next = event.key === 'Home' ? traceZoom.start
+        : event.key === 'End' ? traceZoom.end
+        : Math.max(traceZoom.start, Math.min(traceZoom.end, base + (event.key === 'ArrowRight' ? step : -step)));
+      showTelemetryHover(canvas, next);
+    });
+
+    canvas.addEventListener('blur', () => { clearTelemetryHover(); });
+
     canvas.addEventListener('mouseleave', () => {
-      if(hoverFrame){cancelAnimationFrame(hoverFrame);hoverFrame=0;}
+      if (hoverFrame) { cancelAnimationFrame(hoverFrame); hoverFrame = 0; }
       if (zoomDrag?.chart === canvas.dataset.chart) return;
-      hoverFraction = null;
-      hoveredChartName = null;
-      tooltip.style.display = 'none';
-      defs.forEach(def => drawChartHover(def[0]));
-      drawMapHover();
+      clearTelemetryHover();
     });
   });
 }
@@ -203,30 +266,33 @@ function bindTrackMapHover() {
 
       if (tooltip && telemetryCard) {
         const distanceKM = (bestFraction * totalDistance) / 1000;
-        const {start: segmentStart, end: segmentEnd} = miniSectorBounds(totalDistance, bestFraction);
-        const segmentRows = hoverEntries.map(({ lap }) => {
+        const refLap = loaded[0];
+        const refSeries = refLap ? telemetryCache.get(telemetryKey(refLap)) : null;
+        const canDelta = !window.ApexTelemetryFrame?.partial() && !refLap?.real?.out_lap && !!refSeries?.length;
+        const lines = hoverEntries.map(({ lap, index }) => {
           const series = telemetryCache.get(telemetryKey(lap));
           const speed = typeof smoothedTelemetryValue === 'function'
             ? (typeof traceTelemetryValue === 'function'
                 ? traceTelemetryValue(series, bestFraction, 'Speed')
                 : smoothedTelemetryValue(series, bestFraction, 'Speed'))
             : interpolate(series, bestFraction * totalDistance, 'Speed');
-          const sectionTime = typeof performanceSectionDuration === 'function'
-            ? performanceSectionDuration(series, segmentStart, segmentEnd)
-            : null;
-          return { lap, speed, sectionTime };
-        });
-        const comparable = segmentRows.length >= 2 && segmentRows.every(row => Number.isFinite(row.sectionTime) && row.sectionTime > 0);
-        const bestTime = comparable ? Math.min(...segmentRows.map(row => row.sectionTime)) : null;
-        const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
           const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} km/h` : '—';
-          const timeDisplay = Number.isFinite(sectionTime) && sectionTime > 0
-            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · not compared' : Math.abs(sectionTime - bestTime) < .0005 ? ' · fastest' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
-            : 'no section time';
-          return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
+          let deltaDisplay = '';
+          if (canDelta && !lap.real?.out_lap) {
+            if (index === 0) deltaDisplay = ' · Ref';
+            else {
+              const delta = typeof displayDeltaAt === 'function'
+                ? displayDeltaAt(series, refSeries, bestFraction)
+                : deltaAt(series, refSeries, bestFraction * totalDistance);
+              if (Number.isFinite(delta)) deltaDisplay = ` · <b>${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(3)}s</b>`;
+            }
+          }
+          return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b>${deltaDisplay}`;
         });
 
-        tooltip.innerHTML = `<b>Track map · ${distanceKM.toFixed(3)} km · ${((segmentEnd-segmentStart)*totalDistance).toFixed(1)} m section</b><br>${lines.join('<br>')}`;
+        tooltip.innerHTML = `<b>Track map · ${distanceKM.toFixed(3)} km</b><br>${lines.join('<br>')}`;
+        tooltip.classList.remove('has-readout');
+        window.ApexMotion?.warmTooltip?.(tooltip);
         tooltip.style.display = 'block';
 
         const parentRect = telemetryCard.getBoundingClientRect();
@@ -302,6 +368,8 @@ function paintReadyTelemetry() {
     ? defs.filter(([name]) => name !== 'DRS')
     : defs;
   activeDefs.forEach(definition => drawRealChart(definition[0]));
+  // The expanded view's track map widens with the number of laps beside it.
+  $('#telemetryContent')?.style?.setProperty?.('--focus-laps', String(Math.max(1, loaded.length)));
   renderCornerAnalysis();
   renderMiniSectorMap();
   renderTelemetryReadout();
@@ -319,3 +387,26 @@ function updateTelemetryVisibility() {
   const emptyState = $('#telemetryEmpty');
   if (emptyState) emptyState.hidden = !empty || genericMap;
 }
+document.addEventListener('click', event => { if (event.target.closest?.('#telemetryEmptyLoad')) $('#loadSession')?.click(); });
+
+// The brake change nearest a lap position (within reach metres): the interval between the last packet in the old state and
+// the first in the new one, where the real change happened somewhere. Unknown readings break the pair.
+function brakeTransitionNear(series, fraction, total, reach = 60) {
+  if (!series?.length || !(total > 0)) return null;
+  const at = fraction * total;
+  let best = null, previous = null;
+  for (const point of series) {
+    const state = point.Brake == null || !Number.isFinite(+point.Brake) ? null : +point.Brake >= 50;
+    const metres = traceSampleFraction(series, point) * total;
+    if (state === null) { previous = null; continue; }
+    if (previous && previous.state !== state && metres > previous.metres) {
+      const distance = at < previous.metres ? previous.metres - at : at > metres ? at - metres : 0;
+      if (distance <= reach && (!best || distance < best.distance)) best = {distance, from: previous.metres, to: metres, kind: state ? 'on' : 'off'};
+    }
+    previous = {state, metres};
+  }
+  return best;
+}
+
+// Integrated (plotted) and timestamp deltas closer than this are not disclosed separately.
+const DELTA_ESTIMATE_DISCLOSURE_S = .05;

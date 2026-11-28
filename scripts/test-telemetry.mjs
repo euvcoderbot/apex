@@ -621,3 +621,33 @@ test('cached problem laps: finite, bounded, immutable and all trusted values exa
   console.log(`Real-data regression: ${count} laps; ${repairs} samples classified for repair.`);
   assert.ok(count > 0);
 });
+
+test('swapping the timing reference keeps every packet on the same circuit path and reverses the gap, ties included', () => {
+  const h=appHarness();
+  h.sandbox.fixture=JSON.parse(gunzipSync(readFileSync('scripts/cota-fp2-evidence.json.gz')));
+  h.run(`loaded=fixture.map(e=>e.lap);fixture.forEach(e=>telemetryCache.set(telemetryKey(e.lap),normalizeTelemetry(e.payload.samples,e.lap,e.payload.source)));
+    var ant=telemetryCache.get('ANT:8'),ver=telemetryCache.get('VER:9');
+    var capture=()=>({fractions:[ant,ver].map(s=>s.map(p=>p.AlignedFraction)),distance:referenceDistance(),path:circuitReferenceTelemetry().lap.code});`);
+  for (const tie of [false, true]) {
+    if (tie) h.run('[ant,ver].forEach(s=>setTelemetryMeta(s,"quality",{...s.quality,positionCoverage:1}));[ant,ver].forEach(s=>setTelemetryMeta(s,"alignmentInputs",null))');
+    h.run('prepareTelemetryAlignment();var first=capture();var gap=Array.from({length:201},(_,i)=>displayDeltaAt(ver,ant,i/200))');
+    h.run('loaded.reverse();prepareTelemetryAlignment();var swapped=capture();var reversed=Array.from({length:201},(_,i)=>displayDeltaAt(ant,ver,i/200))');
+    assert.equal(h.run('first.path===swapped.path'),true,'one circuit path whichever lap is the reference');
+    assert.equal(h.run('first.distance===swapped.distance'),true,'one distance scale');
+    assert.equal(h.run('first.fractions.every((s,k)=>s.every((f,i)=>Math.abs(f-swapped.fractions[k][i])<1e-12))'),true,'packets keep their place');
+    assert.equal(h.run('gap.every((g,i)=>!Number.isFinite(g)||Math.abs(g+reversed[i])<.002)'),true,'the gap reverses');
+    h.run('loaded.reverse()');
+  }
+  // A tie on coverage goes to the faster lap, never to whichever lap is loaded first.
+  assert.equal(h.run('circuitReferenceTelemetry().lap.code'), h.run('[...loaded].sort((a,b)=>(+a.real?.time||+a.time)-(+b.real?.time||+b.time))[0].code'));
+});
+
+test('mini-sectors closer than the timing resolves are level, missing ones are not a winner, and the threshold grows with length', () => {
+  const h=appHarness();
+  near(h.run('miniSectorTieSeconds(25)'),.005);near(h.run('miniSectorTieSeconds(230)'),.01955);
+  h.run(`var durationsFor=new Map();performanceSectionDuration=(samples,start)=>durationsFor.get(samples)[Math.round(start*4)];
+    var a=[{}],b=[{}];durationsFor.set(a,[1,1,1,1]);durationsFor.set(b,[1.003,1.02,null,.99]);`);
+  const segments=h.run('miniSectorDominanceSegments([a,b],100)').map(({winner,level,missing})=>({winner,level,missing}));
+  assert.deepEqual(JSON.parse(JSON.stringify(segments)),[{winner:0,level:true,missing:false},{winner:0,level:false,missing:false},
+    {winner:-1,level:false,missing:true},{winner:1,level:false,missing:false}]);
+});

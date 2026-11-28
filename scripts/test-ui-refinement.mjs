@@ -15,7 +15,7 @@ test('sector differences precede their measured times, with labelled weather rea
   vm.createContext(box);vm.runInContext(app.slice(app.indexOf('function renderSectors()'),app.indexOf('// Chart Constants and Configuration')),box);box.renderSectors();
   const second=html.slice(html.indexOf('data-motion-key="summary-VER'));
   assert.match(html,/title="Gap to fastest compared lap">\+0\.123s/);
-  assert.match(second,/title="Gap to fastest compared lap">\+0\.000s[\s\S]*?<strong>91\.373<\/strong>/);
+  assert.match(second,/title="Gap to fastest compared lap">Fastest<[\s\S]*?<strong>91\.373<\/strong>/);
   assert.match(second,/<small>S1<\/small><span class="sector-time-pair"><span class="sector-delta-slot"><em[^>]*>−0\.271s<\/em><\/span><strong>27\.002s<\/strong><\/span><\/span>\s*<span class="sector-status-line"/);
   for(const [icon,label] of [['🌤️','Air'],['🌡️','Track'],['💨','Wind'],['🌧️','Rain']])
     assert.ok(html.includes(`<i aria-hidden="true">${icon}</i><small>${label}</small></span><strong>—</strong>`));

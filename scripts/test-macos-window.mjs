@@ -27,7 +27,10 @@ test('window uses a unified toolbar, a sidebar for categories and setup, and a t
 });
 
 test('appearance follows the system until the person picks one',()=>{
-  assert.match(page,/localStorage\.getItem\('apex-theme'\) \|\| \(matchMedia\('\(prefers-color-scheme: light\)'\)\.matches \? 'light' : 'dark'\)/);
+  // A stored choice wins (light, dark or black); nothing stored follows the system. Black is dark on the black surface.
+  assert.match(page,/var appearance = localStorage\.getItem\('apex-theme'\);/);
+  assert.match(page,/appearance === 'light' \|\| \(!appearance && matchMedia\('\(prefers-color-scheme: light\)'\)\.matches\) \? 'light' : 'dark'/);
+  assert.match(page,/if \(appearance === 'black'\) document\.documentElement\.dataset\.surface = 'black';/);
   assert.match(page,/name="color-scheme" content="light dark"/);
   assert.match(ui,/prefers-color-scheme: light[\s\S]*if\(stored\)return/);
 });

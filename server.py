@@ -42,6 +42,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
+from telemetry_sources import observed_brake, observed_throttle
 
 ROOT = Path(__file__).parent
 DEFAULT_CACHE_ROOT = ROOT
@@ -1021,23 +1022,17 @@ def position_geometry_quality(samples):
 
 
 def join_openf1_positions(car, location):
-    """Nearest position within 400 ms; ties prefer the earlier packet."""
-    dated = sorted((datetime.fromisoformat(p['date'].replace('Z', '+00:00')), i, p)
-                   for i, p in enumerate(location))
-    if not dated:
+    """Each car packet's position interpolated in time between the location packets either side of it (at most 0.6 s
+    apart); missing across longer gaps (telemetry_sources.interpolate_positions)."""
+    from telemetry_sources import interpolate_positions
+    rows = sorted((datetime.fromisoformat(p['date'].replace('Z', '+00:00')).timestamp(), p.get('x'), p.get('y'))
+                  for p in location if p.get('date'))
+    if not rows:
         return car
-    times = [row[0] for row in dated]
+    times = [datetime.fromisoformat(p['date'].replace('Z', '+00:00')).timestamp() for p in car]
     result = []
-    for point in car:
-        timestamp = datetime.fromisoformat(point['date'].replace('Z', '+00:00'))
-        # Right insertion keeps the last packet at an identical timestamp,
-        # matching merge_asof's backward/exact-match preference.
-        index = bisect_right(times, timestamp)
-        candidates = dated[max(0, index-1):min(len(dated), index+1)]
-        nearest = min(candidates, key=lambda row: (abs((row[0]-timestamp).total_seconds()), row[0]))
-        position = nearest[2] if abs((nearest[0]-timestamp).total_seconds()) <= .4 else {}
-        result.append({**point, 'x': position.get('x'), 'y': position.get('y'),
-                       'position_interval_s':abs((nearest[0]-timestamp).total_seconds())*2 if position else None})
+    for point, (x, y, interval, estimated) in zip(car, interpolate_positions(times, rows)):
+        result.append({**point, 'x': x, 'y': y, 'position_interval_s': interval, 'position_estimated': estimated})
     return result
 
 
@@ -1240,8 +1235,9 @@ def _openf1_lap_telemetry(
             "ElapsedSeconds": elapsed,
             "Timestamp": timestamp.timestamp(),
             "Speed": current_speed,
-            "Throttle": point.get("throttle"),
-            "Brake": point.get("brake"),
+            # Each pedal decoded on its own: the feed's 104 placeholder is a missing reading, kept as null.
+            "Throttle": observed_throttle(point.get("throttle")),
+            "Brake": observed_brake(point.get("brake")),
             "RPM": point.get("rpm"),
             "nGear": point.get("n_gear"),
             "DRS": point.get("drs"),
@@ -1250,6 +1246,7 @@ def _openf1_lap_telemetry(
             "IsInterpolatedBoundary":bool(point.get('boundary_interpolated')),
             "SourceIntervalSeconds":point.get('source_interval_s',0),
             "PositionIntervalSeconds":point.get('position_interval_s'),
+            "PositionEstimated":bool(point.get('position_estimated')),
             "ChannelSources":{c:'OpenF1:boundary-derived' if point.get('boundary_interpolated') else 'OpenF1:native' for c in ('Speed','Throttle','Brake','RPM','nGear','DRS')},
         })
     return samples
@@ -1955,6 +1952,10 @@ def fetch_openf1_session_drivers(
                     "s1": float(lap["duration_sector_1"]) if lap.get("duration_sector_1") is not None else None,
                     "s2": float(lap["duration_sector_2"]) if lap.get("duration_sector_2") is not None else None,
                     "s3": float(lap["duration_sector_3"]) if lap.get("duration_sector_3") is not None else None,
+                    # F1's own mini-sector statuses per sector (2051 session best, 2049 personal best, 2048 slower,
+                    # 2064 pit lane, 0 or null no status), as the timing tower colours them.
+                    "minis": [[int(code) if isinstance(code, (int, float)) else None for code in (lap.get(f"segments_sector_{n}") or [])]
+                              for n in (1, 2, 3)] if any(lap.get(f"segments_sector_{n}") for n in (1, 2, 3)) else None,
                     "compound": comp,
                     "tyre_life": tyre_life,
                     "stint": st_num,
@@ -3057,14 +3058,15 @@ def telemetry(
                 telemetry_data["Time"].dt.total_seconds() >= pit_out_time - .25
             ].copy()
         try:
-            position_data = lap_row.get_pos_data().loc[:, ["Date", "X", "Y"]].copy()
-            telemetry_data = pd.merge_asof(
-                telemetry_data.sort_values("Date"),
-                position_data.sort_values("Date"),
-                on="Date",
-                direction="nearest",
-                tolerance=pd.Timedelta(milliseconds=300),
-            )
+            # Positions interpolated in time between the packets either side of each car packet (not the nearest one).
+            from telemetry_sources import interpolate_positions
+            position_data = lap_row.get_pos_data().loc[:, ["Date", "X", "Y"]].dropna().sort_values("Date")
+            telemetry_data = telemetry_data.sort_values("Date").reset_index(drop=True)
+            joined = interpolate_positions(
+                [pd.Timestamp(d).timestamp() if pd.notna(d) else None for d in telemetry_data["Date"]],
+                [(pd.Timestamp(d).timestamp(), float(x), float(y)) for d, x, y in position_data.itertuples(index=False)])
+            telemetry_data["X"] = [row[0] if row[0] is not None else np.nan for row in joined]
+            telemetry_data["Y"] = [row[1] if row[1] is not None else np.nan for row in joined]
         except Exception as position_error:
             logger.warning("Position join unavailable for %s L%s: %s", driver, lap, position_error)
         for coordinate in ("X", "Y"):

@@ -1,4 +1,4 @@
-import {fmt} from '../../performance-format.js';
+import {color, finite, fmt} from '../../performance-format.js';
 import {BarChart, type BarChartOptions} from '../components/BarChart';
 import {Card} from '../components/Card';
 import {DataTable, type SortHeaderModel} from '../components/DataTable';
@@ -18,6 +18,57 @@ export type PaceViewProps = {
   laps: {team: Row; event: string; phase: string; driver: string; time: number}[];
   drivers: {team: Row; event: string; driver: string; estimate: string; samples: number; basis: string; residual: string}[];
 };
+
+/** One row per team: its qualifying gap (ring) and race-pace gap (dot) on one shared scale, joined by a line, so a car
+ *  that is quicker over one lap than over a race (or the reverse) reads at a glance. Each gap is rebased to its own
+ *  quickest team, as in the two bar charts above. */
+function PaceComparison({qualy, race}: {qualy: PaceViewProps['qualyChart']; race: PaceViewProps['raceChart']}) {
+  const qKey = qualy.options.valueKey || 'value', rKey = race.options.valueKey || 'race';
+  const digits = Math.min(qualy.options.digits ?? 2, race.options.digits ?? 2);
+  const name = (r: Row) => String(r.team || r.name || '');
+  const raceBy = new Map(race.rows.map(r => [name(r), r]));
+  const pairs = qualy.rows.map(r => ({team: r, q: r[qKey] as number, r: raceBy.get(name(r))?.[rKey] as number}))
+    .filter(x => finite(x.q) && finite(x.r));
+  if (pairs.length < 2) return null;
+  const qBest = Math.min(...pairs.map(x => x.q)), rBest = Math.min(...pairs.map(x => x.r));
+  const rows = pairs.map(x => ({...x, q: x.q - qBest, r: x.r - rBest}));
+  const qRank = new Map([...rows].sort((a, b) => a.q - b.q).map((x, i) => [x, i + 1]));
+  rows.sort((a, b) => a.r - b.r || a.q - b.q);
+  const span = Math.max(0.0001, ...rows.flatMap(x => [x.q, x.r]));
+  // The scale is inset by a dot's radius at each end, so a gap of zero or the largest gap is drawn whole.
+  const at = (v: number) => `calc(6px + (100% - 12px) * ${(v / span).toFixed(4)})`;
+  const length = (v: number) => `calc((100% - 12px) * ${(v / span).toFixed(4)})`;
+  const show = (v: number) => (v <= 0.00001 ? fmt(0, digits, '%') : `+${fmt(v, digits, '%')}`);
+  return (
+    <div className="performance-chart-card pace-compare-card">
+      <div className="perf-chart-header"><div className="perf-chart-title-group">
+        <h4 className="perf-chart-heading">Qualifying against race pace</h4>
+        <span className="perf-chart-sub">Gap to the quickest team on one scale · ordered by race pace</span>
+      </div>
+      <div className="pace-compare-key" aria-hidden="true"><span><i className="is-qualy" />Qualifying</span><span><i className="is-race" />Race</span></div></div>
+      <div className="performance-bars pace-compare-rows">
+        {rows.map((x, i) => {
+          const label = name(x.team), shift = (qRank.get(x) || 0) - (i + 1);
+          const summary = `${label}: qualifying ${show(x.q)}, race ${show(x.r)}${shift ? `; ${Math.abs(shift)} place${Math.abs(shift) === 1 ? '' : 's'} ${shift > 0 ? 'higher' : 'lower'} on race pace than in qualifying` : ''}`;
+          return (
+            <div key={label} className="performance-bar-row pace-compare-row" role="img" aria-label={summary} title={summary}
+              data-chart-value={`Qualifying against race pace:${label}`} data-entrant={label} tabIndex={i === 0 ? 0 : -1}
+              style={{'--bar-color': color(x.team.color as string)} as React.CSSProperties}>
+              <div className="performance-bar-label rank-label"><TeamLabel team={x.team} />
+                {Math.abs(shift) >= 2 ? <small className="rank-evidence">{shift > 0 ? `${shift} up in race` : `${-shift} down in race`}</small> : null}</div>
+              <div className="performance-bar-track pace-compare-track">
+                <i className="pace-compare-span" style={{left: at(Math.min(x.q, x.r)), width: length(Math.abs(x.q - x.r))}} />
+                <i className="pace-compare-dot is-qualy" style={{left: at(x.q)}} />
+                <i className="pace-compare-dot is-race" style={{left: at(x.r)}} />
+              </div>
+              <span className="performance-bar-val pace-compare-val"><span>{show(x.q)}</span><span>{show(x.r)}</span></span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /** Car performance · Qualifying & race pace. */
 export function PaceView(p: PaceViewProps) {
@@ -49,6 +100,7 @@ export function PaceView(p: PaceViewProps) {
           <BarChart rows={p.qualyChart.rows} options={p.qualyChart.options} />
           <BarChart rows={p.raceChart.rows} options={p.raceChart.options} />
         </div>
+        <PaceComparison qualy={p.qualyChart} race={p.raceChart} />
       </Card>
       <details className="performance-evidence">
         <summary>Pace table by team</summary>

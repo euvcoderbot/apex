@@ -59,6 +59,8 @@
       return {...base, bestLap: bestLap?.lap, median: q(.5), spread: rep.length >= 4 ? q(.75) - q(.25) : null, clean: laps.length ? rep.length / laps.length : null, laps: laps.length, stints};
     }).filter(r => Number.isFinite(r.best)).sort((a, b) => a.best - b.best);
     if (rows.length < 2) return '';
+    // A session without speed-trap readings drops the column rather than showing a column of dashes.
+    const hasTrap = rows.some(r => Number.isFinite(r.trap));
     const lead = rows[0].best, best = key => Math.min(...rows.map(r => r[key]).filter(Number.isFinite));
     const top = {ideal: best('ideal'), median: best('median'), spread: best('spread')}, trapTop = Math.max(...rows.map(r => r.trap).filter(Number.isFinite));
     const ranked = rows.map((row, i) => ({...row, rank: i + 1})).sort((a, b) => {
@@ -83,13 +85,13 @@
       + `<td class="num${r.rank === 1 ? ' is-best' : ''}">${compareBest(r)}</td><td class="num">${r.rank === 1 ? '—' : signedS(r.best - lead).replace(' s', '')}</td>`
       + mark(r.ideal, top.ideal, fmtLap) + mark(r.median, top.median, fmtLap) + mark(r.spread, top.spread)
       + `<td class="num">${Number.isFinite(r.clean) ? Math.round(r.clean * 100) + '%' : '—'}</td>`
-      + mark(r.trap, trapTop, v => String(Math.round(v))) + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
+      + (hasTrap ? mark(r.trap, trapTop, v => String(Math.round(v))) : '') + `<td class="num">${r.laps}</td><td class="num">${r.stints || '—'}</td></tr>`).join('');
     return `<details class="session-summary" ${summaryOpen ? 'open' : ''}><summary>Best lap, ultimate lap and consistency</summary>
       <div class="session-summary-wrap" tabindex="0" role="region" aria-label="Session summary"><table class="session-summary-table">
       <thead><tr><th scope="col" class="num" aria-label="Fastest lap rank">#</th><th scope="col">Driver</th>${sortable('best')}<th scope="col" class="num">Gap</th>
       ${sortable('ideal', 'Sum of the driver’s best sectors')}<th scope="col" class="num" title="Median representative lap">Median</th>
       ${sortable('spread', 'Spread of the middle half of representative laps, in seconds')}
-      <th scope="col" class="num" title="Share of laps that were representative">Clean</th>${sortable('trap')}<th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
+      <th scope="col" class="num" title="Share of laps that were representative">Clean</th>${hasTrap ? sortable('trap') : ''}<th scope="col" class="num">Laps</th><th scope="col" class="num">Stints</th></tr></thead>
       <tbody>${body}</tbody></table></div>
       <p class="session-summary-note">Select a best time to add or remove that lap from your comparison. Representative laps are timed, within 107% of the driver’s best, and exclude in- and out-laps. Consistency is the spread of the middle half of them (seconds).</p></details>`;
   }
@@ -216,6 +218,33 @@
           continue;
         }
         svg += `<circle class="point${isLoaded ? ' is-loaded' : ''}${s.dashed ? ' is-hollow' : ''}" style="--c:${esc(s.colour)}" cx="${x(l.lap).toFixed(1)}" cy="${y(l.time).toFixed(1)}" r="${isLoaded ? 5 : 3.5}" data-code="${esc(s.code)}" data-lap="${l.lap}" tabindex="0" role="button" aria-label="${esc(`${s.code} lap ${l.lap}, ${fmtLap(l.time)}${l.compound ? `, ${l.compound}` : ''}. ${isLoaded ? 'In the comparison; select to remove' : 'Select to compare'}`)}"/>`;
+      }
+    }
+    // Each driver's personal best is ringed and labelled with its time (three drivers or fewer, so labels stay legible).
+    // Labels never overlap each other: each takes the first free spot of above, below, left and right of its ring.
+    if (series.length <= 3) {
+      const placed = [], overlaps = box => placed.some(o => box.x0 < o.x1 && box.x1 > o.x0 && box.y0 < o.y1 && box.y1 > o.y0);
+      for (const s of series) {
+        const onScale = s.laps.filter(l => l.time <= yHi + 1e-9);
+        if (!onScale.length) continue;
+        const pb = onScale.reduce((a, b) => (b.time < a.time ? b : a));
+        const px = x(pb.lap), py = y(pb.time), text = fmtLap(pb.time), w = text.length * 6.4, h = 12;
+        placed.push({x0: px - 9, x1: px + 9, y0: py - 9, y1: py + 9});   // the ring itself
+        const spots = [
+          {x: px, y: py - 13, anchor: 'middle'}, {x: px, y: py + 21, anchor: 'middle'},
+          {x: px - 12, y: py + 4, anchor: 'end'}, {x: px + 12, y: py + 4, anchor: 'start'},
+          {x: px - 12, y: py - 12, anchor: 'end'}, {x: px - 12, y: py + 20, anchor: 'end'},
+        ].map(spot => {
+          let ax = spot.x;
+          if (spot.anchor === 'middle') ax = Math.min(W - R - w / 2, Math.max(L + w / 2, ax));
+          const x0 = spot.anchor === 'end' ? ax - w : spot.anchor === 'start' ? ax : ax - w / 2;
+          return {...spot, x: ax, box: {x0, x1: x0 + w, y0: spot.y - h + 2, y1: spot.y + 2}};
+        }).filter(spot => spot.box.x0 >= L - 2 && spot.box.x1 <= W && spot.box.y0 >= 0 && spot.box.y1 <= H - B);
+        const spot = spots.find(c => !overlaps(c.box)) || spots[0];
+        if (!spot) continue;
+        placed.push(spot.box);
+        svg += `<circle class="pb-ring" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="8" style="stroke:${esc(s.colour)}" aria-hidden="true"/>`
+          + `<text class="pb-label" x="${spot.x.toFixed(1)}" y="${spot.y.toFixed(1)}" text-anchor="${spot.anchor}" style="fill:${esc(s.colour)}" aria-hidden="true">${esc(text)}</text>`;
       }
     }
     svg += '</svg>';
@@ -433,8 +462,9 @@
     if (!root) return;
     const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
     if (loaded.length < 2 || !reference?.length || typeof adaptiveCornerZones !== 'function') { root.hidden = true; root.innerHTML = ''; return; }
-    const totalDistance = reference[reference.length - 1].Distance || 1;
-    const zones = sessionPerformanceZones(adaptiveCornerZones(resolveCornerMarkers(reference, totalDistance, loaded[0].cornerMarkers)), totalDistance);
+    const circuit = typeof circuitReferenceTelemetry === 'function' ? circuitReferenceTelemetry() : null;
+    const totalDistance = circuit ? referenceDistance() : reference[reference.length - 1].Distance || 1;
+    const zones = sessionPerformanceZones(adaptiveCornerZones(resolveCornerMarkers(circuit?.samples || reference, totalDistance, circuitCornerMarkers?.() || loaded[0].cornerMarkers)), totalDistance);
     const readouts = loaded.slice(1).flatMap(lap => {
       const samples = telemetryCache.get(telemetryKey(lap));
       if (!samples?.length || lap.real?.out_lap || loaded[0].real?.out_lap) return [];

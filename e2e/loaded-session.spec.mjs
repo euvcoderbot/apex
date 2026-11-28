@@ -7,7 +7,7 @@ const calendar=[{year:2026,round:18,name:'United States Grand Prix',country:'Uni
 
 async function loaded(page,{missing=false,partial=false,corners=null,wind=null}={}){
   const sessionData=wind?{...session,drivers:session.drivers.map(driver=>({...driver,laps:driver.laps.map(lap=>({
-    ...lap,conditions:{...lap.conditions,...wind},
+    ...lap,conditions:{...lap.conditions,...wind},minis:[[2049,2049,2051,2048,2049,2048],[2048,2049,2049,2048,2051],[2051,2048,2049,2049,2064]],
   }))}))}:session;
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route(/127\.0\.0\.1:54123/,route=>route.abort());
@@ -172,9 +172,10 @@ for (const width of [1440,390]) {
     expect(sectorLayout.sameRow).toBe(true);
     expect(sectorLayout.labelClear).toBe(true);
     expect(sectorLayout.fits).toBe(true);
-    expect(sectorLayout.matchingColour && sectorLayout.equalMarks).toBe(true);
+    // Dark: text and bar are the same F1 colour. Light: the bar keeps the F1 colour; the text is a deeper shade to read on white.
+    expect((width===390 || sectorLayout.matchingColour) && sectorLayout.equalMarks).toBe(true);
     await expect(page.getByRole('button',{name:'Saved comparisons'})).toHaveCount(0);
-    await expect(lapCards.locator('.summary-lap-time .summary-delta')).toHaveText([/^\+0\.000s/, /^\+0\.179s/]);
+    await expect(lapCards.locator('.summary-lap-time .summary-delta')).toHaveText([/^Fastest$/, /^\+0\.179s/]);
     await expect(lapCards.locator('.summary-lap-time > .is-even')).toHaveCount(1);
     await expect(lapCards.locator('.summary-lap-time > .is-slower')).toHaveCount(1);
     {

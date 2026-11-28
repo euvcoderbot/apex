@@ -83,7 +83,7 @@ function renderMiniSectorMap() {
   });
   if (mapView === 'guide' || !loaded.length) {
     // Every map title has the same two lines, so switching Guide / Lap comparison never moves the map or the panels below it.
-    title.innerHTML = 'Circuit guide <small>SECTORS · CORNERS</small>';
+    title.innerHTML = 'Circuit guide <small>sectors and corners</small>';
     dominanceMapHitPoints = [];
     clearDominanceMapCanvas(canvas);
     renderGenericCircuit(canvas, empty);
@@ -96,10 +96,10 @@ function renderMiniSectorMap() {
     ? 'Track map showing the fastest loaded lap in each mini-sector'
     : 'Circuit map for the visible telemetry trace');
   title.innerHTML = !mapEntries.length
-    ? 'Track map <small>NO LAP LOADED</small>'
+    ? 'Track map <small>no lap loaded</small>'
     : comparative
       ? 'Mini-sector dominance <small>25 m segments</small>'
-      : 'Track map <small>SINGLE TRACE</small>';
+      : 'Track map <small>single trace</small>';
   if (!mapEntries.length) {
     clearDominanceMapCanvas(canvas);
     canvas.style.display = 'block';
@@ -284,27 +284,33 @@ function renderMiniSectorMap() {
   }
   ctx.restore();
 
-  let unavailableSegments = 0;
+  let unavailableSegments = 0, levelSegments = 0;
   if (comparative) {
     // Consecutive mini-sectors won by the same lap are one run: one smooth stroke with flat ends, so neighbouring colours meet
     // edge to edge instead of overlapping round caps at every 25 m boundary. The winners themselves are unchanged.
+    // A level segment (closer than the timing resolves) is drawn neutral; one without a comparable time for every lap is
+    // dashed over the bare outline, so missing data never reads as either lap's colour or as a tie.
     const runs = [];
-    for (const {start, end, winner} of miniSectorDominanceSegments(allSeries, totalDistance)) {
-      if (winner < 0) { unavailableSegments++; continue; }
+    for (const {start, end, winner, level, missing} of miniSectorDominanceSegments(allSeries, totalDistance)) {
+      const key = missing ? 'missing' : level ? 'level' : winner;
+      if (missing) unavailableSegments++;
+      else if (level) levelSegments++;
       const last = runs[runs.length - 1];
-      if (last && last.winner === winner && Math.abs(last.end - start) < 1e-9) last.end = end;
-      else runs.push({start, end, winner});
+      if (last && last.key === key && Math.abs(last.end - start) < 1e-9) last.end = end;
+      else runs.push({start, end, key});
     }
     ctx.save();
-    ctx.lineWidth = 7;
-    ctx.lineCap = 'butt';
     ctx.lineJoin = 'round';
-    for (const {start, end, winner} of runs) {
-      ctx.strokeStyle = getLapColor(mapEntries[winner].lap);
+    for (const {start, end, key} of runs) {
+      ctx.lineCap = 'butt';
+      ctx.setLineDash(key === 'missing' ? [3, 4] : []);
+      ctx.lineWidth = key === 'missing' ? 2 : 7;
+      ctx.strokeStyle = key === 'missing' ? theme.gridStrong : key === 'level' ? theme.text : getLapColor(mapEntries[key].lap);
       ctx.beginPath();
       traceSmoothPath(ctx, miniSectorGeometryPoints(canvasGeometry, start, end, pointAt));
       ctx.stroke();
     }
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
@@ -410,7 +416,8 @@ function renderMiniSectorMap() {
     const lap = mapEntries[index]?.lap;
     if (!lap) return '';
     return `<span class="legend-item"><i class="legend-color" style="--team:${getLapColor(lap)}"></i>${lap.code} L${lap.lap}</span>`;
-  }).join('') + (unavailableSegments ? `<span class="legend-item" title="Every selected lap needs a supported positive timing for a segment to be compared.">${unavailableSegments} segments unavailable · grey</span>` : '');
+  }).join('') + (levelSegments ? `<span class="legend-item" title="The quickest two laps are closer than the telemetry can separate over this segment (5 ms or more, by length).">${levelSegments} level <i class="legend-color is-level" aria-hidden="true"></i></span>` : '')
+    + (unavailableSegments ? `<span class="legend-item" title="Every selected lap needs a supported positive timing for a segment to be compared.">${unavailableSegments} unavailable <i class="legend-color is-missing" aria-hidden="true"></i></span>` : '');
 }
 
 function drawMapHover() {
@@ -423,19 +430,52 @@ function drawMapHover() {
   ctx.fillStyle=lightThemeActive()?'#161b22':'#fff';ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(point.x,point.y,4.5,0,2*Math.PI);ctx.fill();ctx.stroke();
 }
 
+// Appearance: Light, Dark, Black (dark on true black for OLED screens) or System. Black keeps data-theme="dark", so every
+// dark rule applies, and adds data-surface="black" for its surfaces (skins.css). No stored choice follows the system.
+const APPEARANCES = {system: 'System', light: 'Light', dark: 'Dark', black: 'Black'};
+function appearanceMenu() {
+  let menu = document.getElementById('appearanceMenu');
+  const button = document.getElementById('themeToggle');
+  if (menu || !button?.after) return menu;
+  menu = document.createElement('div');
+  menu.id = 'appearanceMenu'; menu.setAttribute('popover', ''); menu.setAttribute('aria-label', 'Appearance');
+  menu.innerHTML = '<strong>Appearance</strong><div class="appearance-options" role="group" aria-label="Appearance">'
+    + Object.entries(APPEARANCES).map(([value, name]) => `<button type="button" data-appearance="${value}" aria-pressed="false">${name}</button>`).join('')
+    + '</div><p>Black is the dark appearance on true black, for OLED screens.</p>';
+  button.after(menu);
+  menu.querySelectorAll('[data-appearance]').forEach(option => option.addEventListener('click', () => {
+    applyTheme(option.dataset.appearance); menu.hidePopover?.(); button.focus();
+  }));
+  menu.addEventListener('toggle', event => button.setAttribute('aria-expanded', String(event.newState === 'open')));
+  const choice = storedAppearance();
+  menu.querySelectorAll('[data-appearance]').forEach(option => option.setAttribute('aria-pressed', String(option.dataset.appearance === choice)));
+  return menu;
+}
+function storedAppearance() {
+  try { const value = localStorage.getItem('apex-theme'); return value in APPEARANCES ? value : 'system'; } catch (_) { return 'system'; }
+}
 function applyTheme(theme, persist = true) {
-  const nextTheme = theme === 'light' ? 'light' : 'dark';
-  document.documentElement.dataset.theme = nextTheme;
+  const choice = theme in APPEARANCES ? theme : 'dark';
+  const systemLight = choice === 'system' && !!window.matchMedia?.('(prefers-color-scheme: light)').matches;
+  const nextTheme = choice === 'light' || systemLight ? 'light' : 'dark';
+  const root = document.documentElement;
+  root.dataset.theme = nextTheme;
+  if (choice === 'black') root.dataset.surface = 'black'; else delete root.dataset.surface;
+  // The phone's browser bar follows the page: black with Black, the page's own colours otherwise.
+  document.querySelectorAll?.('meta[name="theme-color"]').forEach(meta => {
+    meta.dataset.colour ??= meta.content;
+    meta.content = choice === 'black' ? '#000000' : meta.dataset.colour;
+  });
   const button = $('#themeToggle');
   if (button) {
-    const light = nextTheme === 'light';
-    button.setAttribute('aria-pressed', String(light));
-    button.setAttribute('aria-label', light ? 'Switch to dark mode' : 'Switch to light mode');
+    button.setAttribute('aria-label', `Appearance: ${APPEARANCES[choice]}`);
+    button.title = `Appearance: ${APPEARANCES[choice]}`;
     const label = button.querySelector('span');
-    if (label) label.textContent = light ? 'Dark mode' : 'Light mode';
+    if (label) label.textContent = `Appearance: ${APPEARANCES[choice]}`;
   }
+  document.querySelectorAll?.('[data-appearance]').forEach(option => option.setAttribute('aria-pressed', String(option.dataset.appearance === choice)));
   if (persist) {
-    try { localStorage.setItem('apex-theme', nextTheme); } catch (_) { /* storage can be disabled */ }
+    try { if (choice === 'system') localStorage.removeItem('apex-theme'); else localStorage.setItem('apex-theme', choice); } catch (_) { /* storage can be disabled */ }
   }
   if (loaded.length) drawAll();
   else if (selected.length) renderMiniSectorMap();

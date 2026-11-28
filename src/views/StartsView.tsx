@@ -121,13 +121,23 @@ function LaunchTable({starts,teams,speed}: {starts: Launch[]; teams: boolean; sp
     const key = teams ? r.team : r.driver;
     groups.set(key,[...(groups.get(key) || []),r]);
   }
+  // The quickest reading at each distance (shortest time, or highest speed) is marked, so the strongest launch reads at a glance.
+  const reading = (group: Launch[], d: number) => {
+    const values = group.map(r => r.marks[d]).filter(Boolean);
+    return values.length ? Number(speed ? median(values.map(v => v.kmh)).toFixed(0) : median(values.map(v => v.seconds)).toFixed(1)) : null;
+  };
+  const best = new Map(distances.map(d => {
+    const all = Array.from(groups.values(), g => reading(g, d)).filter((v): v is number => v != null);
+    return [d, all.length > 1 ? (speed ? Math.max(...all) : Math.min(...all)) : null];
+  }));
   const rows = Array.from(groups, ([name,group]) => [
     <TeamLabel team={{displayName:name,logoTeam:group[0].team}}/>,...(!teams ? ['P'+group[0].grid] : []),
     ...distances.map(d => {
       const values = group.map(r => r.marks[d]).filter(Boolean);
       if (!values.length) return '—';
       const value = speed ? median(values.map(v => v.kmh)).toFixed(0) : median(values.map(v => v.seconds)).toFixed(1);
-      return <>{value}{teams && values.length<group.length && <small className="start-partial explanation-only" title={`${values.length} of ${group.length} drivers measured`}> {values.length}/{group.length}</small>}</>;
+      const top = best.get(d) != null && Number(value) === best.get(d);
+      return <>{top ? <b className="start-best" title={speed ? 'Fastest at this distance' : 'Quickest to this distance'}>{value}</b> : value}{teams && values.length<group.length && <small className="start-partial explanation-only" title={`${values.length} of ${group.length} drivers measured`}> {values.length}/{group.length}</small>}</>;
     }),...(teams ? [group.length] : [])]);
   const markers = distances.map(d => d+' m');
   return <DataTable evidenceFrom={teams ? markers.length+1 : undefined}

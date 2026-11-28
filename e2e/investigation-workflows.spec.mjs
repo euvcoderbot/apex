@@ -107,7 +107,9 @@ for (const width of [1440, 390]) test(`a Calendar round opens its results and st
     const midY = rect => (rect.top + rect.bottom) / 2;
     const flag = bounds('.season-flag'), title = bounds('h3');
     const copy = bounds('.season-round-copy'), map = bounds('svg');
-    return flag.right < title.left && title.right < map.left && map.height === 40 &&
+    // Wide screens give the outline its own leading column so outlines line up down the season; a phone keeps it after the name.
+    const ordered = innerWidth > 760 ? map.right < flag.left : title.right < map.left;
+    return flag.right < title.left && ordered && map.height === 40 &&
       Math.abs(midY(flag) - midY(title)) < 1 && Math.abs(midY(map) - midY(copy)) < 1;
   })).toBe(true);
   expect(await round.evaluate(node => getComputedStyle(node).display === 'grid' && node.scrollWidth <= node.clientWidth + 1)).toBe(true);

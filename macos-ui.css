@@ -135,7 +135,6 @@ main.sidebar-collapsed #driverSidebar { display: none; }
 .workspace-intro { display: flex; align-items: center; justify-content: flex-start; gap: 10px; min-width: 0; padding-bottom: 10px; }
 .workspace-intro .workspace-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; min-width: 0; min-height: 0; max-width: none; margin: 0 0 0 auto; padding: 0; }
 #driverSidebar #driverPills > .section-empty { display: block; min-width: 0; padding: 5px 0; margin: 0; white-space: normal; overflow-wrap: anywhere; }
-.lap-workspace .workspace-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 0 0 10px; padding: 0 0 9px; }
 .workspace-heading-actions { margin-left: auto; min-width: 0; }
 .lap-workspace .workspace-heading-actions .run-toolbar { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; }
 .lap-workspace .lap-group-header { margin: 8px 0 6px; padding-top: 7px; }
@@ -183,7 +182,4 @@ main.sidebar-collapsed #driverSidebar { display: none; }
   .performance-controls .performance-track-choices { grid-row: 3; }
   #performanceResults > .performance-toolbar { flex-direction: column; }
   #performanceResults > .performance-toolbar > .performance-mode { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); width: 100%; }
-}
-@media (max-width: 480px) {
-  .lap-workspace .workspace-heading { gap: 6px 10px; }
 }
