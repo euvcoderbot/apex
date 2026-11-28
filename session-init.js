@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const definitions=$('#performanceDefinitions');
   if(definitions&&window.ApexAnalysis)definitions.innerHTML=Object.values(window.ApexAnalysis.definitions).map(d=>`<dt>${d.title}</dt><dd>${d.description}</dd>`).join('');
   window.addEventListener('pointerup', finishZoomDrag);
-  applyTheme(document.documentElement.dataset.theme, false);
+  applyTheme(storedAppearance(), false);
   document.querySelectorAll('.select-shell select').forEach(enhanceSelect);
   window.addEventListener('resize', () => document.querySelectorAll('.select-shell.is-open').forEach(positionSelectMenu));
   window.addEventListener('scroll', event => {
@@ -47,12 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // The Load button names the session the menus point at when it differs from the one on screen (session-loader.js).
   for (const id of ['#year', '#gp', '#session']) $(id)?.addEventListener?.('change', () => setTimeout(markPendingSelection));
   
-  const themeToggle = $('#themeToggle');
-  if (themeToggle) {
-    themeToggle.addEventListener('click', () => {
-      applyTheme(lightThemeActive() ? 'dark' : 'light');
-    });
-  }
+  // The appearance button opens its menu (a popover), built on first use so the idle page carries no extra nodes; each
+  // option applies and remembers its choice.
+  $('#themeToggle')?.addEventListener('click', () => appearanceMenu()?.togglePopover?.());
 
   $('#clearComparison')?.addEventListener('click', () => {
     loaded = [];

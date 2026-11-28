@@ -16,7 +16,10 @@
       {label: 'Session analysis', detail: 'Compare laps and telemetry', action: () => document.querySelector('[data-analysis-view="session"]')?.click()},
       {label: 'Car performance', detail: 'Explore team and driver measurements', action: () => document.querySelector('[data-analysis-view="performance"]')?.click()},
       {label: 'Choose comparison laps', detail: 'Session analysis', action: () => { document.querySelector('[data-analysis-view="session"]')?.click(); document.getElementById('lapWorkspaceToggle')?.click(); }},
-      {label: 'Change appearance', detail: 'Switch light / dark', action: () => document.getElementById('themeToggle')?.click()},
+      // Each appearance is its own command, applied at once (as the Appearance menu's options are).
+      ...[['light', 'Light appearance', 'Switch to the light appearance'], ['dark', 'Dark appearance', 'Switch to the dark appearance'],
+        ['black', 'Black appearance', 'Dark on true black, for OLED screens'], ['system', 'System appearance', 'Follow the device’s light or dark setting']]
+        .map(([value, label, detail]) => ({label, detail, action: () => window.applyTheme?.(value)})),
       {label: 'Toggle explanations', detail: 'Show or hide measurement guidance', action: () => document.getElementById('explanationsToggle')?.click()},
       ...[...document.querySelectorAll('#performanceCategoryList button:not(:disabled)')].map(button => ({label: button.getAttribute('aria-label') || button.textContent.trim(), detail: 'Car performance category', action: () => { document.querySelector('[data-analysis-view="performance"]')?.click(); button.click(); }})),
       // Season pages, and once typing starts its drivers, teams and circuits (season.js).

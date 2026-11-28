@@ -1583,10 +1583,10 @@
 @keyframes lin-fade-in { from { opacity: 0; } to { opacity: 1; } }
 /* ---- Floating surfaces (spec §1 elevation, §8): menus, popovers, the lap sheet, dialogs, the command menu, tooltips and toasts
    share one surface: --lin-float, a hairline inside and the layered soft shadow. Corners: menus and tooltips 8, the rest 12. ---- */
-:root[data-skin="linear"] :is(.select-menu, .tooltip, .app-toast, #computeSettings, #lapSelectionBody:popover-open, .local-compute-dialog, #linearCommandMenu, .season-tip) {
+:root[data-skin="linear"] :is(.select-menu, .tooltip, .app-toast, #computeSettings, #appearanceMenu, #lapSelectionBody:popover-open, .local-compute-dialog, #linearCommandMenu, .season-tip) {
   border: 0; background: var(--lin-float); box-shadow: inset 0 0 0 1px var(--lin-float-border), var(--lin-float-shadow); -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-:root[data-skin="linear"] :is(.app-toast, #computeSettings, #lapSelectionBody:popover-open, .local-compute-dialog, #linearCommandMenu) { border-radius: 12px; }
+:root[data-skin="linear"] :is(.app-toast, #computeSettings, #appearanceMenu, #lapSelectionBody:popover-open, .local-compute-dialog, #linearCommandMenu) { border-radius: 12px; }
 :root[data-skin="linear"] :is(.select-menu, .tooltip, .season-tip) { border-radius: 8px; }
 :root[data-skin="linear"] :is(.select-shell.is-open .select-menu, .select-shell.is-open:has(#gp) .select-menu) { animation: lin-menu-in var(--lin-menu) var(--lin-ease-out-quad); transform-origin: top center; }
 :root[data-skin="linear"] .tooltip { font-size: var(--type-callout); animation: lin-tooltip-in var(--lin-tooltip) var(--lin-ease-out-quad); }
@@ -1636,6 +1636,18 @@
   --lin-shadow-high: 0 7px 32px #0000001f; --lin-shadow-medium: 0 4px 24px #00000014;
   --lin-band: #f4f2f4;
   --lin-pill: transparent; --lin-pill-ring: #00000014; --lin-pill-on: #ffffff; --lin-pill-hover: #0000000f; --lin-pill-press: #0000001c; --lin-icon-btn: transparent;
+}
+/* Black: the dark appearance on true black for OLED screens. The page, rail, panels and cards are #000, so unlit pixels
+   stay off; cards and the frame are told apart by their 1 px rings alone, and controls, wells and menus sit a step above
+   black. Text, accents and charts keep the dark values (data-theme stays "dark"; session-map.js applyTheme). */
+:root[data-skin="linear"][data-surface="black"]:not([data-theme="light"]) {
+  --ui-canvas: #000000; --ui-sidebar: #000000; --ui-toolbar: #000000; --ui-panel: #000000; --ui-content: #000000;
+  --ui-well: #0b0b0c; --ui-header-row: #0b0b0c; --ui-control: #121213; --ui-control-hover: #1a1a1c; --ui-selected: #232325;
+  --ui-border-strong: #232325;
+  --lin-frame-border: #18181a; --lin-faint-shadow: none; --lin-card-border: #1d1d1f; --lin-outline-border: #1f1f21;
+  --lin-float: #0f0f10; --lin-float-border: #ffffff17; --lin-label-border: #232325;
+  --lin-pill-hover: #1f1f21; --lin-pill-press: #2a2a2c;
+  --mat-scrim: #000000b3;
 }
 :root[data-skin="linear"] body { font-feature-settings: "cv01", "ss03"; background: var(--ui-canvas); background-image: none; isolation: isolate;
   /* The base text: primary colour in Inter (spec §2); nothing inherits from the browser default. */
@@ -2429,6 +2441,15 @@
 
 /* Compute on this PC (local-compute.js): the popover's actions, and a dot on the Compute button while the PC is used. */
 :root[data-skin="linear"] #computeSettings .compute-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* Appearance menu: the four choices as one segmented row, the chosen one filled. */
+:root[data-skin="linear"] #appearanceMenu { inset: 52px 12px auto auto; margin: 0; width: min(340px, calc(100vw - 24px)); box-sizing: border-box; padding: 14px 16px; color: var(--ui-label); }
+:root[data-skin="linear"] #appearanceMenu > strong { font: 600 13px/1.3 var(--ui-font); }
+:root[data-skin="linear"] #appearanceMenu .appearance-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; margin: 8px 0 6px; padding: 2px; border-radius: 9999px; background: var(--ui-control); }
+/* The menu sits in the header's toolbar group; its options are not 30 px icon buttons (nor 44 px phone targets). */
+:root[data-skin="linear"] #appearanceMenu .appearance-options > button { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 0; min-height: 30px; height: 30px; padding: 0 6px; border: 0; border-radius: 9999px; background: transparent; color: var(--ui-secondary); font: 500 12px/1 var(--ui-font); cursor: pointer; }
+:root[data-skin="linear"] #appearanceMenu .appearance-options > button:hover { color: var(--ui-label); background: var(--lin-nav-hover); }
+:root[data-skin="linear"] #appearanceMenu .appearance-options > button[aria-pressed="true"] { background: var(--lin-float); color: var(--ui-label); box-shadow: inset 0 0 0 1px var(--ui-border-strong); }
+:root[data-skin="linear"] #appearanceMenu p { margin: 0; color: var(--ui-tertiary); font: 450 12px/1.4 var(--ui-font); }
 :root[data-skin="linear"] #computeSettings .compute-actions :is(button, a) { display: inline-flex; align-items: center; height: 28px; padding: 0 10px; border: 0; border-radius: 9999px; background: var(--lin-pill); box-shadow: inset 0 0 0 1px var(--lin-pill-ring); color: var(--ui-label); font: 500 12px/1 var(--ui-font); text-decoration: none; cursor: pointer; }
 :root[data-skin="linear"] #computeSettings .compute-actions :is(button, a):hover { background: var(--lin-pill-hover); }
 :root[data-skin="linear"] #computeSettings [data-compute-use], :root[data-skin="linear"] #computeSettings [data-compute-start] { background: var(--ui-action); box-shadow: none; color: #fff; }

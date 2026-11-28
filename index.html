@@ -27,7 +27,10 @@
     // Interface scale; keep in sync with UI_ZOOM in lib/ui-style-build.mjs.
     window.APEX_UI_ZOOM = 1;
     try {
-      document.documentElement.dataset.theme = localStorage.getItem('apex-theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+      // Appearance: light, dark, black (dark on true black) or, with nothing stored, the system's.
+      var appearance = localStorage.getItem('apex-theme');
+      document.documentElement.dataset.theme = appearance === 'light' || (!appearance && matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+      if (appearance === 'black') document.documentElement.dataset.surface = 'black';
     } catch (_) {
       document.documentElement.dataset.theme = 'dark';
     }
@@ -73,7 +76,7 @@
         </div>
       </div>
       <button id="explanationsToggle" class="sidebar-toggle" type="button" aria-pressed="false" title="Show or hide explanations"><i aria-hidden="true"></i><span>Show explanations</span></button>
-      <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" aria-label="Switch to light mode" title="Switch between light and dark"><i aria-hidden="true"></i><span>Light mode</span></button>
+      <button id="themeToggle" class="theme-toggle" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Appearance" title="Appearance"><i aria-hidden="true"></i><span>Appearance</span></button>
     </div>
   </header>
   <main id="top" tabindex="-1" role="tabpanel" aria-labelledby="analysis-tab-session">

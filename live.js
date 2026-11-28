@@ -1179,7 +1179,7 @@
       container.append(frame);
     }
     const session = state?.session || {};
-    const theme = document.documentElement.dataset.theme;
+    const theme = document.documentElement.dataset.surface === 'black' ? 'black' : document.documentElement.dataset.theme;
     const key = session.path || [session.year, session.meeting, session.name].join(':');
     const previous = view.payload;
     view.frame.hidden = false;

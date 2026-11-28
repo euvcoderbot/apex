@@ -33,6 +33,7 @@
       traceZoom = {start: 0, end: 1}; timingDeltaZoom = 1; hoverFraction = null; estimateAlignmentCorrection = false;
     }
     document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
+    if (theme === 'black') document.documentElement.dataset.surface = 'black'; else delete document.documentElement.dataset.surface;
     sessionYear = Number(year) || 2026;
     sessionEventName = event || '';
     $('#year').value = String(sessionYear);
