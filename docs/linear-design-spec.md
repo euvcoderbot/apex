@@ -160,14 +160,14 @@ again. Counts right-aligned 450 12. A status bar sits under the panel (36 high) 
 
 ## 9. Interaction and motion [A][P]
 
-Highlight in 0 s, out 0.15 s; quick 0.1 s; regular 0.25 s; slow 0.35 s [A tokens]. Ease-out-quad for UI [P]. No bounce.
-`prefers-reduced-motion` removes movement.
+- **Timings:** highlight in `0 s`, out `0.15 s`; quick `0.1 s`; regular `0.25 s`; slow `0.35 s` (`[A]` tokens). Measured component timings `[P]`: menus `80 ms` open / `60 ms` close (`scale(.98)` + fade); combobox `max-height` `80 ms`; tooltips `120 ms` (`scale(.9)` + fade, `0 s` with `[data-instant]` on sibling scrubbing); disclosure chevrons & scrollbars `120 ms`; buttons & rich hover cards `160 ms` (`:active` `scale(.97)`); command menu & dialogs `175 ms` (`scale(.96)` + fade, `150 ms` `scale(.98)` rejection pulse, positioned at `top: 13vh` / `33.33%`); collapsibles & directional nav slides `180 ms`; morphing header popover `220 ms` (`height, width`); mobile drawer `500 ms` (`cubic-bezier(.32, .72, 0, 1)`).
+- **Curves:** `ease-out-quad` `cubic-bezier(.25, .46, .45, .94)` for UI; `ease-in-out-quad` `(.455, .03, .515, .955)` for directional slide switches. All `ease-in/out/in-out` variants (`quad`, `cubic`, `quart`, `quint`, `expo`, `circ`) are defined; **never bouncy**.
+- **Submenus & hover ergonomics:** diagonal submenu safe-triangle (`clip-path: polygon`) prevents accidental closing on diagonal cursor paths (`[P]` *Invisible details*); hover-only UI is gated on `any-hover: hover`.
+- **Reduced motion & view transitions:** `@media (prefers-reduced-motion: reduce)` removes movement and `::view-transition-*` animations globally.
 
-## 10. Responsive behaviour [I]
+## 10. Responsive behaviour [P][I]
 
-Linear's web app collapses the sidebar on narrow windows; no breakpoints are published. Here: ≥ 761 px the frame with rail;
-below, the rail becomes a top strip, the panel is full-bleed with 16 px gutters, cards stack, tables and wide charts scroll
-inside their card. Touch targets 44 px on phones [P].
+Linear's website breakpoints (`640 px` mobile, `768 px` tablet, `1024 px` laptop, `1280 px` desktop) and narrow-window app collapse inform the responsive rules (`[P]`/`[I]`): ≥ 761 px uses the inverted-L frame with rail (`244 px`); below, the rail becomes a compact top/bottom strip, the panel is full-bleed with 16 px gutters, cards stack, tables and wide charts scroll inside their card (with `overscroll-behavior: contain` and gradient scroll masks paired to `scroll-padding`), and touch targets stay ≥ 44 px on phones. Retina displays (`>= 2x` / `192dpi`) step hairlines down to `0.5 px` (`--border-hairline`) where appropriate.
 
 ## 11. Charts and telemetry [I]
 
