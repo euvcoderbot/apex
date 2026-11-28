@@ -37,6 +37,8 @@ let estimateAlignmentCorrection = false;
 let speedAnnotationCache = null;
 // Tint under the main telemetry traces (speed, throttle, brake, rpm): off unless chosen in Display.
 let traceTintEnabled = window.ApexAnalysis?.preference('trace-tint', false) === true;
+// The wash between each lap's timing delta and zero: on by default, hidden from Display.
+let deltaTintEnabled = window.ApexAnalysis?.preference('delta-tint', true) !== false;
 const hiddenTraceKeys = new Set();
 let dominanceMapHitPoints = [];
 let dominanceMapGeometryCache = null;

@@ -2997,7 +2997,8 @@
     // Every series is drawn in its team colour and named at its end (teammates dashed); with many series the chart grows so
     // the names, 13 px apart, never collide, and the points shrink so the lines stay readable.
     const named = endLabels && series.length > 1, dense = series.length > 8;
-    const W = width, H = named ? Math.max(height, series.length * 19 + 60) : height, R = series.length === 1 ? 44 : named ? 52 : 12, T = 12, B = 48;
+    // Named lines leave a short run beyond the last round for the leaders to their names (endKey).
+    const W = width, H = named ? Math.max(height, series.length * 19 + 60) : height, R = series.length === 1 ? 44 : named ? 64 : 12, T = 12, B = 48;
     const dashed = teammateDashes(series);
     // A crowded chart (the whole grid) colours the six leaders at the last round; the rest stay as faint context lines that
     // light up on hover or when picked, so the chart reads as a story rather than a tangle.
@@ -3057,7 +3058,7 @@
         const i = s.values.findLastIndex(v => v != null);
         return i < 0 ? null : {id: s.id, colour: faint(s) ? 'var(--ui-tertiary)' : s.colour, name: s.short || s.label, x: x(i), y: y(s.values[i]), minor: faint(s), quiet: faint(s)};
       }).filter(Boolean);
-      svg += endKey(ends, W - R + 4, dense ? 19 : 14, H - B);   // 19 units: about 14 px apart at a half-width desktop card
+      svg += endKey(ends, W - R + 16, dense ? 19 : 14, H - B);   // 19 units: about 14 px apart at a half-width desktop card
     }
     const chart = htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
     if (!(named && dense)) return chart;
@@ -3079,8 +3080,11 @@
     // On a phone a dense chart labels its first ten lines only (season.css .end-key.is-minor); every line stays in the tips.
     return list.map((e, rank) => {
       // Every moved label is tied to its line's end, the quiet ones by a fainter leader, so no name floats unattached.
+      // The leader leaves the line's end level and turns towards the name only past the last round, dotted, so a moved name
+      // never reads as the line itself jumping in the final round.
+      const bend = Math.max((e.x ?? labelX) + 6, labelX - 10);
       const leader = Math.abs(e.ly - e.y) > 3 && e.x != null
-        ? `<path class="end-leader${e.quiet ? ' is-quiet' : ''}" d="M${(e.x + 4).toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 2).toFixed(1)} ${e.y.toFixed(1)}L${(labelX + 2).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
+        ? `<path class="end-leader${e.quiet ? ' is-quiet' : ''}" d="M${(e.x + 3).toFixed(1)} ${e.y.toFixed(1)}L${bend.toFixed(1)} ${e.y.toFixed(1)}L${(labelX - 1).toFixed(1)} ${e.ly.toFixed(1)}" style="stroke:${esc(e.colour)}"/>` : '';
       return `<g class="end-key${rank >= 10 || e.minor ? ' is-minor' : ''}" data-id="${esc(e.id)}">${leader}<text class="label is-value selected-end" x="${(labelX + 4).toFixed(1)}" y="${(e.y + 3.5).toFixed(1)}">${esc(e.name)}</text><text class="label packed-end" style="fill:${esc(e.colour)}" x="${(labelX + 4).toFixed(1)}" y="${(e.ly + 3.5).toFixed(1)}">${esc(e.name)}${e.value != null ? `<tspan class="key-value" dx="5">${esc(e.value)}</tspan>` : ''}</text></g>`;
     }).join('');
   }
@@ -3091,7 +3095,7 @@
     return out;
   }
   function bumpChart(rounds, series, {width = 640, row = 18} = {}) {
-    const n = series.length, W = width, H = Math.max(224, n * row + 54), L = 30, R = 52, T = 10, B = 46;
+    const n = series.length, W = width, H = Math.max(224, n * row + 54), L = 30, R = 64, T = 10, B = 46;
     const dashed = teammateDashes(series);
     const x = i => L + (rounds.length < 2 ? 0 : i / (rounds.length - 1) * (W - L - R));
     const y = p => T + (p - 1) / Math.max(1, n - 1) * (H - T - B);
@@ -3116,7 +3120,7 @@
       if (n <= 8) svg += `<g class="pts${dashed.has(s) ? ' is-hollow' : ''}" style="--c:var(--series-stroke, ${esc(s.colour)})">${pts.map(([px, py]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}"/>`).join('')}</g>`;
       svg += '</g>';
     }
-    svg += endKey(ends, W - R + 4, row, H - B);
+    svg += endKey(ends, W - R + 16, row, H - B);
     return htmlNode(svg + xLabels(rounds, x, H, slot) + '</svg>');
   }
   // Round ticks for a value range. Outward (the default): the first tick is at or below the smallest value and the last at or

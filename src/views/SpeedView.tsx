@@ -1,4 +1,5 @@
 import {Fragment} from 'react';
+import {finite, fmt} from '../../performance-format.js';
 import {BarChart, type BarChartOptions} from '../components/BarChart';
 import {Card} from '../components/Card';
 import {DataTable} from '../components/DataTable';
@@ -47,6 +48,50 @@ function Bands({charts, subject}: {charts: SpeedChart[]; subject: string}) {
     <div className="subject-bands" data-count={filled.length}>{filled.map((c, i) => <Chart key={i} chart={c} />)}</div>
     {empty.map((c, i) => <p key={i} className="subject-band-empty" role="status"><strong>{c.title}</strong> · {c.empty}</p>)}
   </>;
+}
+
+/** Every team across the measured corner-speed bands in one table: its gap to the quickest team in each band (as in the
+ *  band charts), shaded by its rank in that band, so one team's profile reads along a row instead of being looked up in
+ *  three charts that each sort differently. Ordered by the average rank. */
+function CornerProfile({charts}: {charts: SpeedChart[]}) {
+  const bands = charts.filter((c): c is Extract<SpeedChart, {rows: unknown}> => !('empty' in c) && c.rows.length > 1);
+  if (bands.length < 2) return null;
+  const name = (r: Team) => String(r.team || '');
+  const columns = bands.map(b => {
+    const key = b.options.valueKey || 'value', digits = b.options.digits ?? 3, unit = (b.options.unit || '%').replace(/ of .*$/, '');
+    const values = b.rows.filter(r => finite(r[key] as number)).map(r => ({team: r, v: r[key] as number}));
+    const best = Math.min(...values.map(x => x.v));
+    const ranked = [...values].sort((a, c) => a.v - c.v);
+    const cells = new Map(ranked.map((x, i) => [name(x.team), {gap: x.v - best, rank: i + 1}]));
+    return {label: (b.options.title || b.title).replace(/ · .*$/, '').replace(/ corners$/i, ''), digits, unit, count: ranked.length, cells};
+  });
+  const teams = new Map<string, Team>();
+  for (const b of bands) for (const r of b.rows) if (!teams.has(name(r))) teams.set(name(r), r);
+  const rows = [...teams.values()].map(team => {
+    const ranks = columns.map(c => c.cells.get(name(team))?.rank).filter((x): x is number => x != null);
+    return {team, mean: ranks.length ? ranks.reduce((a, b) => a + b, 0) / ranks.length : 99};
+  }).sort((a, b) => a.mean - b.mean);
+  return (
+    <section className="corner-profile">
+      <h4 className="perf-chart-heading">Teams across corner speeds</h4>
+      <p className="performance-quality-status">Gap to the quickest team in each band. Deeper shading is a better rank in that band; rows are ordered by the average rank.</p>
+      <div className="performance-table-wrap" tabIndex={0} role="region" aria-label="Teams across corner speeds">
+        <table className="performance-table team-profile-table corner-profile-table">
+          <thead><tr><th scope="col">Team</th>{columns.map(c => <th key={c.label} scope="col">{c.label}</th>)}</tr></thead>
+          <tbody>{rows.map(({team}) => (
+            <tr key={name(team)}><th scope="row"><TeamLabel team={team} /></th>{columns.map(c => {
+              const cell = c.cells.get(name(team));
+              const heat = cell && c.count > 1 ? (c.count - cell.rank) / (c.count - 1) : 0;
+              const text = cell ? (cell.gap <= 0.00001 ? fmt(0, c.digits, c.unit) : `+${fmt(cell.gap, c.digits, c.unit)}`) : '—';
+              const reading = `${c.label}: ${cell ? `rank ${cell.rank} of ${c.count} · ${text}` : 'not measured'}`;
+              return <td key={c.label} className="profile-rank perf-heat-cell" title={reading} aria-label={reading}>
+                <span className="perf-heat-value" style={heat > 0 ? {'--heat': heat.toFixed(3)} as React.CSSProperties : undefined}>{text}</span></td>;
+            })}</tr>
+          ))}</tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 /** The same measurement for teams and for drivers, side by side. */
@@ -173,6 +218,7 @@ export function SpeedView(p: SpeedViewProps) {
       {head}
       <Card title="Cornering" note={p.note}>
         <GapBasis basis={p.basis} section="corners" />
+        <CornerProfile charts={p.charts} />
         {p.driverCharts
           ? <><Bands charts={p.charts} subject="Teams" />
               <Bands charts={p.driverCharts} subject="Drivers" /></>

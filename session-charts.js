@@ -41,9 +41,11 @@ function updateZoomReadout() {
   const distance = reference?.length ? referenceDistance() : 0;
   const fullLap = traceZoom.start <= 1e-6 && traceZoom.end >= 1 - 1e-6;
   if (readout) {
-    readout.textContent = distance
+    // The whole lap reads "Full lap" whether or not its length is known yet, so the readout never switches between the two
+    // for the same view (it read 0.00–5.48 km once telemetry arrived, and in the expanded view).
+    readout.textContent = distance && !fullLap
       ? `${(traceZoom.start * distance / 1000).toFixed(2)}–${(traceZoom.end * distance / 1000).toFixed(2)} km`
-      : 'full lap';
+      : 'Full lap';
   }
   if (reset) reset.disabled = fullLap;
   if (zoomOut) zoomOut.disabled = fullLap;
@@ -125,6 +127,20 @@ function bindChartZoom() {
 let traceFocusReturn = null;
 let traceFocusPreviousView = null;
 let traceFocusInert = [];
+// Where the track map lives on the page; the expanded view borrows it to sit beside the lap cards.
+let traceFocusMapHome = null;
+function moveTrackMapForFocus(expanded) {
+  const map = document.querySelector?.('.dominance-map'), content = $('#telemetryContent');
+  if (!map?.before || !content?.querySelector) return;
+  if (expanded && !traceFocusMapHome) {
+    traceFocusMapHome = document.createComment('track map');
+    map.before(traceFocusMapHome);
+    (content.querySelector('.sector-times') || content.firstElementChild)?.after(map);
+  } else if (!expanded && traceFocusMapHome) {
+    traceFocusMapHome.replaceWith(map);
+    traceFocusMapHome = null;
+  }
+}
 // Set while a screenshot redraws the charts, so they are as sharp as the text around them.
 let chartCaptureScale = null;
 // Expanded charts keep their height on the page, with more room for the speed trace.
@@ -139,6 +155,7 @@ function setTraceFocus(expanded) {
     if(document.body.classList.contains('trace-focus'))return;
     traceFocusReturn = document.activeElement;
     traceFocusPreviousView = {zoom:{...traceZoom},delta:timingDeltaZoom};
+    moveTrackMapForFocus(true);
     // Inert only siblings along the ancestor path, never an ancestor of charts.
     traceFocusInert = [];
     for (let node = view; node.parentElement; node = node.parentElement) {
@@ -164,13 +181,15 @@ function setTraceFocus(expanded) {
     for (const [element,inert] of traceFocusInert) element.inert = inert;
     traceFocusInert = [];view.removeAttribute('role');view.removeAttribute('aria-modal');
     for (const canvas of canvases) canvas.style.removeProperty('--focus-height');
+    moveTrackMapForFocus(false);
   }
   document.body.classList.toggle('trace-focus', expanded);
   $('#realTooltip').style.display = 'none';
   if (expanded) view.setAttribute('aria-label', 'Expanded lap telemetry');
   else view.removeAttribute('aria-label');
   $('[data-trace-focus="open"]')?.setAttribute('aria-expanded', String(expanded));
-  if (expanded) $('[data-trace-focus="close"]')?.focus();
+  // The expanded view opens at its top (the lap cards), even when its Close button sits below the fold on a phone.
+  if (expanded) { $('[data-trace-focus="close"]')?.focus({preventScroll: true}); if (view.scrollTo) view.scrollTo(0, 0); }
   else if (traceFocusReturn?.isConnected) traceFocusReturn.focus();
   requestAnimationFrame(() => drawAll());
 }
@@ -277,6 +296,11 @@ function bindSpeedChartControls() {
     window.ApexAnalysis?.savePreference('trace-tint', traceTintEnabled);
     if (loaded.length) paintReadyTelemetry();
   });
+  $('#deltaTintToggle')?.addEventListener('change', event => {
+    deltaTintEnabled = event.target.checked;
+    window.ApexAnalysis?.savePreference('delta-tint', deltaTintEnabled);
+    if (loaded.length) drawRealChart('Timing delta');
+  });
   $('#distanceNumbersToggle')?.addEventListener('change', event => {
     showDistanceNumbers = event.target.checked;
     window.ApexAnalysis?.savePreference('distance-numbers', showDistanceNumbers);
@@ -319,7 +343,7 @@ function renderCharts() {
       <div class="chart-heading"><h2>${name} <small>${unit}</small></h2>${name === 'Speed trace' ? `
         <div class="trace-chart-actions">
         <div class="trace-zoom-cluster" aria-label="Trace zoom controls">
-          <span class="trace-zoom-readout">View <b id="traceZoomReadout">full lap</b></span>
+          <span class="trace-zoom-readout"><span class="visually-hidden">View </span><b id="traceZoomReadout">Full lap</b></span>
           <div class="trace-tools">
             <button data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
             <button data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
@@ -329,7 +353,7 @@ function renderCharts() {
             <button class="trace-reset" data-zoom="reset" title="Reset zoom">Reset</button>
           </div>
         </div>
-        <details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="A soft fill in each lap's colour under the speed trace"><input type="checkbox" id="traceTintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint under traces</span></label><label class="trace-setting" title="On hover, show speed, time delta, throttle, brake and gear for every lap together, whichever chart the pointer is on"><input type="checkbox" id="hoverAllToggle" ${window.hoverAllChannels !== false ? 'checked' : ''}><i aria-hidden="true"></i><span>All channels on hover</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details>
+        <details class="trace-display-menu"><summary title="Corner numbers, speed annotations and alignment">Display</summary><div class="trace-settings" aria-label="Telemetry display settings"><label class="trace-setting"><input type="checkbox" id="cornerToggle" ${showCornerNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Corner numbers</span></label><label class="trace-setting" title="Label every measured speed peak and dip. Each lap uses its own minimum or maximum, matched to the other laps by GPS position. The fastest lap shows its speed in km/h; the others show their difference. A dash means that lap has no matching measured extreme."><input type="checkbox" id="speedAnnotationToggle" ${showSpeedAnnotations ? 'checked' : ''}><i aria-hidden="true"></i><span>Speed annotations</span></label><label class="trace-setting" title="A soft fill in each lap's colour under the speed trace"><input type="checkbox" id="traceTintToggle" ${traceTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint under traces</span></label><label class="trace-setting" title="Shade the area between each lap's timing delta and zero: the leading lap's colour"><input type="checkbox" id="deltaTintToggle" ${deltaTintEnabled ? 'checked' : ''}><i aria-hidden="true"></i><span>Tint timing delta</span></label><label class="trace-setting" title="On hover, show speed, time delta, throttle, brake and gear for every lap together, whichever chart the pointer is on"><input type="checkbox" id="hoverAllToggle" ${window.hoverAllChannels !== false ? 'checked' : ''}><i aria-hidden="true"></i><span>All channels on hover</span></label><label class="trace-setting"><input type="checkbox" id="distanceNumbersToggle" ${showDistanceNumbers ? 'checked' : ''}><i aria-hidden="true"></i><span>Distance-axis numbers</span></label><label class="trace-setting" title="Experimental estimate: integrate each lap's measured speed over time and normalize distance within official sectors. This changes the horizontal mapping, not the measured values. Never matches drivers' braking points. Incomplete or unsuitable laps retain the original mapping."><input type="checkbox" id="alignmentCorrectionToggle" ${estimateAlignmentCorrection ? 'checked' : ''} aria-describedby="alignmentCorrectionNotice"><i aria-hidden="true"></i><span>Correct alignment (estimated)</span></label></div></details>
         <button type="button" class="trace-focus-button" data-trace-focus="open" aria-expanded="false" aria-controls="telemetryCard" title="Show the lap details and every chart across the full page">Expand charts</button>
         <details class="trace-display-menu trace-capture-menu"><summary title="Save the charts as an image">Screenshot</summary><div class="trace-settings" aria-label="Screenshot options"><button type="button" class="trace-capture-option" data-capture="traces">Speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="cards">Lap cards, speed trace and timing delta</button><button type="button" class="trace-capture-option" data-capture="all">All charts with lap details</button></div></details><button type="button" class="trace-focus-button trace-focus-close" data-trace-focus="close" title="Return to session analysis">Close view</button>
         </div>` : name === 'Timing delta' ? `
@@ -1545,7 +1569,7 @@ function drawRealChart(name) {
   }
 
   // Timing delta: a flat wash between each lap's line and zero, so time lost and gained reads as area at a glance.
-  if (name === 'Timing delta' && traceEntries.length && bounds.max > bounds.min) {
+  if (name === 'Timing delta' && deltaTintEnabled && traceEntries.length && bounds.max > bounds.min) {
     const plotBottom = rect.height - bounds.bottom;
     const zeroY = Math.min(plotBottom, Math.max(bounds.top, bounds.top + (bounds.max / (bounds.max - bounds.min)) * (plotBottom - bounds.top)));
     // Above zero the compared lap is behind, so the area takes the reference lap's colour (it is leading there);
@@ -1620,6 +1644,34 @@ function drawRealChart(name) {
     ctx.save();clipWindows(gaps);ctx.setLineDash([4,3]);tracePath(points);ctx.stroke();ctx.restore();
   });
   ctx.shadowBlur = 0;
+  // Timing delta: each compared lap is named at the right-hand end of its line with its gap there (the lap gap when the
+  // whole lap is in view), so laps in similar team colours stay identifiable without matching colours to the legend.
+  if (name === 'Timing delta' && traceEntries.length > 1) {
+    const plotTop = bounds.top, plotBottom = rect.height - bounds.bottom, plotRight = rect.width - bounds.right;
+    const labels = traceEntries.filter(entry => entry.index !== 0).map(({ points, teamColor, lap }) => {
+      const end = [...points].reverse().find(point => Number.isFinite(point?.y));
+      if (!end) return null;
+      const value = bounds.max - (end.y - plotTop) / (plotBottom - plotTop) * (bounds.max - bounds.min);
+      return { y: end.y, color: teamColor, text: `${lap?.code || ''} ${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}` };
+    }).filter(Boolean).sort((a, b) => a.y - b.y);
+    // Above its line's end where there is room, then spread so no two labels overlap and all stay inside the plot.
+    const gap = 13;
+    labels.forEach((label, i) => {
+      label.ty = Math.max(plotTop + 7, label.y - 9);
+      if (i) label.ty = Math.max(label.ty, labels[i - 1].ty + gap);
+    });
+    for (let i = labels.length - 1; i >= 0; i--) {
+      const limit = i === labels.length - 1 ? plotBottom - 6 : labels[i + 1].ty - gap;
+      if (labels[i].ty > limit) labels[i].ty = limit;
+    }
+    ctx.save();
+    ctx.font = canvasFont(10, 600); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    for (const label of labels) {
+      ctx.strokeStyle = theme.labelStroke; ctx.lineWidth = 3; ctx.strokeText(label.text, plotRight - 4, label.ty);
+      ctx.fillStyle = label.color; ctx.fillText(label.text, plotRight - 4, label.ty);
+    }
+    ctx.restore();
+  }
   if (name==='Speed trace' && showSpeedAnnotations) {
     const entries=visibleEntries.map(({lap})=>{const samples=telemetryCache.get(telemetryKey(lap));return {lap,samples,alignment:samples?.alignmentInputs};}).filter(e=>e.samples?.length && !e.lap.real?.out_lap);
     const key=totalDist.toFixed(1)+'|'+speedCornerMarkers.map(m=>`${m.key}:${m.fraction.toFixed(5)}`).join('|')+'|'+entries.map(e=>e.samples.positionRevision||0).join(':');

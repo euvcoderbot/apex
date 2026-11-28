@@ -317,6 +317,8 @@ function paintReadyTelemetry() {
     ? defs.filter(([name]) => name !== 'DRS')
     : defs;
   activeDefs.forEach(definition => drawRealChart(definition[0]));
+  // The expanded view's track map widens with the number of laps beside it.
+  $('#telemetryContent')?.style?.setProperty?.('--focus-laps', String(Math.max(1, loaded.length)));
   renderCornerAnalysis();
   renderMiniSectorMap();
   renderTelemetryReadout();

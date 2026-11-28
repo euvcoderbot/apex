@@ -1975,6 +1975,31 @@
 }
 :root[data-skin="linear"] #carPerformance .performance-split-view:not(.is-independent-rows) :is(.performance-bar-label, .performance-tyre-age-name, .performance-bar-track, .performance-tyre-age-track, .performance-bar-val, .performance-tyre-age-value) { grid-area: auto; }
 :root[data-skin="linear"] #carPerformance :is(.performance-bar-row, .performance-tyre-age-row):hover { background: var(--lin-nav-active); }
+/* Qualifying against race pace: one row per team, a ring at its qualifying gap and a dot at its race gap on one shared
+   scale, joined by a line in the team colour, so the distance between them is the car's one-lap / long-run difference. */
+:root[data-skin="linear"] #carPerformance .pace-compare-card { grid-column: 1 / -1; margin-top: 16px; }
+:root[data-skin="linear"] #carPerformance .pace-compare-card .perf-chart-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+:root[data-skin="linear"] #carPerformance .pace-compare-key { display: flex; gap: 14px; font: 450 12px/1.4 var(--ui-font); color: var(--ui-secondary); }
+:root[data-skin="linear"] #carPerformance .pace-compare-key span { display: inline-flex; align-items: center; gap: 6px; }
+:root[data-skin="linear"] #carPerformance .pace-compare-key i { width: 9px; height: 9px; border-radius: 50%; box-sizing: border-box; }
+:root[data-skin="linear"] #carPerformance .pace-compare-key i.is-qualy { border: 1.5px solid var(--ui-secondary); }
+:root[data-skin="linear"] #carPerformance .pace-compare-key i.is-race { background: var(--ui-secondary); }
+:root[data-skin="linear"] #carPerformance .pace-compare-rows { grid-template-columns: minmax(84px, min(180px, 30%)) minmax(48px, 1fr) max-content; }
+:root[data-skin="linear"] #carPerformance .pace-compare-track { position: relative; height: 12px; background: none; }
+/* The shared zero and the track's centre line, drawn as hairlines rather than a filled bar. */
+:root[data-skin="linear"] #carPerformance .pace-compare-track::before { content: ""; position: absolute; inset: 5.5px 0 auto; height: 1px; background: var(--lin-hairline); }
+:root[data-skin="linear"] #carPerformance .pace-compare-track > i { position: absolute; top: 50%; }
+:root[data-skin="linear"] #carPerformance .pace-compare-span { height: 2px; margin-top: -1px; background: color-mix(in srgb, var(--bar-color) 55%, transparent); }
+:root[data-skin="linear"] #carPerformance .pace-compare-dot { width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; box-sizing: border-box; }
+:root[data-skin="linear"] #carPerformance .pace-compare-dot.is-qualy { border: 2px solid var(--bar-color); background: var(--lin-card); }
+:root[data-skin="linear"] #carPerformance .pace-compare-dot.is-race { background: var(--bar-color); box-shadow: 0 0 0 1.5px var(--lin-card); }
+:root[data-skin="linear"] #carPerformance .pace-compare-val { display: inline-grid; grid-template-columns: 6ch 6ch; gap: 10px; }
+:root[data-skin="linear"] #carPerformance .pace-compare-val > span:first-child { color: var(--ui-tertiary); }
+/* A phone keeps the names and the scale; both exact gaps are in the two charts above and in each row's reading. */
+@media (max-width: 480px) {
+  :root[data-skin="linear"] #carPerformance .pace-compare-rows { grid-template-columns: minmax(84px, 42%) minmax(36px, 1fr) 0; column-gap: 8px; }
+  :root[data-skin="linear"] #carPerformance .pace-compare-val { display: none; }
+}
 :root[data-skin="linear"] .performance-bar-val, :root[data-skin="linear"] .performance-tyre-age-value { font: 500 12px/1 var(--ui-font); font-variant-numeric: tabular-nums; color: var(--ui-secondary); }
 :root[data-skin="linear"] .performance-bar-val .performance-bar-seconds { font: 450 11px/1 var(--ui-font); color: var(--ui-tertiary); }
 
@@ -2760,6 +2785,13 @@
 :root[data-skin="linear"] .team-profile-table tbody td.profile-rank { padding: 2px; width: 11%; }
 :root[data-skin="linear"] .team-profile-table tbody :is(th, td) { vertical-align: middle; }
 :root[data-skin="linear"] .team-profile-table tbody th[scope="row"] { background: transparent; }
+/* Cornering: the band profile table sits above the band charts, one row per team, its gap readings in the heat cells. */
+:root[data-skin="linear"] #carPerformance .corner-profile { margin: 4px 0 20px; }
+:root[data-skin="linear"] #carPerformance .corner-profile .performance-quality-status { margin: 2px 0 8px; }
+:root[data-skin="linear"] #carPerformance .corner-profile-table { width: auto; min-width: min(100%, 520px); table-layout: fixed; }
+:root[data-skin="linear"] #carPerformance .corner-profile-table :is(thead th, tbody td):not(:first-child) { width: 132px; text-align: center; }
+:root[data-skin="linear"] #carPerformance .corner-profile-table :is(thead th, tbody th):first-child { width: 180px; }
+:root[data-skin="linear"] #carPerformance .corner-profile-table .perf-heat-value { font-weight: 500; font-variant-numeric: tabular-nums; }
 @media (max-width: 1100px) {
   :root[data-skin="linear"] #carPerformance .team-profile-table :is(thead, tbody) th:first-child {
     position: sticky; inset-inline-start: 0; background: var(--lin-card); box-shadow: inset -1px 0 var(--lin-hairline);
@@ -2940,6 +2972,30 @@
   :root[data-skin="linear"] .sector-cards .lap-summary-card {
     grid-template: "identity" "conditions" "sectors" "time" / minmax(0, 1fr);
   }
+}
+/* Expanded charts: the track map comes along and sits beside the lap cards and the time summary, exactly as tall as they
+   are (contain: size keeps the map from setting the row height). Its column widens with the number of laps, so a long
+   comparison gets a larger map while the cards keep their compact layout; on a phone it sits under the cards instead. */
+:root[data-skin="linear"] body.trace-focus #telemetryContent:has(> .dominance-map) {
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(200px, calc(100px + var(--focus-laps, 2) * 60px), 380px);
+  column-gap: 12px; align-items: start;
+}
+:root[data-skin="linear"] body.trace-focus #telemetryContent:has(> .dominance-map) > * { grid-column: 1 / -1; min-width: 0; }
+:root[data-skin="linear"] body.trace-focus #telemetryContent > :is(.sector-times, #timeSummary) { grid-column: 1; }
+:root[data-skin="linear"] body.trace-focus #telemetryContent > .dominance-map {
+  grid-column: 2; grid-row: 1; align-self: stretch; contain: size; min-height: 168px; box-sizing: border-box; position: relative;
+  display: flex; flex-direction: row; align-items: stretch; margin: 0; padding: 6px; overflow: hidden;
+}
+:root[data-skin="linear"] body.trace-focus #telemetryContent:has(> #timeSummary:not(:empty)) > .dominance-map { grid-row: 1 / span 2; }
+:root[data-skin="linear"] body.trace-focus #telemetryContent > .dominance-map .map-view-row { display: none; }
+/* Only the track: the lap pills above already name each lap and its colour, so the title, compass, wind and key are left
+   to the page's map. */
+:root[data-skin="linear"] body.trace-focus #telemetryContent > .dominance-map .dominance-map-header { display: none; }
+:root[data-skin="linear"] body.trace-focus #telemetryContent > .dominance-map #dominanceCanvas { flex: 1 1 0; min-width: 0; width: auto; height: auto; min-height: 0; max-height: none; }
+@media (max-width: 760px) {
+  :root[data-skin="linear"] body.trace-focus #telemetryContent:has(> .dominance-map) { grid-template-columns: minmax(0, 1fr); }
+  :root[data-skin="linear"] body.trace-focus #telemetryContent > .dominance-map { grid-column: 1; grid-row: auto; contain: none; height: 220px; margin-top: 8px; }
+  :root[data-skin="linear"] body.trace-focus #telemetryContent:has(> #timeSummary:not(:empty)) > .dominance-map { grid-row: auto; }
 }
 /* The mini-sector strip follows the F1 sector status line. Both retain their timing colours. */
 :root[data-skin="linear"] .lap-summary-card .sector-minis { display: flex; gap: 2px; }
