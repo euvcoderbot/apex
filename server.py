@@ -1952,6 +1952,10 @@ def fetch_openf1_session_drivers(
                     "s1": float(lap["duration_sector_1"]) if lap.get("duration_sector_1") is not None else None,
                     "s2": float(lap["duration_sector_2"]) if lap.get("duration_sector_2") is not None else None,
                     "s3": float(lap["duration_sector_3"]) if lap.get("duration_sector_3") is not None else None,
+                    # F1's own mini-sector statuses per sector (2051 session best, 2049 personal best, 2048 slower,
+                    # 2064 pit lane, 0 or null no status), as the timing tower colours them.
+                    "minis": [[int(code) if isinstance(code, (int, float)) else None for code in (lap.get(f"segments_sector_{n}") or [])]
+                              for n in (1, 2, 3)] if any(lap.get(f"segments_sector_{n}") for n in (1, 2, 3)) else None,
                     "compound": comp,
                     "tyre_life": tyre_life,
                     "stint": st_num,

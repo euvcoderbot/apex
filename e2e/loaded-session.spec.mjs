@@ -7,7 +7,7 @@ const calendar=[{year:2026,round:18,name:'United States Grand Prix',country:'Uni
 
 async function loaded(page,{missing=false,partial=false,corners=null,wind=null}={}){
   const sessionData=wind?{...session,drivers:session.drivers.map(driver=>({...driver,laps:driver.laps.map(lap=>({
-    ...lap,conditions:{...lap.conditions,...wind},
+    ...lap,conditions:{...lap.conditions,...wind},minis:[[2049,2049,2051,2048,2049,2048],[2048,2049,2049,2048,2051],[2051,2048,2049,2049,2064]],
   }))}))}:session;
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route(/127\.0\.0\.1:54123/,route=>route.abort());
