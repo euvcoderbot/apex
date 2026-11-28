@@ -150,9 +150,22 @@ function bindAllChartHover() {
         ? entries.map(({lap, series}) => { const t = brakeTransitionNear(series, fraction, maxDistance); return t ? `${escapeUI(lap.code)} ${t.kind} between ${Math.round(t.from)} and ${Math.round(t.to)} m (${Math.round(t.to - t.from)} m)` : null; }).filter(Boolean)
         : [];
       const brakeNote = brakeNotes.length ? `<br><small>Brake change · ${brakeNotes.join('; ')}</small>` : '';
+      // With explanations on, the delta card discloses where its two estimates part: the plotted delta integrates the speed
+      // trace between the official sector anchors, the other compares the timestamps at this place. Shown only where they
+      // differ by more than 0.05 s, so the plotted line stays the one answer elsewhere.
+      const deltaNotes = hoveredChartName === 'Timing delta' && !document.body.classList.contains('is-descriptions-hidden')
+        && typeof displayDeltaAt === 'function' && typeof deltaAt === 'function' && !window.ApexTelemetryFrame?.partial() && !loaded[0]?.real?.out_lap
+        ? entries.filter(({index, lap, series}) => index !== 0 && series?.length && !lap.real?.out_lap).map(({lap, series}) => {
+          const integrated = displayDeltaAt(series, refSamples, fraction), stamped = deltaAt(series, refSamples, fraction * maxDistance);
+          const signed = v => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(3)} s`;
+          return Number.isFinite(integrated) && Number.isFinite(stamped) && Math.abs(integrated - stamped) > DELTA_ESTIMATE_DISCLOSURE_S
+            ? `${escapeUI(lap.code)} ${signed(integrated)} speed · ${signed(stamped)} timestamps` : null;
+        }).filter(Boolean)
+        : [];
+      const deltaNote = deltaNotes.length ? `<br><small>Δ estimates · ${deltaNotes.join('; ')}</small>` : '';
       const sourceGapNote=sourceGapNotes.size?`<br><small>Source gap · ${[...sourceGapNotes.values()].map(escapeUI).join('; ')}<br>Curve inside the gap is interpolated.</small>`:'';
       // The distance is already on the x-axis cursor label, so the card carries only the readings.
-      tooltip.innerHTML = `${lines.join('<br>')}${brakeNote}${sourceGapNote}${reconstructionNote}`;
+      tooltip.innerHTML = `${lines.join('<br>')}${brakeNote}${deltaNote}${sourceGapNote}${reconstructionNote}`;
       tooltip.classList.toggle('has-readout', allChannels);
       tooltip.style.display = 'block';
       
@@ -243,10 +256,13 @@ function bindTrackMapHover() {
         });
         const comparable = segmentRows.length >= 2 && segmentRows.every(row => Number.isFinite(row.sectionTime) && row.sectionTime > 0);
         const bestTime = comparable ? Math.min(...segmentRows.map(row => row.sectionTime)) : null;
+        const ordered = comparable ? segmentRows.map(row => row.sectionTime).sort((a, b) => a - b) : [];
+        const level = comparable && typeof miniSectorTieSeconds === 'function'
+          && ordered[1] - ordered[0] < miniSectorTieSeconds((segmentEnd - segmentStart) * totalDistance);
         const lines = segmentRows.map(({ lap, speed, sectionTime }) => {
           const speedDisplay = Number.isFinite(speed) ? `${speed.toFixed(1)} km/h` : '—';
           const timeDisplay = Number.isFinite(sectionTime) && sectionTime > 0
-            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · not compared' : Math.abs(sectionTime - bestTime) < .0005 ? ' · fastest' : ` +${(sectionTime - bestTime).toFixed(3)}s`}`
+            ? `${sectionTime.toFixed(3)}s${bestTime == null ? ' · not compared' : Math.abs(sectionTime - bestTime) < .0005 ? (level ? ' · level' : ' · fastest') : ` +${(sectionTime - bestTime).toFixed(3)}s${level && sectionTime - bestTime < miniSectorTieSeconds((segmentEnd - segmentStart) * totalDistance) ? ' · level' : ''}`}`
             : 'no section time';
           return `<span style="color: ${getLapColor(lap)}">●</span> ${lap.code} L${lap.lap} · <b>${speedDisplay}</b> · ${timeDisplay}`;
         });
@@ -367,3 +383,5 @@ function brakeTransitionNear(series, fraction, total, reach = 60) {
   return best;
 }
 
+// Integrated (plotted) and timestamp deltas closer than this are not disclosed separately.
+const DELTA_ESTIMATE_DISCLOSURE_S = .05;

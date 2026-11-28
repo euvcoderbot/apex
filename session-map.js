@@ -284,27 +284,33 @@ function renderMiniSectorMap() {
   }
   ctx.restore();
 
-  let unavailableSegments = 0;
+  let unavailableSegments = 0, levelSegments = 0;
   if (comparative) {
     // Consecutive mini-sectors won by the same lap are one run: one smooth stroke with flat ends, so neighbouring colours meet
     // edge to edge instead of overlapping round caps at every 25 m boundary. The winners themselves are unchanged.
+    // A level segment (closer than the timing resolves) is drawn neutral; one without a comparable time for every lap is
+    // dashed over the bare outline, so missing data never reads as either lap's colour or as a tie.
     const runs = [];
-    for (const {start, end, winner} of miniSectorDominanceSegments(allSeries, totalDistance)) {
-      if (winner < 0) { unavailableSegments++; continue; }
+    for (const {start, end, winner, level, missing} of miniSectorDominanceSegments(allSeries, totalDistance)) {
+      const key = missing ? 'missing' : level ? 'level' : winner;
+      if (missing) unavailableSegments++;
+      else if (level) levelSegments++;
       const last = runs[runs.length - 1];
-      if (last && last.winner === winner && Math.abs(last.end - start) < 1e-9) last.end = end;
-      else runs.push({start, end, winner});
+      if (last && last.key === key && Math.abs(last.end - start) < 1e-9) last.end = end;
+      else runs.push({start, end, key});
     }
     ctx.save();
-    ctx.lineWidth = 7;
-    ctx.lineCap = 'butt';
     ctx.lineJoin = 'round';
-    for (const {start, end, winner} of runs) {
-      ctx.strokeStyle = getLapColor(mapEntries[winner].lap);
+    for (const {start, end, key} of runs) {
+      ctx.lineCap = 'butt';
+      ctx.setLineDash(key === 'missing' ? [3, 4] : []);
+      ctx.lineWidth = key === 'missing' ? 2 : 7;
+      ctx.strokeStyle = key === 'missing' ? theme.gridStrong : key === 'level' ? theme.text : getLapColor(mapEntries[key].lap);
       ctx.beginPath();
       traceSmoothPath(ctx, miniSectorGeometryPoints(canvasGeometry, start, end, pointAt));
       ctx.stroke();
     }
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
@@ -410,7 +416,8 @@ function renderMiniSectorMap() {
     const lap = mapEntries[index]?.lap;
     if (!lap) return '';
     return `<span class="legend-item"><i class="legend-color" style="--team:${getLapColor(lap)}"></i>${lap.code} L${lap.lap}</span>`;
-  }).join('') + (unavailableSegments ? `<span class="legend-item" title="Every selected lap needs a supported positive timing for a segment to be compared.">${unavailableSegments} segments unavailable · grey</span>` : '');
+  }).join('') + (levelSegments ? `<span class="legend-item" title="The quickest two laps are closer than the telemetry can separate over this segment (5 ms or more, by length).">${levelSegments} level <i class="legend-color is-level" aria-hidden="true"></i></span>` : '')
+    + (unavailableSegments ? `<span class="legend-item" title="Every selected lap needs a supported positive timing for a segment to be compared.">${unavailableSegments} unavailable <i class="legend-color is-missing" aria-hidden="true"></i></span>` : '');
 }
 
 function drawMapHover() {

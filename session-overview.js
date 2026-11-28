@@ -462,8 +462,9 @@
     if (!root) return;
     const reference = loaded[0] && telemetryCache.get(telemetryKey(loaded[0]));
     if (loaded.length < 2 || !reference?.length || typeof adaptiveCornerZones !== 'function') { root.hidden = true; root.innerHTML = ''; return; }
-    const totalDistance = reference[reference.length - 1].Distance || 1;
-    const zones = sessionPerformanceZones(adaptiveCornerZones(resolveCornerMarkers(reference, totalDistance, loaded[0].cornerMarkers)), totalDistance);
+    const circuit = typeof circuitReferenceTelemetry === 'function' ? circuitReferenceTelemetry() : null;
+    const totalDistance = circuit ? referenceDistance() : reference[reference.length - 1].Distance || 1;
+    const zones = sessionPerformanceZones(adaptiveCornerZones(resolveCornerMarkers(circuit?.samples || reference, totalDistance, circuitCornerMarkers?.() || loaded[0].cornerMarkers)), totalDistance);
     const readouts = loaded.slice(1).flatMap(lap => {
       const samples = telemetryCache.get(telemetryKey(lap));
       if (!samples?.length || lap.real?.out_lap || loaded[0].real?.out_lap) return [];

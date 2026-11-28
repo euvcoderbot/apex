@@ -45,8 +45,10 @@ function lapMetadata(lap) {
   return lap?.real || lap || {};
 }
 
+// The distance scale is the circuit path's (the spatial reference lap), not the timing reference's: swapping which lap
+// is the timing reference keeps every packet at the same physical place and the same metres on the axis.
 function referenceDistance() {
-  const reference = loaded.map(lap => telemetryCache.get(telemetryKey(lap))).find(samples => samples?.length);
+  const reference = circuitReferenceTelemetry()?.samples;
   return reference?.length ? (+reference.traceDistance || +reference[reference.length - 1].Distance || 1) : 1;
 }
 
@@ -329,13 +331,50 @@ function alignedSectorFractions(samples, lap) {
     : sectorFractions(samples, lap);
 }
 
+// One lap supplies the circuit path (the projection target, distance scale and corner markers). It is chosen from the
+// laps' own evidence, never from their order: the most complete position coverage, then the faster lap, then driver code
+// and lap number. The timing reference (loaded[0]) only decides which lap the gaps are measured against.
+function rankSpatialCandidates(items) {
+  const time = item => { const value = +(item.lap?.real?.time ?? item.lap?.time); return value > 0 ? value : Infinity; };
+  return items.sort((left, right) =>
+    ((right.samples.quality?.positionCoverage || 0) - (left.samples.quality?.positionCoverage || 0))
+      || ((time(left) - time(right)) || 0)
+      || String(left.lap?.code || '').localeCompare(String(right.lap?.code || ''))
+      || ((+left.lap?.lap || 0) - (+right.lap?.lap || 0)));
+}
+
+let spatialReferenceChoice = null;   // set by prepareTelemetryAlignment for the laps it aligned
+
+function alignedSpatialChoice() {
+  const choice = spatialReferenceChoice;
+  if (!choice || choice.key !== loaded.map(lap => telemetryKey(lap)).sort().join('|')) return undefined;
+  if (choice.result && telemetryCache.get(telemetryKey(choice.result.lap)) !== choice.result.samples) return undefined;
+  return choice.result;
+}
+
+// The lap whose positions draw the circuit (the map uses it even when alignment fell back to distance).
 function spatialReferenceTelemetry() {
-  return loaded
+  const aligned = alignedSpatialChoice();
+  if (aligned) return aligned;
+  return rankSpatialCandidates(loaded
     .map(lap => ({ lap, samples: telemetryCache.get(telemetryKey(lap)) }))
-    .filter(item => item.samples?.length && completePositionGeometry(item.samples))
-    .sort((left, right) =>
-      (right.samples.quality?.positionCoverage || 0)
-        - (left.samples.quality?.positionCoverage || 0))[0] || null;
+    .filter(item => item.samples?.length && completePositionGeometry(item.samples)))[0] || null;
+}
+
+// The lap that set the alignment: the circuit path when one was usable, otherwise the first lap with telemetry
+// (distance alignment, which follows the timing reference).
+function circuitReferenceTelemetry() {
+  const aligned = alignedSpatialChoice();
+  const spatial = aligned === undefined ? spatialReferenceTelemetry() : aligned;
+  if (spatial) return spatial;
+  const lap = loaded.find(item => telemetryCache.get(telemetryKey(item))?.length);
+  return lap ? { lap, samples: telemetryCache.get(telemetryKey(lap)) } : null;
+}
+
+// Corner markers of the circuit path (projected against that lap), falling back to the timing reference's.
+function circuitCornerMarkers() {
+  const lap = circuitReferenceTelemetry()?.lap;
+  return lap?.cornerMarkers?.length ? lap.cornerMarkers : loaded[0]?.cornerMarkers;
 }
 
 function positionMotionConsistent(samples) {
@@ -1215,14 +1254,13 @@ function prepareTelemetryAlignment() {
     updateAlignmentStatus();
     return;
   }
-  const candidates = loaded
+  const candidates = rankSpatialCandidates(loaded
     .map(lap => ({ lap, samples: telemetryCache.get(telemetryKey(lap)) }))
-    .filter(item => item.samples?.length)
-    .sort((left, right) =>
-      (right.samples.quality?.positionCoverage || 0) - (left.samples.quality?.positionCoverage || 0));
+    .filter(item => item.samples?.length));
   const spatial = candidates.find(item =>
     completePositionGeometry(item.samples)
       && referencePositionPath(item.samples));
+  spatialReferenceChoice = { key: loaded.map(lap => telemetryKey(lap)).sort().join('|'), result: spatial || null };
   const spatialLap = spatial?.lap || referenceLap;
   const spatialReference = spatial?.samples || reference;
   const referenceSectors = sectorFractions(spatialReference, spatialLap);

@@ -91,6 +91,9 @@ function mergeCornerWindows(zones) {
   return merged;
 }
 
+// Minimum speeds closer than this are level: the feed's speed resolution and sample spacing cannot separate them.
+const CORNER_SPEED_LEVEL_KMH = 2;
+
 function sessionPerformanceZones(zones, totalDistance) {
   if (!zones.length) return [];
   const corners = zones.map(zone => ({...zone,kind:'corner'}));
@@ -183,8 +186,10 @@ function renderCornerAnalysis() {
     root.innerHTML = '<span class="section-empty">Corner analysis is waiting for aligned position data.</span>';
     return;
   }
-  const totalDistance = reference[reference.length - 1].Distance || 1;
-  const markers = resolveCornerMarkers(reference, totalDistance, referenceLap?.cornerMarkers);
+  // Corner windows are circuit locations: measured on the circuit path and its distance scale, whichever lap is the reference.
+  const circuit = typeof circuitReferenceTelemetry === 'function' ? circuitReferenceTelemetry() : null;
+  const totalDistance = circuit ? referenceDistance() : reference[reference.length - 1].Distance || 1;
+  const markers = resolveCornerMarkers(circuit?.samples || reference, totalDistance, circuit?.lap?.cornerMarkers?.length ? circuit.lap.cornerMarkers : referenceLap?.cornerMarkers);
   const zones = sessionPerformanceZones(adaptiveCornerZones(markers), totalDistance);
   if (!zones.length) {
     pickerRoot.innerHTML = ''; cornerPickerMarkup.delete(pickerRoot);
@@ -210,8 +215,11 @@ function renderCornerAnalysis() {
   }).filter(Boolean):allMetrics[selectedIndex]||[];
   const finiteTimes = metrics.map(item => item.metric.sectionTime).filter(Number.isFinite);
   const fastestSection = finiteTimes.length ? Math.min(...finiteTimes) : null;
-  const finiteMinimumSpeeds = metrics.map(item => item.metric.minimumSpeed).filter(Number.isFinite);
-  const highestMinimumSpeed = finiteMinimumSpeeds.length ? Math.max(...finiteMinimumSpeeds) : null;
+  // The highest minimum is marked only when it is a real dip (not the window's edge) and clear of the next by 2 km/h.
+  const finiteMinimumSpeeds = metrics.filter(item => averageSpeed || !item.metric.minimumAtBoundary)
+    .map(item => item.metric.minimumSpeed).filter(Number.isFinite).sort((a, b) => b - a);
+  const highestMinimumSpeed = finiteMinimumSpeeds.length > 1 && finiteMinimumSpeeds[0] - finiteMinimumSpeeds[1] >= CORNER_SPEED_LEVEL_KMH
+    ? finiteMinimumSpeeds[0] : null;
   const referenceSection = metrics[0]?.metric.sectionTime;
   const signedDelta = value => `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(3)}s`;
   // Retained model diagnostic, separate from measured timestamps and the
@@ -244,14 +252,15 @@ function renderCornerAnalysis() {
       ? 'is-reference' : toReference < 0 ? 'is-faster' : 'is-slower';
     const fastest = Number.isFinite(sectionTime) && Number.isFinite(fastestSection)
       && Math.abs(sectionTime - fastestSection) < .0005;
-    const highestMinimum = Number.isFinite(item.metric.minimumSpeed) && Number.isFinite(highestMinimumSpeed)
+    const windowMinimum = !averageSpeed && item.metric.minimumAtBoundary;
+    const highestMinimum = !windowMinimum && Number.isFinite(item.metric.minimumSpeed) && Number.isFinite(highestMinimumSpeed)
       && Math.abs(item.metric.minimumSpeed - highestMinimumSpeed) < .05;
     return `
       <tr class="corner-measurement-row ${fastest && loaded.length > 1 ? 'is-fastest' : ''} ${highestMinimum && loaded.length > 1 ? 'is-highest-min' : ''}">
         <th scope="row" class="corner-driver-cell"><span class="corner-driver">${teamLogoMarkup(realDrivers.get(item.lap.code)?.team || drivers.find(driver=>driver[0]===item.lap.code)?.[4], drivers.find(driver=>driver[0]===item.lap.code)?.[1])}<span class="corner-driver-copy"><b>${item.lap.code}</b><small>L${item.lap.lap}</small></span></span></th>
         <td class="corner-time"><strong>${Number.isFinite(sectionTime) ? sectionTime.toFixed(3)+'s' : '—'}</strong></td>
         <td class="corner-delta ${deltaClass}"><strong>${Number.isFinite(toReference) ? signedDelta(toReference) : '—'}</strong></td>
-        <td class="corner-speed"><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong></td>
+        <td class="corner-speed"${windowMinimum ? ' title="Window minimum: the lowest speed is on the turn window’s edge, not a speed dip inside it"' : ''}><strong>${Number.isFinite(item.metric.minimumSpeed) ? item.metric.minimumSpeed.toFixed(1) : '—'}</strong>${windowMinimum ? '<small class="corner-window-min">window min</small>' : ''}</td>
       </tr>`;
   }).join('');
 
@@ -275,23 +284,30 @@ function renderCornerAnalysis() {
   const everyCorner=cornerOrder.filter(([,i])=>allMetrics[i]?.length);
   if(everyCorner.length&&loaded.length){
     const lapHead=loaded.map(lap=>`<th scope="col" class="num"><span class="corner-every-lap" style="--team:${escapeUI(getLapColor(lap))}">${escapeUI(lap.code)} <small>L${lap.lap}</small></span></th>`).join('');
-    const diffScale=Math.max(1,...everyCorner.map(([,i])=>{const v=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);return loaded.length===2&&v.every(Number.isFinite)?Math.abs(v[1]-v[0]):0;}));
+    const diffScale=Math.max(1,...everyCorner.map(([,i])=>{const m=loaded.map(lap=>allMetrics[i].find(x=>x.lap===lap)?.metric);const v=m.map(x=>x?.minimumSpeed);return loaded.length===2&&v.every(Number.isFinite)&&!m.some(x=>x?.minimumAtBoundary)?Math.abs(v[1]-v[0]):0;}));
     const body=everyCorner.map(([z,i])=>{
-      const speeds=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric.minimumSpeed);
-      const finite=speeds.filter(Number.isFinite), top=finite.length>1?Math.max(...finite):null;
-      const cells=speeds.map((v,k)=>{const metric=allMetrics[i].find(m=>m.lap===loaded[k])?.metric;const tip=metric?`${loaded[k].code}: ${v.toFixed(1)} km/h at ${Math.round(metric.apexFraction*totalDistance)} m${metric.minimumAtBoundary?' · turn boundary; not a local speed dip':''}. Select this corner to mark it on the speed trace.`:'Insufficient speed samples inside the turn';return `<td class="num${Number.isFinite(v)&&top!=null&&Math.abs(v-top)<.05?' is-best':''}" title="${escapeUI(tip)}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}</td>`;}).join('');
+      const cornerMetrics=loaded.map(lap=>allMetrics[i].find(m=>m.lap===lap)?.metric);
+      const speeds=cornerMetrics.map(metric=>metric?.minimumSpeed);
+      // A minimum on the window's edge is the lowest speed inside the window, not a speed dip: it keeps its value, labelled,
+      // but never wins the row or draws a bar. Minima within 2 km/h of each other are level: no winner, no bar.
+      const boundary=cornerMetrics.map(metric=>!!metric?.minimumAtBoundary);
+      const ranked=speeds.map((v,k)=>Number.isFinite(v)&&!boundary[k]?v:null).filter(v=>v!=null).sort((a,b)=>b-a);
+      const top=ranked.length>1&&ranked[0]-ranked[1]>=CORNER_SPEED_LEVEL_KMH?ranked[0]:null;
+      const cells=speeds.map((v,k)=>{const metric=cornerMetrics[k];const tip=metric?`${loaded[k].code}: ${v.toFixed(1)} km/h at ${Math.round(metric.apexFraction*totalDistance)} m${boundary[k]?' · window minimum: the lowest speed is on the turn window’s edge, not a speed dip inside it':''}. Select this corner to mark it on the speed trace.`:'Insufficient speed samples inside the turn';return `<td class="num${top!=null&&!boundary[k]&&Math.abs(v-top)<.05?' is-best':''}${boundary[k]?' is-window-min':''}" title="${escapeUI(tip)}" style="--team:${escapeUI(getLapColor(loaded[k]))}">${Number.isFinite(v)?Math.round(v):'—'}${boundary[k]?'<small class="corner-window-min">window min</small>':''}</td>`;}).join('');
       const diff=loaded.length===2&&speeds.every(Number.isFinite)?speeds[1]-speeds[0]:null;
+      const level=diff!=null&&Math.abs(diff)<CORNER_SPEED_LEVEL_KMH, edge=boundary.some(Boolean);
       // A diverging bar beside the number: it grows toward the lap that carried more speed, in that lap's colour, scaled to
       // the largest difference on the lap, so the corners where one car is stronger stand out down the column.
-      const bar=diff==null||Math.abs(diff)<0.5?'':`<span class="corner-every-bar" data-side="${diff>0?'right':'left'}" style="--w:${Math.min(100,Math.abs(diff)/diffScale*100).toFixed(1)}%;--team:${escapeUI(getLapColor(loaded[diff>0?1:0]))}" aria-hidden="true"></span>`;
-      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null?'':diff>0.5?'is-faster':diff<-0.5?'is-slower':''}"><span class="corner-every-track">${bar}</span><span class="corner-every-value">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</span></td>`:'';
+      const bar=diff==null||level||edge?'':`<span class="corner-every-bar" data-side="${diff>0?'right':'left'}" style="--w:${Math.min(100,Math.abs(diff)/diffScale*100).toFixed(1)}%;--team:${escapeUI(getLapColor(loaded[diff>0?1:0]))}" aria-hidden="true"></span>`;
+      const diffTitle=edge?'One minimum is on the turn window’s edge, so this is not a like-for-like corner speed':level?`Within ${CORNER_SPEED_LEVEL_KMH} km/h: level`:'';
+      const diffCell=loaded.length===2?`<td class="num corner-every-diff ${diff==null||level||edge?'is-level':diff>0?'is-faster':'is-slower'}"${diffTitle?` title="${escapeUI(diffTitle)}"`:''}><span class="corner-every-track">${bar}</span><span class="corner-every-value">${diff==null?'—':Math.abs(diff)<0.5?'0':`${diff>0?'+':'−'}${Math.abs(diff).toFixed(0)}`}</span></td>`:'';
       return `<tr><th scope="row"><button type="button" class="corner-every-pick" data-corner-every="${i}" aria-pressed="${selectedCornerIndices.has(i)}">${escapeUI(z.label||cornerLabel(z))}</button></th>${cells}${diffCell}</tr>`;
     }).join('');
     root.insertAdjacentHTML('beforeend',`<details class="corner-every" ${cornerEveryOpen?'open':''}><summary>Minimum corner speeds</summary>
       <div class="corner-every-wrap" tabindex="0" role="region" aria-label="Minimum corner speeds"><table class="corner-every-table">
         <thead><tr><th scope="col">Corner</th>${lapHead}${loaded.length===2?`<th scope="col" class="num" title="Speed difference in km/h; positive means the second lap carried a higher minimum">${escapeUI(loaded[1].code)} − ${escapeUI(loaded[0].code)}</th>`:''}</tr></thead>
         <tbody>${body}</tbody></table></div>
-      <p class="corner-every-note">km/h, the lowest plotted speed inside each geometry-defined turn. The filled cell has the higher minimum, not necessarily the quicker corner time. The map compares elapsed time. Select a corner to mark each lap’s minimum on the speed trace; hover a value for its distance.</p></details>`);
+      <p class="corner-every-note">km/h, the lowest plotted speed inside each geometry-defined turn. The filled cell has the higher minimum, not necessarily the quicker corner time; minima within 2 km/h are level. “Window min” is the lowest speed on the turn window’s edge, not a dip inside it, so it is not compared. The map compares elapsed time. Select a corner to mark each lap’s minimum on the speed trace; hover a value for its distance.</p></details>`);
     const every=root.querySelector('.corner-every');
     every.addEventListener('toggle',()=>{if(every.isConnected)cornerEveryOpen=every.open;});
     every.addEventListener('click',event=>{
@@ -751,6 +767,18 @@ function miniSectorDominanceSegments(series, totalDistance, segmentLength = 25) 
       return before == null || after == null ? null : after - before;
     });
     const comparable = durations.length >= 2 && durations.every(time => Number.isFinite(time) && time > 0);
-    return {start, end, durations, winner: comparable ? durations.indexOf(Math.min(...durations)) : -1};
+    const sorted = comparable ? [...durations].sort((a, b) => a - b) : [];
+    // level: the two quickest are closer than the timing can separate here (winner still names the quicker one).
+    const level = comparable && sorted[1] - sorted[0] < miniSectorTieSeconds((end - start) * totalDistance);
+    return {start, end, durations, winner: comparable ? durations.indexOf(sorted[0]) : -1, level, missing: !comparable};
   });
+}
+
+// The smallest segment-time difference treated as real. Measured by resampling (scripts/audit-mini-sector-ties.mjs, the
+// 2026 Singapore qualifying fixture): every other packet was dropped and the laps realigned, and the change in each
+// segment's time gap recorded. At half the sample rate its 90th percentile was about 10 ms over 25 m and 40 ms over 230 m
+// (the sector-time rescaling spreads error along the segment); at the native rate that is about half. Below this, a
+// segment is level rather than won.
+function miniSectorTieSeconds(metres) {
+  return Math.max(.005, (Number(metres) || 0) * 8.5e-5);
 }

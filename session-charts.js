@@ -426,13 +426,7 @@ function renderTelemetryReadout() {
 }
 
 
-function deltaAt(samples, reference, targetDistance) {
-  const fraction = Math.max(0, Math.min(1, targetDistance / referenceDistance()));
-  const timeHere = calibratedElapsed(samples, fraction);
-  const referenceHere = calibratedElapsed(reference, fraction);
-  if (!Number.isFinite(timeHere) || !Number.isFinite(referenceHere)) return null;
-  return timeHere - referenceHere;
-}
+// deltaAt lives in alignment.js (one definition; this file loads first).
 
 function getSectorDistances(lap) {
   if (!lap) return { s1: null, s2: null };
@@ -1372,8 +1366,10 @@ function drawRealChart(name) {
     : getNiceBounds(name, rawMin, rawMax);
   const min = niceBounds.min;
   const max = niceBounds.max;
-  const refLap = loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
-  const refSamples = telemetryCache.get(telemetryKey(refLap));
+  // Distance axis, corner ticks and sector lines come from the circuit path, so they stay put when the timing reference changes.
+  const circuit = typeof circuitReferenceTelemetry === 'function' ? circuitReferenceTelemetry() : null;
+  const refLap = circuit?.lap || loaded.find(lap => telemetryCache.get(telemetryKey(lap))?.length) || loaded[0];
+  const refSamples = circuit?.samples || telemetryCache.get(telemetryKey(refLap));
   const totalDist = refSamples?.length ? referenceDistance() : 5891;
   const axisLeft = TRACE_PLOT_LEFT;
   const speedCornerMarkers = resolveCornerMarkers(refSamples, totalDist, refLap?.cornerMarkers);
@@ -1524,6 +1520,9 @@ function drawRealChart(name) {
       domainPoints = enhancedInterpolationEnabled()
         ? sampledEnhancedTrace(series, field, viewStart, viewEnd, name === 'Speed trace' ? 640 : 420)
         : measuredContinuousTrace(series, field, viewStart, viewEnd);
+    } else if (name === 'Engine speed') {
+      // Every native RPM packet, as the measured speed trace: a fixed grid could step over the peak before a shift.
+      domainPoints = measuredContinuousTrace(series, field, viewStart, viewEnd);
     } else if (name === 'Brake application' || name === 'Gear' || name === 'DRS') {
       domainPoints = measuredDiscreteTrace(series, field, viewStart, viewEnd);
     } else {
